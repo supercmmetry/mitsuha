@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "mitsuha-core",
+    "mitsuha-runtime",
+    "mitsuha-wasm-runtime"
+]
