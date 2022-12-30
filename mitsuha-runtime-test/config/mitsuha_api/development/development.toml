@@ -1,0 +1,9 @@
+[api]
+port = 80
+
+[api.security]
+enable_error_redaction = false
+
+[resource.rules]
+provider_type = "local"
+provider_args = { root_dir = "/opt/mitsuha_api/repo/wasm" }

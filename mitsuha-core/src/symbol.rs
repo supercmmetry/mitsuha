@@ -1,3 +1,5 @@
+use std::{future::Future, pin::Pin};
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -108,4 +110,4 @@ impl Symbol {
     }
 }
 
-pub type SymbolFunc = SharedMany<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync>;
+pub type SymbolFunc = SharedMany<dyn Fn(Vec<u8>) -> Pin<Box<dyn Future<Output = Vec<u8>>>>>;

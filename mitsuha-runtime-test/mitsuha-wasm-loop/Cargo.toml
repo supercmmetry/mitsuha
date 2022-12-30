@@ -1,0 +1,12 @@
+[package]
+name = "mitsuha_wasm_loop"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Musubi dependencies
+musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+musubi_bindings = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+mitsuha_bindings = { git = "https://github.com/supercmmetry/musubi", branch = "master" }

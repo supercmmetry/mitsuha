@@ -1,0 +1,34 @@
+version: '3.9'
+
+services:
+  redis:
+    image: redis:6.2-alpine
+    ports:
+      - 6379:6379
+    command: redis-server --save 60 1 --requirepass password --loglevel warning
+    networks:
+      - internal
+
+  mitsuha_api:
+    image: ghcr.io/supercmmetry/mitsuha-api:development-latest
+    networks:
+      - internal
+    ports:
+      - 80:80
+    volumes:
+      - ./config/mitsuha_api/development:/etc/mitsuha_api/config
+      - ./assets/wasm:/opt/mitsuha_api/repo/wasm
+
+  mitsuha_runtime:
+    depends_on:
+      - redis
+      - mitsuha_api
+    image: ghcr.io/supercmmetry/mitsuha-runtime:test-latest
+    networks:
+      - internal
+    volumes:
+      - ./config/mitsuha_runtime/test:/etc/mitsuha_runtime/config
+
+networks:
+  internal:
+    name: "Internal network"

@@ -1,0 +1,11 @@
+[client.redis]
+url = "redis://:password@redis:6379"
+
+[executor]
+max_instances = 6
+
+[api.security]
+enable_error_redaction = false
+
+[api]
+port = 1730

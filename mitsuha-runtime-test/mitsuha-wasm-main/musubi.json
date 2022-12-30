@@ -1,0 +1,16 @@
+{
+    "name": "mitsuha.test.main",
+    "version": "0.1.0",
+    "deps": [
+        {
+            "name": "mitsuha.test.echo",
+            "version": "0.1.0",
+            "modtype": "WASM"
+        },
+        {
+            "name": "mitsuha.test.loop",
+            "version": "0.1.0",
+            "modtype": "WASM"
+        }
+    ]
+}

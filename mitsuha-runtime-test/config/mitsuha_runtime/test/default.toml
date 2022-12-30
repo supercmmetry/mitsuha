@@ -1,0 +1,2 @@
+[provider.wasm]
+get = "/api/v1/resource/wasm"

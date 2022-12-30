@@ -13,7 +13,7 @@ use mitsuha_core::{
 
 #[derive(Clone)]
 pub struct ArtifactResolver {
-    pub redis_resolver: SharedMany<dyn Resolver<RedisContextKey<ModuleInfo, RedisKey>, Vec<u8>>>,
+    pub redis_resolver: Option<SharedMany<dyn Resolver<RedisContextKey<ModuleInfo, RedisKey>, Vec<u8>>>>,
     pub provider: SharedMany<dyn Provider>,
 }
 
@@ -22,15 +22,16 @@ impl Resolver<ModuleInfo, Vec<u8>> for ArtifactResolver {
     async fn resolve(&self, key: &ModuleInfo) -> types::Result<Vec<u8>> {
         let redis_key = RedisContextKey::new(key.clone(), RedisKey::ModuleInfoToWasm);
 
-        // Check if the file can be resolved from redis.
-        if let Ok(v) = self
-            .redis_resolver
-            .read()
-            .unwrap()
-            .resolve(&redis_key)
-            .await
-        {
-            return Ok(v);
+        if let Some(redis_resolver) = self.redis_resolver.as_ref() {
+            // Check if the file can be resolved from redis.
+            if let Ok(v) = redis_resolver
+                .read()
+                .unwrap()
+                .resolve(&redis_key)
+                .await
+            {
+                return Ok(v);
+            }
         }
 
         let value = self
@@ -44,12 +45,14 @@ impl Resolver<ModuleInfo, Vec<u8>> for ArtifactResolver {
                 inner: key.clone(),
                 source: e,
             })?;
-
-        self.redis_resolver
-            .read()
-            .unwrap()
-            .register(&redis_key, &value)
-            .await?;
+        
+        if let Some(redis_resolver) = self.redis_resolver.as_ref() {
+            redis_resolver
+                .read()
+                .unwrap()
+                .register(&redis_key, &value)
+                .await?;
+        }
 
         Ok(value)
     }
