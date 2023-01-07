@@ -3,16 +3,11 @@ use crate::{module::ModuleInfo, symbol::Symbol};
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     // symbol errors
-
     #[error("ambiguous symbol found in symbol table: {symbol:?}")]
-    AmbiguousSymbolError {
-        symbol: Symbol,
-    },
+    AmbiguousSymbolError { symbol: Symbol },
 
     #[error("could not find symbol in context: {symbol:?}")]
-    NotFoundSymbolError {
-        symbol: Symbol,
-    },
+    NotFoundSymbolError { symbol: Symbol },
 
     // wasm errors
     #[error("resolution failed for {inner:?}, {message}")]

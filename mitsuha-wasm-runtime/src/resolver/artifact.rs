@@ -13,7 +13,8 @@ use mitsuha_core::{
 
 #[derive(Clone)]
 pub struct ArtifactResolver {
-    pub redis_resolver: Option<SharedMany<dyn Resolver<RedisContextKey<ModuleInfo, RedisKey>, Vec<u8>>>>,
+    pub redis_resolver:
+        Option<SharedMany<dyn Resolver<RedisContextKey<ModuleInfo, RedisKey>, Vec<u8>>>>,
     pub provider: SharedMany<dyn Provider>,
 }
 
@@ -24,12 +25,7 @@ impl Resolver<ModuleInfo, Vec<u8>> for ArtifactResolver {
 
         if let Some(redis_resolver) = self.redis_resolver.as_ref() {
             // Check if the file can be resolved from redis.
-            if let Ok(v) = redis_resolver
-                .read()
-                .unwrap()
-                .resolve(&redis_key)
-                .await
-            {
+            if let Ok(v) = redis_resolver.read().unwrap().resolve(&redis_key).await {
                 return Ok(v);
             }
         }
@@ -45,7 +41,7 @@ impl Resolver<ModuleInfo, Vec<u8>> for ArtifactResolver {
                 inner: key.clone(),
                 source: e,
             })?;
-        
+
         if let Some(redis_resolver) = self.redis_resolver.as_ref() {
             redis_resolver
                 .read()

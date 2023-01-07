@@ -9,16 +9,14 @@ use futures::FutureExt;
 use mitsuha_core::{
     errors::Error,
     executor::ExecutorContext,
+    kernel::Kernel,
     linker::{Linker, LinkerContext},
     module::{Module, ModuleInfo, ModuleType},
     resolver::Resolver,
     symbol::Symbol,
-    types::{self, SharedMany, SharedAsyncMany}, kernel::Kernel,
+    types::{self, SharedAsyncMany, SharedMany},
 };
-use musubi_api::types::Data;
 use num_traits::cast::FromPrimitive;
-
-use lazy_static::lazy_static;
 
 use crate::constants::Constants;
 
@@ -200,7 +198,7 @@ impl WasmtimeLinker {
             engine.increment_epoch();
 
             // TODO: Make this configurable
-            tokio::time::sleep(Duration::from_secs(1));
+            std::thread::sleep(Duration::from_secs(1));
         });
 
         *value = true;
@@ -307,7 +305,10 @@ impl WasmtimeLinker {
         let store = guard.as_mut().unwrap();
 
         let output_result = musubi_wasmtime::export::run_exported_function32_read_output(
-            context.get_instance().read().unwrap().as_ref().unwrap(), store, function.as_str(), input,
+            context.get_instance().read().unwrap().as_ref().unwrap(),
+            store,
+            function.as_str(),
+            input,
         );
 
         if let Err(e) = output_result {
@@ -436,7 +437,7 @@ impl Linker for WasmtimeLinker {
             let imported_symbol = symbol.clone();
             let imported_func = wasmtime::Func::wrap3_async(
                 &mut store,
-                move |mut caller: wasmtime::Caller<'_, WasmtimeContext>,
+                move |caller: wasmtime::Caller<'_, WasmtimeContext>,
                       input_ptr: i32,
                       input_len: i64,
                       output_ptr: i32| {
@@ -452,22 +453,26 @@ impl Linker for WasmtimeLinker {
                 },
             );
 
-            linker.define(module_name.as_str(), import.name(), imported_func);
-        }
-
-        let instance =
             linker
-                .instantiate(&mut store, module.inner())
+                .define(module_name.as_str(), import.name(), imported_func)
                 .map_err(|e| Error::LinkerLinkFailed {
-                    message: format!("failed to instantiate wasmtime module with imports"),
+                    message: "failed to define import in wasmtime module".to_string(),
                     target: module_info.clone(),
                     source: e,
                 })?;
+        }
 
+        let instance = linker
+            .instantiate(&mut store, module.inner())
+            .map_err(|e| Error::LinkerLinkFailed {
+                message: format!("failed to instantiate wasmtime module with imports"),
+                target: module_info.clone(),
+                source: e,
+            })?;
 
         wasmtime_context.set_instance(instance);
 
-        let mut shared_store = Arc::new(RwLock::new(Some(store)));
+        let shared_store = Arc::new(RwLock::new(Some(store)));
 
         let mut executor_context = ExecutorContext::new();
 

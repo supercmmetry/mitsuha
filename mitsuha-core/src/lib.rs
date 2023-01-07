@@ -1,11 +1,11 @@
 pub mod config;
 pub mod errors;
-pub mod linker;
 pub mod executor;
+pub mod kernel;
+pub mod linker;
 pub mod module;
 pub mod provider;
 pub mod resolver;
 pub mod runtime;
 pub mod symbol;
 pub mod types;
-pub mod kernel;

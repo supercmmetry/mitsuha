@@ -2,7 +2,12 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 
-use crate::{module::ModuleInfo, types::{self, SharedAsyncMany}, executor::ExecutorContext, kernel::Kernel};
+use crate::{
+    executor::ExecutorContext,
+    kernel::Kernel,
+    module::ModuleInfo,
+    types::{self, SharedAsyncMany},
+};
 
 pub struct LinkerContext {
     pub dependency_graph: HashMap<ModuleInfo, HashMap<String, ModuleInfo>>,

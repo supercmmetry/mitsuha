@@ -6,7 +6,7 @@ use mitsuha_core::{
     provider::Provider,
     resolver::Resolver,
 };
-use mitsuha_wasm_runtime::resolver::{artifact::ArtifactResolver};
+use mitsuha_wasm_runtime::resolver::artifact::ArtifactResolver;
 use mitsuha_wasm_runtime::wasmtime::WasmMetadata;
 
 pub struct InMemoryWasmProvider {
@@ -56,7 +56,7 @@ async fn load_wasm_metadata_1() -> anyhow::Result<()> {
             modtype: ModuleType::WASM,
         })
         .await?;
-    
+
     WasmMetadata::new(wasm_data.as_slice())?;
 
     Ok(())
