@@ -106,4 +106,11 @@ pub enum Error {
         #[source]
         source: anyhow::Error,
     },
+
+    // unknown errors
+    #[error("encountered unknown error")]
+    Unknown {
+        #[source]
+        source: anyhow::Error,
+    },
 }

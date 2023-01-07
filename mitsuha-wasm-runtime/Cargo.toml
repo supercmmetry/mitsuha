@@ -15,12 +15,13 @@ musubi_wasmtime = { git = "https://github.com/supercmmetry/musubi", branch = "ma
 lazy_static = "1.4.0"
 reqwest = { version = "0.11.13", features = ["blocking"] }
 anyhow = "1.0.66"
-wasmtime = "3.0.1"
+wasmtime = { version = "3.0.1", features = ["async"] }
 wasmparser = "0.96.0"
 async-trait = "0.1.59"
 serde = "1.0.148"
 serde_json = "1.0.89"
 num-traits = "0.2.15"
-tokio = { version = "1.23.0", features = ["full"] }
+tokio = { version = "1.24.1", features = ["full"] }
 strum_macros = "0.24.3"
 strum = "0.24"
+futures = "0.3"

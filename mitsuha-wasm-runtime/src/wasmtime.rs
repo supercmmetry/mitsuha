@@ -1,15 +1,26 @@
-use std::{collections::HashMap, sync::{Arc, RwLock}};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicBool, Arc, RwLock},
+    time::Duration,
+};
 
 use async_trait::async_trait;
+use futures::FutureExt;
 use mitsuha_core::{
     errors::Error,
-    module::{Module, ModuleInfo},
-    types::{self, SharedMany}, linker::{Linker, LinkerContext}, resolver::Resolver, executor::ExecutorContext, symbol::Symbol,
+    executor::ExecutorContext,
+    linker::{Linker, LinkerContext},
+    module::{Module, ModuleInfo, ModuleType},
+    resolver::Resolver,
+    symbol::Symbol,
+    types::{self, SharedMany, SharedAsyncMany}, kernel::Kernel,
 };
 use musubi_api::types::Data;
 use num_traits::cast::FromPrimitive;
 
 use lazy_static::lazy_static;
+
+use crate::constants::Constants;
 
 #[derive(Clone)]
 pub struct WasmMetadata {
@@ -127,20 +138,17 @@ impl WasmtimeModule {
     }
 }
 
-
 #[derive(Clone)]
 pub struct WasmtimeContext {
-    executor_context: SharedMany<ExecutorContext>,
+    kernel: SharedAsyncMany<dyn Kernel>,
     instance: SharedMany<Option<wasmtime::Instance>>,
-    store: SharedMany<Option<wasmtime::Store<Self>>>,
 }
 
 impl WasmtimeContext {
-    pub fn new(executor_context: SharedMany<ExecutorContext>) -> Self {
+    pub fn new(kernel: SharedAsyncMany<dyn Kernel>) -> Self {
         Self {
-            executor_context,
+            kernel,
             instance: Arc::new(RwLock::new(None)),
-            store: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -148,64 +156,173 @@ impl WasmtimeContext {
         *self.instance.write().unwrap() = Some(instance);
     }
 
-    pub fn set_store(&self, store: wasmtime::Store<Self>) {
-        *self.store.write().unwrap() = Some(store);
-    }
-
-    pub fn get_instance(&self) -> &wasmtime::Instance {
-        self.instance.read().unwrap().as_ref().unwrap()
-    }
-
-    pub fn get_store(&self) -> &wasmtime::Store<Self> {
-        self.store.read().unwrap().as_ref().unwrap()
-    }
-
-    pub fn get_store_mut(&self) -> &mut wasmtime::Store<Self> {
-        self.store.write().unwrap().as_mut().unwrap()
+    pub fn get_instance(&self) -> SharedMany<Option<wasmtime::Instance>> {
+        self.instance.clone()
     }
 
     pub async fn call(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
-        self.executor_context.read().unwrap().call(symbol, input).await
+        self.kernel.read().await.run_task(symbol, input).await
     }
 }
 
 pub struct WasmtimeLinker {
     engine: wasmtime::Engine,
     resolver: SharedMany<dyn Resolver<ModuleInfo, WasmtimeModule>>,
+    has_ticker_started: AtomicBool,
 }
 
 impl WasmtimeLinker {
-    pub fn new(resolver: SharedMany<dyn Resolver<ModuleInfo, WasmtimeModule>>) -> Self {
-        Self { 
+    pub fn new(
+        resolver: SharedMany<dyn Resolver<ModuleInfo, WasmtimeModule>>,
+    ) -> types::Result<Self> {
+        let mut config = wasmtime::Config::default();
+        config.async_support(true);
+        config.epoch_interruption(true);
+
+        let engine = wasmtime::Engine::new(&config).map_err(|e| Error::Unknown { source: e })?;
+
+        Ok(Self {
             resolver,
-            engine: wasmtime::Engine::default(),
-        }
+            engine,
+            has_ticker_started: AtomicBool::new(false),
+        })
     }
 
-    async fn fetch_module(
-        &self,
-        module_info: &ModuleInfo,
-    ) -> types::Result<WasmtimeModule> {
+    fn start_ticker(&mut self) {
+        let value = self.has_ticker_started.get_mut();
+        if *value {
+            return;
+        }
+
+        let engine = self.engine.clone();
+
+        tokio::task::spawn_blocking(move || loop {
+            engine.increment_epoch();
+
+            // TODO: Make this configurable
+            tokio::time::sleep(Duration::from_secs(1));
+        });
+
+        *value = true;
+    }
+
+    async fn fetch_module(&self, module_info: &ModuleInfo) -> types::Result<WasmtimeModule> {
         self.resolver.read().unwrap().resolve(module_info).await
     }
 
-    pub fn run_wasm32_import(
-        mut caller: wasmtime::Caller<'_, WasmtimeContext>,
+    fn construct_error(error: &str) -> musubi_api::types::Data {
+        musubi_api::DataBuilder::new()
+            .add(musubi_api::types::Value::Error {
+                code: Constants::RuntimeModuleName.to_string(),
+                message: error.to_string(),
+            })
+            .build()
+    }
+
+    fn emit_wasm32_import_error(
+        error: &str,
+        instance: &wasmtime::Instance,
+        store: impl wasmtime::AsContextMut,
+        output_ptr: i32,
+    ) -> i64 {
+        let data = Self::construct_error(error);
+
+        let result = musubi_wasmtime::import::run_imported_function32_write_output(
+            instance,
+            store,
+            output_ptr as *mut u8,
+            data.try_into().unwrap(),
+        );
+
+        if result.is_err() {
+            return 0;
+        }
+
+        result.unwrap()
+    }
+
+    pub async fn run_wasm32_import<'a>(
+        mut caller: wasmtime::Caller<'a, WasmtimeContext>,
+        symbol: Symbol,
         input_ptr: i32,
         input_len: i64,
         output_ptr: i32,
     ) -> i64 {
-        caller.data().executor_context.read().unwrap().get_kernel().run_task(symbol, input)
-        wasmtime::Func::wrap
+        let instance = caller.data().get_instance();
 
-        // musubi_wasmtime::import::run_imported_function(
-        //     caller.data().,
-        //     store, 
-        //     input_ptr, 
-        //     input_len, 
-        //     output_ptr, 
-        //     inner_func
-        // )
+        let read_result = musubi_wasmtime::import::run_imported_function32_read_input(
+            instance.read().unwrap().as_ref().unwrap(),
+            &mut caller,
+            input_ptr as *mut u8,
+            input_len,
+        );
+
+        if read_result.is_err() {
+            return Self::emit_wasm32_import_error(
+                "failed to read input from memory",
+                instance.read().unwrap().as_ref().unwrap(),
+                &mut caller,
+                output_ptr,
+            );
+        }
+
+        let result = caller.data().call(&symbol, read_result.unwrap()).await;
+
+        if result.is_err() {
+            return Self::emit_wasm32_import_error(
+                format!("failed to call symbol: {:?}", symbol.clone()).as_str(),
+                instance.read().unwrap().as_ref().unwrap(),
+                &mut caller,
+                output_ptr,
+            );
+        }
+
+        let write_result = musubi_wasmtime::import::run_imported_function32_write_output(
+            instance.read().unwrap().as_ref().unwrap(),
+            &mut caller,
+            output_ptr as *mut u8,
+            result.unwrap(),
+        );
+
+        if write_result.is_err() {
+            return Self::emit_wasm32_import_error(
+                "failed to write output from memory",
+                instance.read().unwrap().as_ref().unwrap(),
+                &mut caller,
+                output_ptr,
+            );
+        }
+
+        write_result.unwrap()
+    }
+
+    async fn run_wasm32_export(
+        context: WasmtimeContext,
+        shared_store: SharedMany<Option<wasmtime::Store<WasmtimeContext>>>,
+        function: String,
+        input: Vec<u8>,
+    ) -> Vec<u8> {
+        let mut guard = shared_store.write().unwrap();
+
+        let store = guard.as_mut().unwrap();
+
+        let output_result = musubi_wasmtime::export::run_exported_function32_read_output(
+            context.get_instance().read().unwrap().as_ref().unwrap(), store, function.as_str(), input,
+        );
+
+        if let Err(e) = output_result {
+            return Self::construct_error(
+                format!(
+                    "failed to run exported function: {} with error: {}",
+                    function, e
+                )
+                .as_str(),
+            )
+            .try_into()
+            .unwrap();
+        }
+
+        output_result.unwrap()
     }
 }
 
@@ -215,9 +332,15 @@ impl Linker for WasmtimeLinker {
         &self,
         context: &mut LinkerContext,
         module_info: &ModuleInfo,
-    ) -> anyhow::Result<()> {
+    ) -> types::Result<()> {
         let mut module = self.fetch_module(&module_info).await?;
-        let mut spec = module.get_musubi_spec()?;
+        let mut spec = module
+            .get_musubi_spec()
+            .map_err(|e| Error::LinkerLoadFailed {
+                message: "failed to load musubi specification".to_string(),
+                target: module_info.clone(),
+                source: e,
+            })?;
 
         let mut dependencies = HashMap::new();
 
@@ -225,19 +348,28 @@ impl Linker for WasmtimeLinker {
             dependencies.insert(dependency.name.clone(), dependency.into());
         }
 
-        context.dependency_graph.insert(module_info.clone(), dependencies);
+        context
+            .dependency_graph
+            .insert(module_info.clone(), dependencies);
 
         Ok(())
     }
 
     async fn link(
-        &self,
+        &mut self,
         context: &mut LinkerContext,
         module_info: &ModuleInfo,
-    ) -> anyhow::Result<()> {
+    ) -> types::Result<ExecutorContext> {
         let mut module = self.fetch_module(&module_info).await?;
-        let mut wasmtime_context = WasmtimeContext::new(context.executor_context.clone());
+
+        let wasmtime_context = WasmtimeContext::new(context.kernel.clone());
+
         let mut store = wasmtime::Store::new(&self.engine, wasmtime_context.clone());
+
+        store.epoch_deadline_async_yield_and_update(1);
+        self.start_ticker();
+
+        let mut linker = wasmtime::Linker::new(&self.engine);
 
         let dep_map =
             context
@@ -249,14 +381,140 @@ impl Linker for WasmtimeLinker {
                     source: anyhow::anyhow!(""),
                 })?;
 
-        let imports = vec![];
+        let bitness = module
+            .get_musubi_spec()
+            .map_err(|e| Error::LinkerLinkFailed {
+                message: "failed to load musubi specification".to_string(),
+                target: module_info.clone(),
+                source: e,
+            })?
+            .get_bitness()
+            .map_err(|e| Error::LinkerLinkFailed {
+                message: "failed to load WASM bitness".to_string(),
+                target: module_info.clone(),
+                source: e,
+            })?;
 
-        for (module_name, module_info) in dep_map.iter() {
-            let func = wasmtime::Func::wrap(store, |mut caller: wasmtime::Caller<'_, SharedMany<ExecutorContext>>, input: Vec<u8>| {
-                vec![]
+        if bitness != musubi_api::types::Bitness::X32 {
+            return Err(Error::LinkerLinkFailed {
+                message: "only 32 bit wasm is supported".to_string(),
+                target: module_info.clone(),
+                source: anyhow::anyhow!(""),
             });
         }
-        Ok(())
+
+        for import in module.inner().imports() {
+            // Ignore if the import is not a musubi import
+            let result = Symbol::parse_musubi_function_symbol(import.name());
+            if result.is_err() {
+                continue;
+            }
+
+            let (module_name, _) = result.unwrap();
+
+            let child_info = dep_map.get(&module_name).ok_or(Error::LinkerLinkFailed {
+                message: format!(
+                    "cannot find dependency in context: {}",
+                    module_name.as_str()
+                ),
+                target: module_info.clone(),
+                source: anyhow::anyhow!(""),
+            })?;
+
+            // The import symbol which we will use to get the imported function from executor context
+            let symbol = Symbol::from_imported_function_symbol(
+                import.name(),
+                ModuleType::WASM,
+                child_info.version.as_str(),
+            )
+            .map_err(|e| Error::LinkerLinkFailed {
+                message: format!("failed to import musubi symbol: {}", import.name()),
+                target: module_info.clone(),
+                source: e,
+            })?;
+
+            let imported_symbol = symbol.clone();
+            let imported_func = wasmtime::Func::wrap3_async(
+                &mut store,
+                move |mut caller: wasmtime::Caller<'_, WasmtimeContext>,
+                      input_ptr: i32,
+                      input_len: i64,
+                      output_ptr: i32| {
+                    let fut = Self::run_wasm32_import(
+                        caller,
+                        imported_symbol.clone(),
+                        input_ptr,
+                        input_len,
+                        output_ptr,
+                    );
+
+                    Box::new(fut)
+                },
+            );
+
+            linker.define(module_name.as_str(), import.name(), imported_func);
+        }
+
+        let instance =
+            linker
+                .instantiate(&mut store, module.inner())
+                .map_err(|e| Error::LinkerLinkFailed {
+                    message: format!("failed to instantiate wasmtime module with imports"),
+                    target: module_info.clone(),
+                    source: e,
+                })?;
+
+
+        wasmtime_context.set_instance(instance);
+
+        let mut shared_store = Arc::new(RwLock::new(Some(store)));
+
+        let mut executor_context = ExecutorContext::new();
+
+        for export in module.inner().exports() {
+            // Ignore if the export is not a musubi export
+            let result = Symbol::parse_musubi_function_symbol(export.name());
+            if result.is_err() {
+                continue;
+            }
+
+            let (module_name, _) = result.unwrap();
+
+            // Ignore export if spoofing was detected.
+            if module_name != module_info.name {
+                // TODO: Add log statement
+                continue;
+            }
+
+            // The export symbol which we will use to get the exported function from executor context
+            let symbol = Symbol::from_exported_function_symbol(
+                export.name(),
+                ModuleType::WASM,
+                module_info.version.as_str(),
+            )
+            .map_err(|e| Error::LinkerLinkFailed {
+                message: format!("failed to export musubi symbol: {}", export.name()),
+                target: module_info.clone(),
+                source: e,
+            })?;
+
+            let exported_store = shared_store.clone();
+            let exported_context = wasmtime_context.clone();
+            let function_name = export.name().to_string();
+
+            let exported_func = move |input: Vec<u8>| {
+                Self::run_wasm32_export(
+                    exported_context.clone(),
+                    exported_store.clone(),
+                    function_name.clone(),
+                    input,
+                )
+                .boxed()
+            };
+
+            executor_context.add_symbol(symbol, Arc::new(RwLock::new(exported_func)))?;
+        }
+
+        Ok(executor_context)
     }
 }
-

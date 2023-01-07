@@ -2,12 +2,11 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 
-use crate::{module::ModuleInfo, types::SharedMany, executor::ExecutorContext, kernel::Kernel};
+use crate::{module::ModuleInfo, types::{self, SharedAsyncMany}, executor::ExecutorContext, kernel::Kernel};
 
 pub struct LinkerContext {
     pub dependency_graph: HashMap<ModuleInfo, HashMap<String, ModuleInfo>>,
-    pub executor_context: SharedMany<ExecutorContext>,
-    pub kernel: SharedMany<dyn Kernel>,
+    pub kernel: SharedAsyncMany<dyn Kernel>,
 }
 
 #[async_trait(?Send)]
@@ -16,11 +15,11 @@ pub trait Linker {
         &self,
         context: &mut LinkerContext,
         module_info: &ModuleInfo,
-    ) -> anyhow::Result<()>;
+    ) -> types::Result<()>;
 
     async fn link(
-        &self,
+        &mut self,
         context: &mut LinkerContext,
         module_info: &ModuleInfo,
-    ) -> anyhow::Result<()>;
+    ) -> types::Result<ExecutorContext>;
 }
