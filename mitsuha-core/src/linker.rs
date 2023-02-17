@@ -4,14 +4,14 @@ use async_trait::async_trait;
 
 use crate::{
     executor::ExecutorContext,
-    kernel::Kernel,
+    kernel::CoreStub,
     module::ModuleInfo,
     types::{self, SharedAsyncMany},
 };
 
 pub struct LinkerContext {
     pub dependency_graph: HashMap<ModuleInfo, HashMap<String, ModuleInfo>>,
-    pub kernel: SharedAsyncMany<dyn Kernel>,
+    pub core_stub: SharedAsyncMany<dyn CoreStub>,
 }
 
 #[async_trait(?Send)]

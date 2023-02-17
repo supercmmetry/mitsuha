@@ -9,7 +9,7 @@ use futures::FutureExt;
 use mitsuha_core::{
     errors::Error,
     executor::ExecutorContext,
-    kernel::Kernel,
+    kernel::CoreStub,
     linker::{Linker, LinkerContext},
     module::{Module, ModuleInfo, ModuleType},
     resolver::Resolver,
@@ -138,28 +138,28 @@ impl WasmtimeModule {
 
 #[derive(Clone)]
 pub struct WasmtimeContext {
-    kernel: SharedAsyncMany<dyn Kernel>,
-    instance: SharedMany<Option<wasmtime::Instance>>,
+    core_stub: SharedAsyncMany<dyn CoreStub>,
+    instance: SharedAsyncMany<Option<wasmtime::Instance>>,
 }
 
 impl WasmtimeContext {
-    pub fn new(kernel: SharedAsyncMany<dyn Kernel>) -> Self {
+    pub fn new(core_stub: SharedAsyncMany<dyn CoreStub>) -> Self {
         Self {
-            kernel,
-            instance: Arc::new(RwLock::new(None)),
+            core_stub,
+            instance: Arc::new(tokio::sync::RwLock::new(None)),
         }
     }
 
-    pub fn set_instance(&self, instance: wasmtime::Instance) {
-        *self.instance.write().unwrap() = Some(instance);
+    pub async fn set_instance(&self, instance: wasmtime::Instance) {
+        *self.instance.write().await = Some(instance);
     }
 
-    pub fn get_instance(&self) -> SharedMany<Option<wasmtime::Instance>> {
+    pub fn get_instance(&self) -> SharedAsyncMany<Option<wasmtime::Instance>> {
         self.instance.clone()
     }
 
     pub async fn call(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
-        self.kernel.read().await.run_task(symbol, input).await
+        self.core_stub.read().await.run(symbol, input).await
     }
 }
 
@@ -217,20 +217,20 @@ impl WasmtimeLinker {
             .build()
     }
 
-    fn emit_wasm32_import_error(
+    async fn emit_wasm32_import_error<T>(
         error: &str,
         instance: &wasmtime::Instance,
-        store: impl wasmtime::AsContextMut,
+        store: impl wasmtime::AsContextMut<Data = T>,
         output_ptr: i32,
-    ) -> i64 {
+    ) -> i64 where T: Send {
         let data = Self::construct_error(error);
 
         let result = musubi_wasmtime::import::run_imported_function32_write_output(
             instance,
             store,
-            output_ptr as *mut u8,
+            output_ptr as usize,
             data.try_into().unwrap(),
-        );
+        ).await;
 
         if result.is_err() {
             return 0;
@@ -248,20 +248,20 @@ impl WasmtimeLinker {
     ) -> i64 {
         let instance = caller.data().get_instance();
 
-        let read_result = musubi_wasmtime::import::run_imported_function32_read_input(
-            instance.read().unwrap().as_ref().unwrap(),
+        let read_result = musubi_wasmtime::import::run_imported_function_read_input(
+            instance.read().await.as_ref().unwrap(),
             &mut caller,
-            input_ptr as *mut u8,
+            input_ptr as usize,
             input_len,
-        );
+        ).await;
 
         if read_result.is_err() {
             return Self::emit_wasm32_import_error(
                 "failed to read input from memory",
-                instance.read().unwrap().as_ref().unwrap(),
+                instance.read().await.as_ref().unwrap(),
                 &mut caller,
                 output_ptr,
-            );
+            ).await;
         }
 
         let result = caller.data().call(&symbol, read_result.unwrap()).await;
@@ -269,26 +269,26 @@ impl WasmtimeLinker {
         if result.is_err() {
             return Self::emit_wasm32_import_error(
                 format!("failed to call symbol: {:?}", symbol.clone()).as_str(),
-                instance.read().unwrap().as_ref().unwrap(),
+                instance.read().await.as_ref().unwrap(),
                 &mut caller,
                 output_ptr,
-            );
+            ).await;
         }
 
         let write_result = musubi_wasmtime::import::run_imported_function32_write_output(
-            instance.read().unwrap().as_ref().unwrap(),
+            instance.read().await.as_ref().unwrap(),
             &mut caller,
-            output_ptr as *mut u8,
+            output_ptr as usize,
             result.unwrap(),
-        );
+        ).await;
 
         if write_result.is_err() {
             return Self::emit_wasm32_import_error(
                 "failed to write output from memory",
-                instance.read().unwrap().as_ref().unwrap(),
+                instance.read().await.as_ref().unwrap(),
                 &mut caller,
                 output_ptr,
-            );
+            ).await;
         }
 
         write_result.unwrap()
@@ -296,20 +296,20 @@ impl WasmtimeLinker {
 
     async fn run_wasm32_export(
         context: WasmtimeContext,
-        shared_store: SharedMany<Option<wasmtime::Store<WasmtimeContext>>>,
+        shared_store: SharedAsyncMany<Option<wasmtime::Store<WasmtimeContext>>>,
         function: String,
         input: Vec<u8>,
     ) -> Vec<u8> {
-        let mut guard = shared_store.write().unwrap();
+        let mut guard = shared_store.write().await;
 
         let store = guard.as_mut().unwrap();
 
         let output_result = musubi_wasmtime::export::run_exported_function32_read_output(
-            context.get_instance().read().unwrap().as_ref().unwrap(),
+            context.get_instance().read().await.as_ref().unwrap(),
             store,
             function.as_str(),
             input,
-        );
+        ).await;
 
         if let Err(e) = output_result {
             return Self::construct_error(
@@ -363,7 +363,7 @@ impl Linker for WasmtimeLinker {
     ) -> types::Result<ExecutorContext> {
         let mut module = self.fetch_module(&module_info).await?;
 
-        let wasmtime_context = WasmtimeContext::new(context.kernel.clone());
+        let wasmtime_context = WasmtimeContext::new(context.core_stub.clone());
 
         let mut store = wasmtime::Store::new(&self.engine, wasmtime_context.clone());
 
@@ -470,9 +470,9 @@ impl Linker for WasmtimeLinker {
                 source: e,
             })?;
 
-        wasmtime_context.set_instance(instance);
+        wasmtime_context.set_instance(instance).await;
 
-        let shared_store = Arc::new(RwLock::new(Some(store)));
+        let shared_store = Arc::new(tokio::sync::RwLock::new(Some(store)));
 
         let mut executor_context = ExecutorContext::new();
 

@@ -9,6 +9,7 @@ edition = "2021"
 # Musubi dependencies
 musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
 
+uuid = { version = "1.2.2", features = ["v4"] }
 thiserror = "1.0.37"
 anyhow = "1.0.66"
 serde = "1.0.148"
