@@ -112,14 +112,13 @@ impl Module<wasmtime::Module> for WasmtimeModule {
 }
 
 impl WasmtimeModule {
-    pub fn new(data: Vec<u8>, module_info: ModuleInfo) -> types::Result<Self> {
+    pub fn new(data: Vec<u8>, module_info: ModuleInfo, engine: &wasmtime::Engine) -> types::Result<Self> {
         let metadata = WasmMetadata::new(data.as_slice()).map_err(|e| Error::WasmError {
             message: "failed to parse musubi metadata".to_string(),
             inner: module_info.clone(),
             source: e,
         })?;
 
-        let engine = wasmtime::Engine::default();
         let module = wasmtime::Module::from_binary(&engine, data.as_slice()).map_err(|e| {
             Error::ModuleLoadFailed {
                 message: "failed to load wasm module".to_string(),
@@ -167,22 +166,19 @@ pub struct WasmtimeLinker {
     engine: wasmtime::Engine,
     resolver: SharedMany<dyn Resolver<ModuleInfo, WasmtimeModule>>,
     has_ticker_started: AtomicBool,
+    ticker_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl WasmtimeLinker {
     pub fn new(
         resolver: SharedMany<dyn Resolver<ModuleInfo, WasmtimeModule>>,
+        engine: wasmtime::Engine,
     ) -> types::Result<Self> {
-        let mut config = wasmtime::Config::default();
-        config.async_support(true);
-        config.epoch_interruption(true);
-
-        let engine = wasmtime::Engine::new(&config).map_err(|e| Error::Unknown { source: e })?;
-
         Ok(Self {
             resolver,
             engine,
             has_ticker_started: AtomicBool::new(false),
+            ticker_handle: None,
         })
     }
 
@@ -194,12 +190,14 @@ impl WasmtimeLinker {
 
         let engine = self.engine.clone();
 
-        tokio::task::spawn_blocking(move || loop {
-            engine.increment_epoch();
-
-            // TODO: Make this configurable
-            std::thread::sleep(Duration::from_secs(1));
-        });
+        self.ticker_handle = Some(tokio::task::spawn(async move {
+            loop {
+                engine.increment_epoch();
+    
+                // TODO: Make this configurable
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            }
+        }));
 
         *value = true;
     }
@@ -463,12 +461,16 @@ impl Linker for WasmtimeLinker {
         }
 
         let instance = linker
-            .instantiate(&mut store, module.inner())
-            .map_err(|e| Error::LinkerLinkFailed {
+            .instantiate_async(&mut store, module.inner())
+            .await
+            .map_err(|e| {
+            dbg!(e.to_string());
+
+            Error::LinkerLinkFailed {
                 message: format!("failed to instantiate wasmtime module with imports"),
                 target: module_info.clone(),
                 source: e,
-            })?;
+            }})?;
 
         wasmtime_context.set_instance(instance).await;
 
@@ -521,5 +523,13 @@ impl Linker for WasmtimeLinker {
         }
 
         Ok(executor_context)
+    }
+}
+
+impl Drop for WasmtimeLinker {
+    fn drop(&mut self) {
+        if let Some(ticker_handle) = self.ticker_handle.as_mut() {
+            ticker_handle.abort();
+        }
     }
 }

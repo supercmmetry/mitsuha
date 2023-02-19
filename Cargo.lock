@@ -1029,6 +1029,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mitsuha-storage"
+version = "0.1.0"
+
+[[package]]
 name = "mitsuha-wasm-runtime"
 version = "0.1.0"
 dependencies = [

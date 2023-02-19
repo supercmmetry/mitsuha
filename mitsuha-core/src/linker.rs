@@ -14,6 +14,15 @@ pub struct LinkerContext {
     pub core_stub: SharedAsyncMany<dyn CoreStub>,
 }
 
+impl LinkerContext {
+    pub fn new(core_stub: SharedAsyncMany<dyn CoreStub>) -> Self {
+        Self {
+            dependency_graph: HashMap::new(),
+            core_stub,
+        }
+    }
+}
+
 #[async_trait(?Send)]
 pub trait Linker {
     async fn load(

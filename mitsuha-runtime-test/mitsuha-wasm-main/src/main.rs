@@ -1,5 +1,3 @@
-extern crate mitsuha_bindings;
-
 musubi_bindings::musubi_info!("../musubi.json");
 
 use musubi_api::types::Data;

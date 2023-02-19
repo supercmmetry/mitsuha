@@ -4,10 +4,11 @@ use async_trait::async_trait;
 use mitsuha_core::{
     module::{ModuleInfo, ModuleType},
     provider::Provider,
-    resolver::Resolver,
+    resolver::Resolver, types, linker::{Linker, LinkerContext}, kernel::CoreStub, symbol::Symbol,
 };
-use mitsuha_wasm_runtime::resolver::artifact::ArtifactResolver;
+use mitsuha_wasm_runtime::{resolver::artifact::ArtifactResolver, wasmtime::{WasmtimeModule, WasmtimeLinker}};
 use mitsuha_wasm_runtime::wasmtime::WasmMetadata;
+use musubi_api::{DataBuilder, types::{Value, Data}};
 
 pub struct InMemoryWasmProvider {
     wasm_echo: Vec<u8>,
@@ -42,12 +43,55 @@ impl InMemoryWasmProvider {
     }
 }
 
-#[tokio::test]
-async fn load_wasm_metadata_1() -> anyhow::Result<()> {
-    let resolver = ArtifactResolver {
+fn get_artifact_resolver() -> ArtifactResolver {
+    ArtifactResolver {
         redis_resolver: None,
         provider: Arc::new(RwLock::new(InMemoryWasmProvider::new())),
-    };
+    }
+}
+
+struct WasmtimeModuleResolver {
+    artifact_resolver: ArtifactResolver,
+    engine: wasmtime::Engine,
+}
+
+impl WasmtimeModuleResolver {
+    pub fn new(engine: wasmtime::Engine) -> Self {
+        Self {
+            artifact_resolver: get_artifact_resolver(),
+            engine,
+        }
+    }
+}
+
+#[async_trait(?Send)]
+impl Resolver<ModuleInfo, WasmtimeModule> for WasmtimeModuleResolver {
+    async fn resolve(&self, key: &ModuleInfo) -> types::Result<WasmtimeModule> {
+        let data = self.artifact_resolver.resolve(&key).await?;
+        Ok(WasmtimeModule::new(data, key.clone(), &self.engine)?)
+    }
+
+    async fn register(&self, key: &ModuleInfo, value: &WasmtimeModule) -> types::Result<()> {
+        unimplemented!()
+    }
+
+    async fn register_mut(&mut self, key: &ModuleInfo, value: &WasmtimeModule) -> types::Result<()> {
+        unimplemented!()
+    }
+}
+
+struct TestCoreStub;
+
+#[async_trait]
+impl CoreStub for TestCoreStub {
+    async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
+        Ok(vec![])
+    }
+}
+
+#[tokio::test]
+async fn load_wasm_metadata_1() -> anyhow::Result<()> {
+    let resolver = get_artifact_resolver();
 
     let wasm_data = resolver
         .resolve(&ModuleInfo {
@@ -58,6 +102,100 @@ async fn load_wasm_metadata_1() -> anyhow::Result<()> {
         .await?;
 
     WasmMetadata::new(wasm_data.as_slice())?;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn run_no_dep_wasm() -> anyhow::Result<()> {
+    let mut config = wasmtime::Config::default();
+    config.async_support(true);
+    config.epoch_interruption(true);
+
+    let engine = wasmtime::Engine::new(&config)?;
+
+    let resolver = Arc::new(RwLock::new(WasmtimeModuleResolver::new(engine.clone())));
+    let mut wasmtime_linker = WasmtimeLinker::new(resolver.clone(), engine)?;
+    let core_stub = Arc::new(tokio::sync::RwLock::new(TestCoreStub));
+    let mut linker_context = LinkerContext::new(core_stub);
+
+
+    println!("created linker context");
+
+    let module_info = ModuleInfo {
+        name: "mitsuha.test.echo".to_string(),
+        version: "0.1.0".to_string(),
+        modtype: ModuleType::WASM,
+    };
+
+
+    wasmtime_linker.load(&mut linker_context, &module_info).await?;
+    
+    println!("linker load completed");
+
+    let executor_context = wasmtime_linker.link(&mut linker_context, &module_info).await?;
+
+    println!("linker link completed");
+
+    let symbol = Symbol {
+        module_info,
+        name: "echo".to_string(),
+    };
+
+    let input = DataBuilder::new().add(Value::String("Hello world!".to_string())).build();
+
+    dbg!("calling symbol ...");
+    let output = executor_context.call(&symbol, input.try_into()?).await?;
+    dbg!(Data::try_from(output));
+
+
+    Ok(())
+}
+
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_wasm_timed_future() -> anyhow::Result<()> {
+    let mut config = wasmtime::Config::default();
+    config.async_support(true);
+    config.epoch_interruption(true);
+
+    let engine = wasmtime::Engine::new(&config)?;
+
+    let resolver = Arc::new(RwLock::new(WasmtimeModuleResolver::new(engine.clone())));
+    let mut wasmtime_linker = WasmtimeLinker::new(resolver.clone(), engine)?;
+    let core_stub = Arc::new(tokio::sync::RwLock::new(TestCoreStub));
+    let mut linker_context = LinkerContext::new(core_stub);
+
+
+    println!("created linker context");
+
+    let module_info = ModuleInfo {
+        name: "mitsuha.test.loop".to_string(),
+        version: "0.1.0".to_string(),
+        modtype: ModuleType::WASM,
+    };
+
+
+    wasmtime_linker.load(&mut linker_context, &module_info).await?;
+    
+    println!("linker load completed");
+
+    let executor_context = wasmtime_linker.link(&mut linker_context, &module_info).await?;
+
+    println!("linker link completed");
+
+    let symbol = Symbol {
+        module_info,
+        name: "run".to_string(),
+    };
+
+    let input = DataBuilder::new().add(Value::String("Hello world!".to_string())).build();
+
+    dbg!("calling symbol ...");
+
+    let timed_fut = tokio::time::timeout(tokio::time::Duration::from_secs(10), executor_context.call(&symbol, input.try_into()?));
+    dbg!(timed_fut.await);
+
 
     Ok(())
 }

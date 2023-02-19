@@ -2,5 +2,6 @@
 members = [
     "mitsuha-core",
     "mitsuha-runtime",
-    "mitsuha-wasm-runtime"
+    "mitsuha-wasm-runtime",
+    "mitsuha-storage"
 ]
