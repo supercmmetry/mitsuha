@@ -2,11 +2,12 @@ pub mod api;
 pub mod client;
 pub mod executor;
 pub mod provider;
+pub mod storage;
 
 use serde::Deserialize;
 use std::{env, path::Path};
 
-use self::{api::Api, client::Client, executor::Executor, provider::Provider};
+use self::{api::Api, client::Client, executor::Executor, provider::Provider, storage::Storage};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -14,6 +15,7 @@ pub struct Config {
     pub provider: Provider,
     pub executor: Executor,
     pub api: Api,
+    pub storage: Storage,
 }
 
 impl Config {

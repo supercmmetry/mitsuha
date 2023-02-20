@@ -6,3 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+mitsuha-core = { path = "../mitsuha-core" }
+
+async-trait = "0.1.59"
+strum_macros = "0.24.3"
+strum = "0.24"
+anyhow = "1.0.66"
+chrono = "0.4.23"

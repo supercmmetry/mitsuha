@@ -102,6 +102,47 @@ pub enum Error {
         source: anyhow::Error,
     },
 
+    // storage errors
+    #[error("failed to initialize storage, {message}")]
+    StorageInitFailed {
+        message: String,
+
+        #[source]
+        source: anyhow::Error,
+    },
+
+    #[error("failed to perform storage store operation, {message}")]
+    StorageStoreFailed {
+        message: String,
+
+        #[source]
+        source: anyhow::Error,
+    },
+
+    #[error("failed to perform storage load operation, {message}")]
+    StorageLoadFailed {
+        message: String,
+
+        #[source]
+        source: anyhow::Error,
+    },
+
+    #[error("failed to perform storage persist operation, {message}")]
+    StoragePersistFailed {
+        message: String,
+
+        #[source]
+        source: anyhow::Error,
+    },
+
+    #[error("failed to perform storage clear operation, {message}")]
+    StorageClearFailed {
+        message: String,
+
+        #[source]
+        source: anyhow::Error,
+    },
+
     // unknown errors
     #[error("encountered unknown error")]
     Unknown {

@@ -112,7 +112,11 @@ impl Module<wasmtime::Module> for WasmtimeModule {
 }
 
 impl WasmtimeModule {
-    pub fn new(data: Vec<u8>, module_info: ModuleInfo, engine: &wasmtime::Engine) -> types::Result<Self> {
+    pub fn new(
+        data: Vec<u8>,
+        module_info: ModuleInfo,
+        engine: &wasmtime::Engine,
+    ) -> types::Result<Self> {
         let metadata = WasmMetadata::new(data.as_slice()).map_err(|e| Error::WasmError {
             message: "failed to parse musubi metadata".to_string(),
             inner: module_info.clone(),
@@ -193,7 +197,7 @@ impl WasmtimeLinker {
         self.ticker_handle = Some(tokio::task::spawn(async move {
             loop {
                 engine.increment_epoch();
-    
+
                 // TODO: Make this configurable
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
@@ -220,7 +224,10 @@ impl WasmtimeLinker {
         instance: &wasmtime::Instance,
         store: impl wasmtime::AsContextMut<Data = T>,
         output_ptr: i32,
-    ) -> i64 where T: Send {
+    ) -> i64
+    where
+        T: Send,
+    {
         let data = Self::construct_error(error);
 
         let result = musubi_wasmtime::import::run_imported_function32_write_output(
@@ -228,7 +235,8 @@ impl WasmtimeLinker {
             store,
             output_ptr as usize,
             data.try_into().unwrap(),
-        ).await;
+        )
+        .await;
 
         if result.is_err() {
             return 0;
@@ -251,7 +259,8 @@ impl WasmtimeLinker {
             &mut caller,
             input_ptr as usize,
             input_len,
-        ).await;
+        )
+        .await;
 
         if read_result.is_err() {
             return Self::emit_wasm32_import_error(
@@ -259,7 +268,8 @@ impl WasmtimeLinker {
                 instance.read().await.as_ref().unwrap(),
                 &mut caller,
                 output_ptr,
-            ).await;
+            )
+            .await;
         }
 
         let result = caller.data().call(&symbol, read_result.unwrap()).await;
@@ -270,7 +280,8 @@ impl WasmtimeLinker {
                 instance.read().await.as_ref().unwrap(),
                 &mut caller,
                 output_ptr,
-            ).await;
+            )
+            .await;
         }
 
         let write_result = musubi_wasmtime::import::run_imported_function32_write_output(
@@ -278,7 +289,8 @@ impl WasmtimeLinker {
             &mut caller,
             output_ptr as usize,
             result.unwrap(),
-        ).await;
+        )
+        .await;
 
         if write_result.is_err() {
             return Self::emit_wasm32_import_error(
@@ -286,7 +298,8 @@ impl WasmtimeLinker {
                 instance.read().await.as_ref().unwrap(),
                 &mut caller,
                 output_ptr,
-            ).await;
+            )
+            .await;
         }
 
         write_result.unwrap()
@@ -307,7 +320,8 @@ impl WasmtimeLinker {
             store,
             function.as_str(),
             input,
-        ).await;
+        )
+        .await;
 
         if let Err(e) = output_result {
             return Self::construct_error(
@@ -464,13 +478,14 @@ impl Linker for WasmtimeLinker {
             .instantiate_async(&mut store, module.inner())
             .await
             .map_err(|e| {
-            dbg!(e.to_string());
+                dbg!(e.to_string());
 
-            Error::LinkerLinkFailed {
-                message: format!("failed to instantiate wasmtime module with imports"),
-                target: module_info.clone(),
-                source: e,
-            }})?;
+                Error::LinkerLinkFailed {
+                    message: format!("failed to instantiate wasmtime module with imports"),
+                    target: module_info.clone(),
+                    source: e,
+                }
+            })?;
 
         wasmtime_context.set_instance(instance).await;
 

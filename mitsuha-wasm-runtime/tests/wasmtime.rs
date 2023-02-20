@@ -2,13 +2,23 @@ use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use mitsuha_core::{
+    kernel::CoreStub,
+    linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
     provider::Provider,
-    resolver::Resolver, types, linker::{Linker, LinkerContext}, kernel::CoreStub, symbol::Symbol,
+    resolver::Resolver,
+    symbol::Symbol,
+    types,
 };
-use mitsuha_wasm_runtime::{resolver::artifact::ArtifactResolver, wasmtime::{WasmtimeModule, WasmtimeLinker}};
 use mitsuha_wasm_runtime::wasmtime::WasmMetadata;
-use musubi_api::{DataBuilder, types::{Value, Data}};
+use mitsuha_wasm_runtime::{
+    resolver::artifact::ArtifactResolver,
+    wasmtime::{WasmtimeLinker, WasmtimeModule},
+};
+use musubi_api::{
+    types::{Data, Value},
+    DataBuilder,
+};
 
 pub struct InMemoryWasmProvider {
     wasm_echo: Vec<u8>,
@@ -75,7 +85,11 @@ impl Resolver<ModuleInfo, WasmtimeModule> for WasmtimeModuleResolver {
         unimplemented!()
     }
 
-    async fn register_mut(&mut self, key: &ModuleInfo, value: &WasmtimeModule) -> types::Result<()> {
+    async fn register_mut(
+        &mut self,
+        key: &ModuleInfo,
+        value: &WasmtimeModule,
+    ) -> types::Result<()> {
         unimplemented!()
     }
 }
@@ -119,7 +133,6 @@ async fn run_no_dep_wasm() -> anyhow::Result<()> {
     let core_stub = Arc::new(tokio::sync::RwLock::new(TestCoreStub));
     let mut linker_context = LinkerContext::new(core_stub);
 
-
     println!("created linker context");
 
     let module_info = ModuleInfo {
@@ -128,12 +141,15 @@ async fn run_no_dep_wasm() -> anyhow::Result<()> {
         modtype: ModuleType::WASM,
     };
 
+    wasmtime_linker
+        .load(&mut linker_context, &module_info)
+        .await?;
 
-    wasmtime_linker.load(&mut linker_context, &module_info).await?;
-    
     println!("linker load completed");
 
-    let executor_context = wasmtime_linker.link(&mut linker_context, &module_info).await?;
+    let executor_context = wasmtime_linker
+        .link(&mut linker_context, &module_info)
+        .await?;
 
     println!("linker link completed");
 
@@ -142,16 +158,16 @@ async fn run_no_dep_wasm() -> anyhow::Result<()> {
         name: "echo".to_string(),
     };
 
-    let input = DataBuilder::new().add(Value::String("Hello world!".to_string())).build();
+    let input = DataBuilder::new()
+        .add(Value::String("Hello world!".to_string()))
+        .build();
 
     dbg!("calling symbol ...");
     let output = executor_context.call(&symbol, input.try_into()?).await?;
     dbg!(Data::try_from(output));
 
-
     Ok(())
 }
-
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_wasm_timed_future() -> anyhow::Result<()> {
@@ -166,7 +182,6 @@ async fn test_wasm_timed_future() -> anyhow::Result<()> {
     let core_stub = Arc::new(tokio::sync::RwLock::new(TestCoreStub));
     let mut linker_context = LinkerContext::new(core_stub);
 
-
     println!("created linker context");
 
     let module_info = ModuleInfo {
@@ -175,12 +190,15 @@ async fn test_wasm_timed_future() -> anyhow::Result<()> {
         modtype: ModuleType::WASM,
     };
 
+    wasmtime_linker
+        .load(&mut linker_context, &module_info)
+        .await?;
 
-    wasmtime_linker.load(&mut linker_context, &module_info).await?;
-    
     println!("linker load completed");
 
-    let executor_context = wasmtime_linker.link(&mut linker_context, &module_info).await?;
+    let executor_context = wasmtime_linker
+        .link(&mut linker_context, &module_info)
+        .await?;
 
     println!("linker link completed");
 
@@ -189,13 +207,17 @@ async fn test_wasm_timed_future() -> anyhow::Result<()> {
         name: "run".to_string(),
     };
 
-    let input = DataBuilder::new().add(Value::String("Hello world!".to_string())).build();
+    let input = DataBuilder::new()
+        .add(Value::String("Hello world!".to_string()))
+        .build();
 
     dbg!("calling symbol ...");
 
-    let timed_fut = tokio::time::timeout(tokio::time::Duration::from_secs(10), executor_context.call(&symbol, input.try_into()?));
+    let timed_fut = tokio::time::timeout(
+        tokio::time::Duration::from_secs(10),
+        executor_context.call(&symbol, input.try_into()?),
+    );
     dbg!(timed_fut.await);
-
 
     Ok(())
 }
