@@ -4,9 +4,8 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum StorageLocality {
-    Local,
+    Solid,
     Cache,
-    Shared,
 }
 
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
