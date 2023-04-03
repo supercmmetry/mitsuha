@@ -103,6 +103,14 @@ pub enum Error {
     },
 
     // storage errors
+    #[error("failed to perform storage operation, {message}")]
+    StorageOperationFailed {
+        message: String,
+
+        #[source]
+        source: anyhow::Error,
+    },
+
     #[error("failed to initialize storage, {message}")]
     StorageInitFailed {
         message: String,

@@ -9,7 +9,9 @@ pub mod unified;
 pub trait Storage: Send + Sync {
     async fn store(&mut self, spec: StorageSpec) -> types::Result<()>;
 
-    async fn load(&self, handle: String) -> types::Result<Vec<u8>>;
+    async fn load(&mut self, handle: String) -> types::Result<Vec<u8>>;
+
+    async fn exists(&mut self, handle: String) -> types::Result<bool>;
 
     async fn persist(&mut self, handle: String, time: u64) -> types::Result<()>;
 

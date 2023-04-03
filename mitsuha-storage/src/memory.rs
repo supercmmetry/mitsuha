@@ -63,7 +63,7 @@ impl Storage for MemoryStorage {
         Ok(())
     }
 
-    async fn load(&self, handle: String) -> types::Result<Vec<u8>> {
+    async fn load(&mut self, handle: String) -> types::Result<Vec<u8>> {
         match self.expiry_map.get(&handle) {
             Some(date_time) => {
                 if *date_time <= Utc::now() {
@@ -91,6 +91,10 @@ impl Storage for MemoryStorage {
                 source: anyhow::anyhow!(""),
             }),
         }
+    }
+
+    async fn exists(&mut self, handle: String) -> types::Result<bool> {
+        Ok(self.store.contains_key(&handle))
     }
 
     async fn persist(&mut self, handle: String, time: u64) -> types::Result<()> {

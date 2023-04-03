@@ -5,4 +5,10 @@ pub enum Constants {
 
     #[strum(serialize = "mitsuha.storage.expiry.timestamp")]
     StorageExpiryTimestamp,
+
+    #[strum(serialize = "mitsuha.storage.selector.query")]
+    StorageSelectorQuery,
+
+    #[strum(serialize = "mitsuha.storage")]
+    StorageLabel,
 }

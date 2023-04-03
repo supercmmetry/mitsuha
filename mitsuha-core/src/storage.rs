@@ -2,10 +2,12 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+use crate::selector::Label;
+
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum StorageLocality {
-    Solid,
-    Cache,
+    Solid { cache_name: Option<String> },
+    Cache { ttl: u64 },
 }
 
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
@@ -17,6 +19,7 @@ pub enum StorageKind {
 pub struct StorageClass {
     pub kind: StorageKind,
     pub locality: StorageLocality,
-    pub index: usize,
+    pub name: String,
+    pub labels: Vec<Label>,
     pub extensions: HashMap<String, String>,
 }
