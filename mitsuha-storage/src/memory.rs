@@ -1,20 +1,21 @@
-use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
+use dashmap::DashMap;
 use mitsuha_core::{errors::Error, kernel::StorageSpec, types};
 
-use crate::{constants::Constants, Storage};
+use crate::{constants::Constants, Storage, GarbageCollectable};
 
 pub struct MemoryStorage {
-    store: HashMap<String, Vec<u8>>,
-    expiry_map: HashMap<String, DateTime<Utc>>,
-    total_size: usize,
+    store: DashMap<String, Vec<u8>>,
+    expiry_map: DashMap<String, DateTime<Utc>>,
+    total_size: Arc<RwLock<usize>>,
 }
 
 #[async_trait]
 impl Storage for MemoryStorage {
-    async fn store(&mut self, spec: StorageSpec) -> types::Result<()> {
+    async fn store(&self, spec: StorageSpec) -> types::Result<()> {
         let handle = spec.handle;
 
         match spec
@@ -57,13 +58,14 @@ impl Storage for MemoryStorage {
 
         let data = spec.data;
 
-        self.total_size += data.len();
+
+        *self.total_size.write().unwrap() += data.len();
         self.store.insert(handle.clone(), data);
 
         Ok(())
     }
 
-    async fn load(&mut self, handle: String) -> types::Result<Vec<u8>> {
+    async fn load(&self, handle: String) -> types::Result<Vec<u8>> {
         match self.expiry_map.get(&handle) {
             Some(date_time) => {
                 if *date_time <= Utc::now() {
@@ -93,11 +95,11 @@ impl Storage for MemoryStorage {
         }
     }
 
-    async fn exists(&mut self, handle: String) -> types::Result<bool> {
+    async fn exists(&self, handle: String) -> types::Result<bool> {
         Ok(self.store.contains_key(&handle))
     }
 
-    async fn persist(&mut self, handle: String, time: u64) -> types::Result<()> {
+    async fn persist(&self, handle: String, time: u64) -> types::Result<()> {
         match self.expiry_map.get(&handle) {
             Some(date_time) => {
                 self.expiry_map
@@ -111,9 +113,9 @@ impl Storage for MemoryStorage {
         }
     }
 
-    async fn clear(&mut self, handle: String) -> types::Result<()> {
+    async fn clear(&self, handle: String) -> types::Result<()> {
         if let Some(data) = self.store.get(&handle) {
-            self.total_size -= data.len();
+            *self.total_size.write().unwrap() -= data.len();
         }
 
         self.expiry_map.remove(&handle);
@@ -123,16 +125,42 @@ impl Storage for MemoryStorage {
     }
 
     async fn size(&self) -> types::Result<usize> {
-        Ok(self.total_size)
+        Ok(self.total_size.read().unwrap().clone())
+    }
+}
+
+#[async_trait]
+impl GarbageCollectable for MemoryStorage {
+    async fn garbage_collect(&self) -> types::Result<Vec<String>> {
+        let mut delete_handles = vec![];
+
+        for entry in self.expiry_map.iter() {
+            let handle = entry.key().clone();
+            let expiry = entry.value().clone();
+
+            if expiry <= Utc::now() {
+                delete_handles.push(handle);
+            }
+        }
+
+        for handle in delete_handles.iter() {
+            self.store.remove(handle);
+            self.expiry_map.remove(handle);
+        }
+
+        Ok(delete_handles)
     }
 }
 
 impl MemoryStorage {
-    pub fn new() -> types::Result<Self> {
-        Ok(Self {
+    pub fn new() -> types::Result<Arc<Box<dyn Storage>>> {
+        let obj = Self {
             store: Default::default(),
             expiry_map: Default::default(),
-            total_size: 0usize,
-        })
+            total_size: Arc::new(RwLock::new(0usize)),
+        };
+
+
+        Ok(Arc::new(Box::new(obj)))
     }
 }

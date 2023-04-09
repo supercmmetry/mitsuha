@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use mitsuha_core::{
     config,
@@ -24,10 +24,14 @@ fn make_basic_config() -> config::storage::Storage {
     }
 }
 
-#[tokio::test]
-async fn sample() -> anyhow::Result<()> {
+fn make_unified_storage() -> Arc<Box<dyn Storage>> {
     let config = make_basic_config();
-    let mut storage = UnifiedStorage::new(&config)?;
+    UnifiedStorage::new(&config).unwrap()
+}
+
+#[tokio::test]
+async fn store_and_load() -> anyhow::Result<()> {
+    let storage = make_unified_storage();
 
     let mut spec = StorageSpec {
         handle: "spec1".to_string(),

@@ -1,9 +1,10 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::Arc, time::Duration,
 };
 
 use async_trait::async_trait;
+use dashmap::DashMap;
 use mitsuha_core::{
     config,
     errors::Error,
@@ -13,21 +14,22 @@ use mitsuha_core::{
     types,
 };
 
-use crate::{constants::Constants, memory::MemoryStorage, Storage};
+
+use crate::{constants::Constants, memory::MemoryStorage, Storage, GarbageCollectable};
 
 pub struct UnifiedStorage {
-    stores: HashMap<String, Box<dyn Storage>>,
-    classes: HashMap<String, StorageClass>,
-    handle_location: HashMap<String, String>,
+    stores: Arc<HashMap<String, Arc<Box<dyn Storage>>>>,
+    classes: Arc<HashMap<String, StorageClass>>,
+    handle_location: DashMap<String, String>,
 }
 
 #[async_trait]
 impl Storage for UnifiedStorage {
-    async fn store(&mut self, spec: StorageSpec) -> types::Result<()> {
+    async fn store(&self, spec: StorageSpec) -> types::Result<()> {
         let storage_name = self.get_solid_storage_name_by_selector(&spec)?;
 
         let class = self.classes.get(&storage_name).unwrap();
-        let storage = self.stores.get_mut(&storage_name).unwrap();
+        let storage = self.stores.get(&storage_name).unwrap();
 
         let handle = spec.handle.clone();
 
@@ -37,14 +39,14 @@ impl Storage for UnifiedStorage {
             cache_name: Some(cache_name),
         } = class.locality.clone()
         {
-            let cache = self.stores.get_mut(&cache_name).unwrap();
+            let cache = self.stores.get(&cache_name).unwrap();
             cache.clear(handle).await?;
         }
 
         Ok(())
     }
 
-    async fn load(&mut self, handle: String) -> types::Result<Vec<u8>> {
+    async fn load(&self, handle: String) -> types::Result<Vec<u8>> {
         let storage_name = self.get_solid_storage_name_by_handle(&handle).await?;
         let class = self.classes.get(&storage_name).unwrap();
 
@@ -52,7 +54,7 @@ impl Storage for UnifiedStorage {
             cache_name: Some(cache_name),
         } = class.locality.clone()
         {
-            let cache = self.stores.get_mut(&cache_name).unwrap();
+            let cache = self.stores.get(&cache_name).unwrap();
             let result = cache.load(handle.clone()).await;
 
             match result {
@@ -63,14 +65,14 @@ impl Storage for UnifiedStorage {
             }
         }
 
-        let storage = self.stores.get_mut(&storage_name).unwrap();
+        let storage = self.stores.get(&storage_name).unwrap();
         let data = storage.load(handle.clone()).await?;
 
         if let StorageLocality::Solid {
             cache_name: Some(cache_name),
         } = class.locality.clone()
         {
-            let cache = self.stores.get_mut(&cache_name).unwrap();
+            let cache = self.stores.get(&cache_name).unwrap();
             let cache_class = self.classes.get(&cache_name).unwrap();
 
             match cache_class.locality {
@@ -99,20 +101,20 @@ impl Storage for UnifiedStorage {
         Ok(data)
     }
 
-    async fn exists(&mut self, handle: String) -> types::Result<bool> {
+    async fn exists(&self, handle: String) -> types::Result<bool> {
         Ok(self.get_solid_storage_name_by_handle(&handle).await.is_ok())
     }
 
-    async fn persist(&mut self, handle: String, time: u64) -> types::Result<()> {
+    async fn persist(&self, handle: String, time: u64) -> types::Result<()> {
         let storage_name = self.get_solid_storage_name_by_handle(&handle).await?;
-        let storage = self.stores.get_mut(&storage_name).unwrap();
+        let storage = self.stores.get(&storage_name).unwrap();
 
         storage.persist(handle, time).await
     }
 
-    async fn clear(&mut self, handle: String) -> types::Result<()> {
+    async fn clear(&self, handle: String) -> types::Result<()> {
         let storage_name = self.get_solid_storage_name_by_handle(&handle).await?;
-        let storage = self.stores.get_mut(&storage_name).unwrap();
+        let storage = self.stores.get(&storage_name).unwrap();
 
         storage.clear(handle.clone()).await?;
 
@@ -133,19 +135,41 @@ impl Storage for UnifiedStorage {
     }
 }
 
+#[async_trait]
+impl GarbageCollectable for UnifiedStorage {
+    async fn garbage_collect(&self) -> types::Result<Vec<String>> {
+        let mut deleted_handles = vec![];
+
+        for collectable in self.stores.values() {
+            let handles = collectable.garbage_collect().await?;
+            deleted_handles.extend(handles);
+        }
+
+        for handle in deleted_handles.iter() {
+            self.handle_location.remove(handle);
+        }
+
+        Ok(deleted_handles)
+    }
+}
+
 impl UnifiedStorage {
-    pub fn new(config: &config::storage::Storage) -> types::Result<Self> {
+    pub fn new(config: &config::storage::Storage) -> types::Result<Arc<Box<dyn Storage>>> {
         let mut unified_storage = Self {
             stores: Default::default(),
             classes: Default::default(),
             handle_location: Default::default(),
         };
 
+        let mut stores = HashMap::new();
+        let mut classes = HashMap::new();
+
+
         for storage_class in config.classes.iter() {
             let name = &storage_class.name;
 
-            if unified_storage.stores.contains_key(name)
-                || unified_storage.classes.contains_key(name)
+            if stores.contains_key(name)
+                || classes.contains_key(name)
             {
                 return Err(Error::StorageInitFailed {
                     message: format!("duplicate storage class name '{}' was found during unified storage initialization.", name),
@@ -153,8 +177,8 @@ impl UnifiedStorage {
                 });
             }
 
-            let storage_impl: Box<dyn Storage> = match storage_class.kind {
-                StorageKind::Memory => Box::new(MemoryStorage::new()?),
+            let storage_impl: Arc<Box<dyn Storage>> = match storage_class.kind {
+                StorageKind::Memory => MemoryStorage::new()?,
             };
 
             let mut processed_storage_class = storage_class.clone();
@@ -164,13 +188,21 @@ impl UnifiedStorage {
                 value: storage_class.name.clone(),
             });
 
-            unified_storage
-                .classes
+            classes
                 .insert(name.clone(), processed_storage_class);
-            unified_storage.stores.insert(name.clone(), storage_impl);
+
+            stores.insert(name.clone(), storage_impl);
+
         }
 
-        Ok(unified_storage)
+        unified_storage.classes = Arc::new(classes);
+        unified_storage.stores = Arc::new(stores);
+
+        let output: Arc<Box<dyn Storage>> = Arc::new(Box::new(unified_storage));
+
+        Self::start_gc(output.clone());
+
+        Ok(output)
     }
 
     fn get_solid_storage_name_by_selector(&self, spec: &StorageSpec) -> types::Result<String> {
@@ -203,7 +235,7 @@ impl UnifiedStorage {
         });
     }
 
-    async fn get_solid_storage_name_by_handle(&mut self, handle: &String) -> types::Result<String> {
+    async fn get_solid_storage_name_by_handle(&self, handle: &String) -> types::Result<String> {
         if let Some(storage_name) = self.handle_location.get(handle) {
             return Ok(storage_name.clone());
         }
@@ -211,7 +243,7 @@ impl UnifiedStorage {
         for (name, class) in self.classes.iter() {
             match class.locality {
                 StorageLocality::Solid { .. } => {
-                    let storage = self.stores.get_mut(name).unwrap();
+                    let storage = self.stores.get(name).unwrap();
                     let result = storage.exists(handle.clone()).await;
 
                     match result {
@@ -236,5 +268,15 @@ impl UnifiedStorage {
             ),
             source: anyhow::anyhow!(""),
         })
+    }
+
+    fn start_gc(collectable: Arc<Box<dyn Storage>>) {
+        tokio::task::spawn(async move {
+            loop {
+                collectable.garbage_collect().await.unwrap();
+
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        });
     }
 }
