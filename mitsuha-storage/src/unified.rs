@@ -82,6 +82,7 @@ impl Storage for UnifiedStorage {
                         extensions: HashMap::new(),
                     };
 
+                    // TODO: spawn a different task for cache store operation
                     let result = cache.store(spec).await;
 
                     match result {
@@ -103,15 +104,32 @@ impl Storage for UnifiedStorage {
     }
 
     async fn persist(&mut self, handle: String, time: u64) -> types::Result<()> {
-        Ok(())
+        let storage_name = self.get_solid_storage_name_by_handle(&handle).await?;
+        let storage = self.stores.get_mut(&storage_name).unwrap();
+
+        storage.persist(handle, time).await
     }
 
     async fn clear(&mut self, handle: String) -> types::Result<()> {
+        let storage_name = self.get_solid_storage_name_by_handle(&handle).await?;
+        let storage = self.stores.get_mut(&storage_name).unwrap();
+
+        storage.clear(handle.clone()).await?;
+
+        // TODO: Treat handle_location like a cache
+        self.handle_location.remove(&handle);
+
         Ok(())
     }
 
     async fn size(&self) -> types::Result<usize> {
-        Ok(0usize)
+        let mut total_size = 0usize;
+
+        for storage in self.stores.values() {
+            total_size += storage.size().await?;
+        }
+
+        Ok(total_size)
     }
 }
 

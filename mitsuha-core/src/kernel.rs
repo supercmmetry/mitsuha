@@ -30,7 +30,7 @@ pub struct JobStatus {
     pub extensions: HashMap<String, String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct StorageSpec {
     pub handle: String,
     pub data: Vec<u8>,
