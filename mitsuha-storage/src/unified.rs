@@ -118,7 +118,6 @@ impl Storage for UnifiedStorage {
 
         storage.clear(handle.clone()).await?;
 
-        // TODO: Treat handle_location like a cache
         self.handle_location.remove(&handle);
 
         Ok(())
@@ -140,9 +139,12 @@ impl GarbageCollectable for UnifiedStorage {
     async fn garbage_collect(&self) -> types::Result<Vec<String>> {
         let mut deleted_handles = vec![];
 
-        for collectable in self.stores.values() {
+        for (name, collectable) in self.stores.iter() {
             let handles = collectable.garbage_collect().await?;
-            deleted_handles.extend(handles);
+
+            if !self.classes.get(name).unwrap().locality.is_cache() {
+                deleted_handles.extend(handles);
+            }
         }
 
         for handle in deleted_handles.iter() {

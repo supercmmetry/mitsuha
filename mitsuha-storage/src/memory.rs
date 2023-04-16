@@ -100,10 +100,12 @@ impl Storage for MemoryStorage {
     }
 
     async fn persist(&self, handle: String, time: u64) -> types::Result<()> {
-        match self.expiry_map.get(&handle) {
+        let value = self.expiry_map.get(&handle).map(|x| (*x).clone());
+
+        match value {
             Some(date_time) => {
                 self.expiry_map
-                    .insert(handle.clone(), *date_time + Duration::seconds(time as i64));
+                    .insert(handle.clone(), date_time + Duration::seconds(time as i64));
                 Ok(())
             }
             None => Err(Error::StoragePersistFailed {

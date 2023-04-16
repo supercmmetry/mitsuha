@@ -10,6 +10,15 @@ pub enum StorageLocality {
     Cache { ttl: u64 },
 }
 
+impl StorageLocality {
+    pub fn is_cache(&self) -> bool {
+        match self {
+            Self::Cache { .. } => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum StorageKind {
     Memory,
