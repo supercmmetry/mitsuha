@@ -11,11 +11,11 @@ use mitsuha_core::{
     kernel::StorageSpec,
     selector::Label,
     storage::{StorageClass, StorageKind, StorageLocality},
-    types,
+    types, constants::Constants,
 };
 
 
-use crate::{constants::Constants, memory::MemoryStorage, Storage, GarbageCollectable};
+use crate::{memory::MemoryStorage, Storage, GarbageCollectable};
 
 pub struct UnifiedStorage {
     stores: Arc<HashMap<String, Arc<Box<dyn Storage>>>>,

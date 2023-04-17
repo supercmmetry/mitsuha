@@ -2,8 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use mitsuha_core::{config, storage::{StorageClass, StorageLocality}, selector::Label};
-use mitsuha_storage::{unified::UnifiedStorage, Storage, constants::Constants};
+use mitsuha_core::{config, storage::{StorageClass, StorageLocality}, selector::Label, constants::Constants};
+use mitsuha_storage::{unified::UnifiedStorage, Storage};
 use mitsuha_core::kernel::StorageSpec;
 use rand::Rng;
 use rand::distributions::Alphanumeric;

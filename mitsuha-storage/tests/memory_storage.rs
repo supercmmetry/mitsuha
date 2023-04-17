@@ -4,10 +4,10 @@ use mitsuha_core::{
     config,
     kernel::StorageSpec,
     selector::Label,
-    storage::{StorageClass, StorageLocality},
+    storage::{StorageClass, StorageLocality}, constants::Constants,
 };
 use mitsuha_storage::unified::UnifiedStorage;
-use mitsuha_storage::{constants::Constants, Storage};
+use mitsuha_storage::Storage;
 
 fn make_basic_config() -> config::storage::Storage {
     config::storage::Storage {

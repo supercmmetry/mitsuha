@@ -3,9 +3,9 @@ use std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
-use mitsuha_core::{errors::Error, kernel::StorageSpec, types};
+use mitsuha_core::{errors::Error, kernel::StorageSpec, types, constants::Constants};
 
-use crate::{constants::Constants, Storage, GarbageCollectable};
+use crate::{Storage, GarbageCollectable};
 
 pub struct MemoryStorage {
     store: DashMap<String, Vec<u8>>,

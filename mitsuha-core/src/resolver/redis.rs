@@ -38,10 +38,6 @@ where
             .map_err(|e| Error::ResolverUnknown(e.into()))?)
     }
 
-    async fn register_mut(&mut self, _key: &K, _value: &V) -> types::Result<()> {
-        unimplemented!()
-    }
-
     async fn register(&self, key: &K, value: &V) -> types::Result<()> {
         let mut conn = self
             .client

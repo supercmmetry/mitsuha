@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use mitsuha_core::{kernel::StorageSpec, types};
 
-pub mod constants;
 mod memory;
 pub mod unified;
+pub mod resolver;
 
 #[async_trait]
 pub trait Storage: GarbageCollectable + Send + Sync {

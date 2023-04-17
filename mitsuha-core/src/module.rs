@@ -46,6 +46,12 @@ impl From<musubi_api::types::Dep> for ModuleInfo {
     }
 }
 
+impl ModuleInfo {
+    pub fn get_identifier(&self) -> String {
+        format!("mitsuha/core/moduleinfo/{}/{}/{}", self.modtype.to_string(), self.name, self.version)
+    }
+}
+
 pub trait Module<T> {
     fn get_info(&self) -> ModuleInfo;
 

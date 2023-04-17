@@ -1,4 +1,4 @@
-use crate::{symbol::Symbol, types, selector::Label};
+use crate::{symbol::Symbol, types, selector::Label, constants::Constants};
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -36,6 +36,17 @@ pub struct StorageSpec {
     pub data: Vec<u8>,
     pub ttl: u64,
     pub extensions: HashMap<String, String>,
+}
+
+impl StorageSpec {
+    pub fn with_selector(mut self, label: &Label) -> Self {
+        self.extensions.insert(
+            Constants::StorageSelectorQuery.to_string(),
+            serde_json::to_string(label).unwrap(),
+        );
+
+        self
+    }
 }
 
 #[async_trait]

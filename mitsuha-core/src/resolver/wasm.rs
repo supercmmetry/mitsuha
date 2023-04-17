@@ -56,8 +56,4 @@ impl Resolver<ModuleInfo, Vec<u8>> for WasmResolver {
     async fn register(&self, _key: &ModuleInfo, _value: &Vec<u8>) -> types::Result<()> {
         unimplemented!()
     }
-
-    async fn register_mut(&mut self, _key: &ModuleInfo, _value: &Vec<u8>) -> types::Result<()> {
-        unimplemented!()
-    }
 }

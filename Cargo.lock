@@ -1250,6 +1250,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mitsuha-channel"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "dashmap",
+ "mitsuha-core",
+ "mitsuha-storage",
+ "rand",
+ "tokio",
+]
+
+[[package]]
 name = "mitsuha-core"
 version = "0.1.0"
 dependencies = [
@@ -1262,6 +1274,8 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "strum",
+ "strum_macros",
  "thiserror",
  "tokio",
  "uuid",

@@ -11,6 +11,4 @@ pub trait Resolver<Key, Value>: Send + Sync {
     async fn resolve(&self, key: &Key) -> types::Result<Value>;
 
     async fn register(&self, key: &Key, value: &Value) -> types::Result<()>;
-
-    async fn register_mut(&mut self, key: &Key, value: &Value) -> types::Result<()>;
 }

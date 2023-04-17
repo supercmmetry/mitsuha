@@ -53,12 +53,4 @@ impl Resolver<ModuleInfo, ServiceModule> for ModuleResolver {
     async fn register(&self, _key: &ModuleInfo, _value: &ServiceModule) -> types::Result<()> {
         unimplemented!()
     }
-
-    async fn register_mut(
-        &mut self,
-        _key: &ModuleInfo,
-        _value: &ServiceModule,
-    ) -> types::Result<()> {
-        unimplemented!()
-    }
 }
