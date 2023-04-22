@@ -1,7 +1,12 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
 
-use crate::{kernel::{StorageSpec, JobSpec}, types};
+use crate::{
+    kernel::{JobSpec, StorageSpec},
+    types,
+};
 
 pub enum ComputeInput {
     Store { spec: StorageSpec },
@@ -14,13 +19,11 @@ pub enum ComputeInput {
 }
 
 pub enum ComputeOutput {
-    Stored { handle: String },
     Loaded { data: Vec<u8> },
     Completed,
-    Failed { msg: String },
 }
 
-pub type ComputeHandle = JoinHandle<ComputeOutput>;
+pub type ComputeHandle = JoinHandle<types::Result<ComputeOutput>>;
 
 #[async_trait]
 pub trait ComputeChannel: Send + Sync {
@@ -28,5 +31,5 @@ pub trait ComputeChannel: Send + Sync {
 
     async fn compute(&self, elem: ComputeInput) -> types::Result<ComputeHandle>;
 
-    async fn connect(&mut self, next: Box<dyn ComputeChannel>);
+    async fn connect(&mut self, next: Arc<Box<dyn ComputeChannel>>);
 }

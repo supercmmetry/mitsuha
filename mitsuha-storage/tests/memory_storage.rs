@@ -2,19 +2,21 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use mitsuha_core::{
     config,
+    constants::Constants,
     kernel::StorageSpec,
     selector::Label,
-    storage::{StorageClass, StorageLocality}, constants::Constants,
+    storage::{Storage, StorageClass, StorageLocality},
 };
 use mitsuha_storage::unified::UnifiedStorage;
-use mitsuha_storage::Storage;
 
 fn make_basic_config() -> config::storage::Storage {
     config::storage::Storage {
         classes: vec![
             StorageClass {
                 kind: mitsuha_core::storage::StorageKind::Memory,
-                locality: StorageLocality::Solid { cache_name: Some("cache_memory_1".to_string()) },
+                locality: StorageLocality::Solid {
+                    cache_name: Some("cache_memory_1".to_string()),
+                },
                 name: "solid_memory_1".to_string(),
                 labels: vec![Label {
                     name: "storage".to_string(),

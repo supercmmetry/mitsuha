@@ -151,10 +151,17 @@ pub enum Error {
         source: anyhow::Error,
     },
 
+    // Compute channel errors
+    #[error("reached compute channel eof")]
+    ComputeChannelEOF,
+
     // unknown errors
     #[error("encountered unknown error")]
     Unknown {
         #[source]
         source: anyhow::Error,
     },
+
+    #[error("encountered unknown error, {message}")]
+    UnknownWithMsgOnly { message: String },
 }

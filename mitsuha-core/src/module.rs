@@ -47,8 +47,22 @@ impl From<musubi_api::types::Dep> for ModuleInfo {
 }
 
 impl ModuleInfo {
+    pub fn get_identifier_type() -> &'static str {
+        "mitsuha/core/moduleinfo"
+    }
+
     pub fn get_identifier(&self) -> String {
-        format!("mitsuha/core/moduleinfo/{}/{}/{}", self.modtype.to_string(), self.name, self.version)
+        format!(
+            "{}/{}/{}/{}",
+            Self::get_identifier_type(),
+            self.modtype.to_string(),
+            self.name,
+            self.version
+        )
+    }
+
+    pub fn check_identifier_type(s: String) -> bool {
+        return s.starts_with(Self::get_identifier_type())
     }
 }
 

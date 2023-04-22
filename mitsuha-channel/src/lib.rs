@@ -1,1 +1,1 @@
-pub mod simple;
+pub mod labeled_storage_channel;

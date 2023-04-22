@@ -1,21 +1,18 @@
-use std::{
-    collections::HashMap,
-    sync::Arc, time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use dashmap::DashMap;
 use mitsuha_core::{
     config,
+    constants::Constants,
     errors::Error,
     kernel::StorageSpec,
     selector::Label,
-    storage::{StorageClass, StorageKind, StorageLocality},
-    types, constants::Constants,
+    storage::{GarbageCollectable, Storage, StorageClass, StorageKind, StorageLocality},
+    types,
 };
 
-
-use crate::{memory::MemoryStorage, Storage, GarbageCollectable};
+use crate::memory::MemoryStorage;
 
 pub struct UnifiedStorage {
     stores: Arc<HashMap<String, Arc<Box<dyn Storage>>>>,
@@ -90,7 +87,7 @@ impl Storage for UnifiedStorage {
                     match result {
                         Err(_e) => {
                             // Log error
-                        },
+                        }
                         _ => {}
                     }
                 }
@@ -166,13 +163,10 @@ impl UnifiedStorage {
         let mut stores = HashMap::new();
         let mut classes = HashMap::new();
 
-
         for storage_class in config.classes.iter() {
             let name = &storage_class.name;
 
-            if stores.contains_key(name)
-                || classes.contains_key(name)
-            {
+            if stores.contains_key(name) || classes.contains_key(name) {
                 return Err(Error::StorageInitFailed {
                     message: format!("duplicate storage class name '{}' was found during unified storage initialization.", name),
                     source: anyhow::anyhow!("")
@@ -190,11 +184,9 @@ impl UnifiedStorage {
                 value: storage_class.name.clone(),
             });
 
-            classes
-                .insert(name.clone(), processed_storage_class);
+            classes.insert(name.clone(), processed_storage_class);
 
             stores.insert(name.clone(), storage_impl);
-
         }
 
         unified_storage.classes = Arc::new(classes);

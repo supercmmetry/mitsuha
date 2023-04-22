@@ -1,4 +1,4 @@
-use crate::{symbol::Symbol, types, selector::Label, constants::Constants};
+use crate::{constants::Constants, selector::Label, symbol::Symbol, types};
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};

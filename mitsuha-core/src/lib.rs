@@ -1,4 +1,6 @@
+pub mod channel;
 pub mod config;
+pub mod constants;
 pub mod errors;
 pub mod executor;
 pub mod kernel;
@@ -7,9 +9,7 @@ pub mod module;
 pub mod provider;
 pub mod resolver;
 pub mod runtime;
+pub mod selector;
 pub mod storage;
 pub mod symbol;
 pub mod types;
-pub mod selector;
-pub mod channel;
-pub mod constants;

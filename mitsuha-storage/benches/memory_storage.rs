@@ -2,18 +2,25 @@ use std::{collections::HashMap, sync::Arc};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use mitsuha_core::{config, storage::{StorageClass, StorageLocality}, selector::Label, constants::Constants};
-use mitsuha_storage::{unified::UnifiedStorage, Storage};
 use mitsuha_core::kernel::StorageSpec;
-use rand::Rng;
+use mitsuha_core::{
+    config,
+    constants::Constants,
+    selector::Label,
+    storage::{Storage, StorageClass, StorageLocality},
+};
+use mitsuha_storage::unified::UnifiedStorage;
 use rand::distributions::Alphanumeric;
+use rand::Rng;
 
 fn make_basic_config() -> config::storage::Storage {
     config::storage::Storage {
         classes: vec![
             StorageClass {
                 kind: mitsuha_core::storage::StorageKind::Memory,
-                locality: StorageLocality::Solid { cache_name: Some("cache_memory_1".to_string()) },
+                locality: StorageLocality::Solid {
+                    cache_name: Some("cache_memory_1".to_string()),
+                },
                 name: "solid_memory_1".to_string(),
                 labels: vec![Label {
                     name: "storage".to_string(),
@@ -39,10 +46,10 @@ async fn make_unified_storage() -> Arc<Box<dyn Storage>> {
 
 async fn store_and_load_light(storage: Arc<Box<dyn Storage>>) {
     let handle: String = rand::thread_rng()
-    .sample_iter(&Alphanumeric)
-    .take(10)
-    .map(char::from)
-    .collect();
+        .sample_iter(&Alphanumeric)
+        .take(10)
+        .map(char::from)
+        .collect();
 
     let mut spec = StorageSpec {
         handle: handle,
@@ -56,7 +63,8 @@ async fn store_and_load_light(storage: Arc<Box<dyn Storage>>) {
         serde_json::to_string(&Label {
             name: "storage".to_string(),
             value: "sample".to_string(),
-        }).unwrap(),
+        })
+        .unwrap(),
     );
 
     storage.store(spec.clone()).await.unwrap();
@@ -68,10 +76,10 @@ async fn store_and_load_light(storage: Arc<Box<dyn Storage>>) {
 
 async fn store_and_load_heavy(storage: Arc<Box<dyn Storage>>) {
     let handle: String = rand::thread_rng()
-    .sample_iter(&Alphanumeric)
-    .take(10)
-    .map(char::from)
-    .collect();
+        .sample_iter(&Alphanumeric)
+        .take(10)
+        .map(char::from)
+        .collect();
 
     let mut spec = StorageSpec {
         handle: handle,
@@ -85,12 +93,12 @@ async fn store_and_load_heavy(storage: Arc<Box<dyn Storage>>) {
         serde_json::to_string(&Label {
             name: "storage".to_string(),
             value: "sample".to_string(),
-        }).unwrap(),
+        })
+        .unwrap(),
     );
 
     storage.store(spec.clone()).await.unwrap();
     storage.load(spec.handle.clone()).await.unwrap();
-
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -101,8 +109,14 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let storage = tokio_rt.block_on(make_unified_storage());
 
-    c.bench_function("store_and_load_light", |b| b.to_async(&tokio_rt).iter(|| store_and_load_light(black_box(storage.clone()))));
-    c.bench_function("store_and_load_heavy", |b| b.to_async(&tokio_rt).iter(|| store_and_load_heavy(black_box(storage.clone()))));
+    c.bench_function("store_and_load_light", |b| {
+        b.to_async(&tokio_rt)
+            .iter(|| store_and_load_light(black_box(storage.clone())))
+    });
+    c.bench_function("store_and_load_heavy", |b| {
+        b.to_async(&tokio_rt)
+            .iter(|| store_and_load_heavy(black_box(storage.clone())))
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);

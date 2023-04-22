@@ -3,9 +3,9 @@ use std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
-use mitsuha_core::{errors::Error, kernel::StorageSpec, types, constants::Constants};
+use mitsuha_core::{constants::Constants, errors::Error, kernel::StorageSpec, types};
 
-use crate::{Storage, GarbageCollectable};
+use mitsuha_core::storage::{GarbageCollectable, Storage};
 
 pub struct MemoryStorage {
     store: DashMap<String, Vec<u8>>,
@@ -57,7 +57,6 @@ impl Storage for MemoryStorage {
         }
 
         let data = spec.data;
-
 
         *self.total_size.write().unwrap() += data.len();
         self.store.insert(handle.clone(), data);
@@ -161,7 +160,6 @@ impl MemoryStorage {
             expiry_map: Default::default(),
             total_size: Arc::new(RwLock::new(0usize)),
         };
-
 
         Ok(Arc::new(Box::new(obj)))
     }
