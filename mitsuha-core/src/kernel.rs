@@ -22,6 +22,7 @@ pub enum JobStatusType {
     Running,
     Completed,
     Failed,
+    
 }
 
 #[derive(Serialize, Deserialize)]

@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 mitsuha-core = { path = "../mitsuha-core" }
+mitsuha-storage = { path = "../mitsuha-storage" }
 
 # Musubi dependencies
 musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }

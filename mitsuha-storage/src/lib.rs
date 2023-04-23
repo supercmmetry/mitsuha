@@ -1,6 +1,5 @@
-use async_trait::async_trait;
-use mitsuha_core::{kernel::StorageSpec, types};
-
 mod memory;
-pub mod resolver;
+mod resolver;
 pub mod unified;
+
+pub use unified::UnifiedStorage;

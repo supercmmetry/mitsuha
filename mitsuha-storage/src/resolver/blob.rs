@@ -43,7 +43,6 @@ impl Resolver<ModuleInfo, Vec<u8>> for BlobResolver {
             ttl: 0,
             extensions: HashMap::new(),
         };
-        
 
         let input = ComputeInput::Store { spec };
         let output = self

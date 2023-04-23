@@ -60,40 +60,6 @@ fn get_artifact_resolver() -> ArtifactResolver {
     }
 }
 
-struct WasmtimeModuleResolver {
-    artifact_resolver: ArtifactResolver,
-    engine: wasmtime::Engine,
-}
-
-impl WasmtimeModuleResolver {
-    pub fn new(engine: wasmtime::Engine) -> Self {
-        Self {
-            artifact_resolver: get_artifact_resolver(),
-            engine,
-        }
-    }
-}
-
-#[async_trait(?Send)]
-impl Resolver<ModuleInfo, WasmtimeModule> for WasmtimeModuleResolver {
-    async fn resolve(&self, key: &ModuleInfo) -> types::Result<WasmtimeModule> {
-        let data = self.artifact_resolver.resolve(&key).await?;
-        Ok(WasmtimeModule::new(data, key.clone(), &self.engine)?)
-    }
-
-    async fn register(&self, key: &ModuleInfo, value: &WasmtimeModule) -> types::Result<()> {
-        unimplemented!()
-    }
-
-    async fn register_mut(
-        &mut self,
-        key: &ModuleInfo,
-        value: &WasmtimeModule,
-    ) -> types::Result<()> {
-        unimplemented!()
-    }
-}
-
 struct TestCoreStub;
 
 #[async_trait]
