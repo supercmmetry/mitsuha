@@ -1,9 +1,15 @@
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
-use mitsuha_core::{channel::{ComputeChannel, ComputeInput, ComputeHandle}, types, module::ModuleInfo, errors::Error, kernel::JobStatus};
+use mitsuha_core::{
+    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    errors::Error,
+    kernel::JobStatus,
+    module::ModuleInfo,
+    types,
+};
 
-use crate::{util, job_future::JobState};
+use crate::{job_future::JobState, util};
 
 pub struct SystemChannel<Context> {
     next: Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>,
@@ -20,22 +26,39 @@ pub trait SystemContext {
     fn make_job_state(&self, handle: String, state: JobState) -> Arc<RwLock<JobState>>;
 }
 
-
 #[async_trait]
-impl<Context> ComputeChannel for SystemChannel<Context> where Context: SystemContext + Send {
+impl<Context> ComputeChannel for SystemChannel<Context>
+where
+    Context: SystemContext + Send,
+{
     type Context = Context;
 
     async fn id(&self) -> types::Result<String> {
         Ok(self.id.clone())
     }
 
-    async fn compute(&self, ctx: Context, mut elem: ComputeInput) -> types::Result<ComputeHandle> {
+    async fn compute(&self, ctx: Context, mut elem: ComputeInput) -> types::Result<ComputeOutput> {
         if let ComputeInput::Store { mut spec } = elem {
             if ModuleInfo::equals_identifier_type(&spec.handle) {
                 spec.ttl = u64::MAX;
             }
 
             elem = ComputeInput::Store { spec };
+        }
+
+        match &mut elem {
+            ComputeInput::Store { ref mut spec } => {
+                if ModuleInfo::equals_identifier_type(&spec.handle) {
+                    spec.ttl = u64::MAX;
+                }
+            }
+            ComputeInput::Extend { handle, ttl } => {
+                ctx.extend_job(handle, *ttl)?;
+            }
+            ComputeInput::Abort { handle } => {
+                ctx.abort_job(handle)?;
+            }
+            _ => {}
         }
 
         match self.next.clone() {
@@ -55,11 +78,12 @@ impl<Context> SystemChannel<Context> {
     }
 
     pub fn new() -> Self {
-        let id = format!("{}/{}", Self::get_identifier_type(), util::generate_random_id());
+        let id = format!(
+            "{}/{}",
+            Self::get_identifier_type(),
+            util::generate_random_id()
+        );
 
-        Self {
-            next: None,
-            id,
-        }
+        Self { next: None, id }
     }
 }

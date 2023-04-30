@@ -1,8 +1,13 @@
-use std::{future::Future, sync::{Arc, RwLock}, pin::Pin, task::Poll};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{Arc, RwLock},
+    task::Poll,
+};
 
-use chrono::{Utc, DateTime};
-use mitsuha_core::{types, channel::ComputeOutput};
-use tokio::task::{JoinHandle, JoinError};
+use chrono::{DateTime, Utc};
+use mitsuha_core::{channel::ComputeOutput, types};
+use tokio::task::{JoinError, JoinHandle};
 
 type JobOutput = types::Result<ComputeOutput>;
 
@@ -10,7 +15,7 @@ type JobOutput = types::Result<ComputeOutput>;
 pub enum JobState {
     Completed,
     Aborted,
-    ExpireAt(DateTime<Utc>)
+    ExpireAt(DateTime<Utc>),
 }
 
 pub struct JobFuture {
@@ -22,13 +27,14 @@ pub struct JobFuture {
 impl Future for JobFuture {
     type Output = JobOutput;
 
-    fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
         let state_ptr = self.state.clone();
         let state_obj = state_ptr.read().unwrap().clone();
 
-        let fut = unsafe {
-            Pin::new_unchecked(&mut self.task)
-        };
+        let fut = unsafe { Pin::new_unchecked(&mut self.task) };
 
         if fut.is_finished() {
             let poll_value = Self::flatten_join_poll_value(fut.poll(cx));
@@ -42,13 +48,18 @@ impl Future for JobFuture {
         match state_obj {
             JobState::Aborted => {
                 fut.abort();
-                Poll::Ready(Err(mitsuha_core::errors::Error::JobAborted { handle: self.handle.clone() }))
-            },
+                Poll::Ready(Err(mitsuha_core::errors::Error::JobAborted {
+                    handle: self.handle.clone(),
+                }))
+            }
             JobState::ExpireAt(x) if x <= Utc::now() => {
                 fut.abort();
-                Poll::Ready(Err(mitsuha_core::errors::Error::JobExpired { handle: self.handle.clone(), expiry: x.to_string() }))
-            },
-            _ => Self::flatten_join_poll_value(fut.poll(cx))
+                Poll::Ready(Err(mitsuha_core::errors::Error::JobExpired {
+                    handle: self.handle.clone(),
+                    expiry: x.to_string(),
+                }))
+            }
+            _ => Self::flatten_join_poll_value(fut.poll(cx)),
         }
     }
 }
@@ -62,12 +73,16 @@ impl JobFuture {
         }
     }
 
-    fn flatten_join_poll_value<T>(r: Poll<Result<Result<T, mitsuha_core::errors::Error>, JoinError>>) -> Poll<Result<T, mitsuha_core::errors::Error>> {
+    fn flatten_join_poll_value<T>(
+        r: Poll<Result<Result<T, mitsuha_core::errors::Error>, JoinError>>,
+    ) -> Poll<Result<T, mitsuha_core::errors::Error>> {
         match r {
             Poll::Pending => Poll::Pending,
             Poll::Ready(x) => {
                 if let Err(e) = x {
-                    Poll::Ready(Err(mitsuha_core::errors::Error::Unknown { source: e.into() }))
+                    Poll::Ready(Err(mitsuha_core::errors::Error::Unknown {
+                        source: e.into(),
+                    }))
                 } else {
                     Poll::Ready(x.unwrap())
                 }

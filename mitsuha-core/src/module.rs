@@ -62,7 +62,7 @@ impl ModuleInfo {
     }
 
     pub fn equals_identifier_type(s: &String) -> bool {
-        return s.starts_with(Self::get_identifier_type())
+        return s.starts_with(Self::get_identifier_type());
     }
 }
 

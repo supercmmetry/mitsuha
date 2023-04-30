@@ -22,7 +22,7 @@ pub enum JobStatusType {
     Running,
     Completed,
     Aborted,
-    ExpiredAt{ datetime: DateTime<Utc> },
+    ExpiredAt { datetime: DateTime<Utc> },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -74,10 +74,7 @@ pub trait CoreStub: Send + Sync {
     async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>>;
 }
 
-
-pub struct StubbedKernel {
-
-}
+pub struct StubbedKernel {}
 
 #[async_trait]
 impl CoreStub for StubbedKernel {

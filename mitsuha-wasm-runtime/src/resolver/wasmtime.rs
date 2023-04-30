@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use mitsuha_core::{resolver::Resolver, module::ModuleInfo, types};
+use mitsuha_core::{module::ModuleInfo, resolver::Resolver, types};
 
 use crate::wasmtime::WasmtimeModule;
 
@@ -11,11 +11,11 @@ pub struct WasmtimeModuleResolver {
 }
 
 impl WasmtimeModuleResolver {
-    pub fn new(engine: wasmtime::Engine, resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>>) -> Self {
-        Self {
-            resolver,
-            engine,
-        }
+    pub fn new(
+        engine: wasmtime::Engine,
+        resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>>,
+    ) -> Self {
+        Self { resolver, engine }
     }
 }
 

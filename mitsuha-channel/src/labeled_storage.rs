@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeHandle, ComputeInput, ComputeOutput},
+    channel::{ComputeChannel, ComputeInput, ComputeOutput},
     errors::Error,
     selector::Label,
     storage::Storage,
@@ -19,65 +19,52 @@ pub struct LabeledStorageChannel<Context> {
 }
 
 #[async_trait]
-impl<Context> ComputeChannel for LabeledStorageChannel<Context> where Context: Send {
+impl<Context> ComputeChannel for LabeledStorageChannel<Context>
+where
+    Context: Send,
+{
     type Context = Context;
-    
+
     async fn id(&self) -> types::Result<String> {
         Ok(self.id.clone())
     }
 
-    async fn compute(&self, ctx: Context, elem: ComputeInput) -> types::Result<ComputeHandle> {
+    async fn compute(&self, ctx: Context, elem: ComputeInput) -> types::Result<ComputeOutput> {
         let storage = self.storage.clone();
 
         match elem {
             ComputeInput::Store { spec } => {
                 let spec = spec.with_selector(&self.storage_selector);
-                let handle = tokio::task::spawn(async move {
-                    let result = storage.store(spec).await;
+                let result = storage.store(spec).await;
 
-                    match result {
-                        Ok(_) => Ok(ComputeOutput::Completed),
-                        Err(e) => Err(e),
-                    }
-                });
-
-                Ok(handle)
+                match result {
+                    Ok(_) => Ok(ComputeOutput::Completed),
+                    Err(e) => Err(e),
+                }
             }
             ComputeInput::Load { handle } => {
-                let handle = tokio::task::spawn(async move {
-                    let result = storage.load(handle).await;
+                let result = storage.load(handle).await;
 
-                    match result {
-                        Ok(data) => Ok(ComputeOutput::Loaded { data }),
-                        Err(e) => Err(e),
-                    }
-                });
-
-                Ok(handle)
+                match result {
+                    Ok(data) => Ok(ComputeOutput::Loaded { data }),
+                    Err(e) => Err(e),
+                }
             }
             ComputeInput::Persist { handle, ttl } => {
-                let handle = tokio::task::spawn(async move {
-                    let result = storage.persist(handle, ttl).await;
+                let result = storage.persist(handle, ttl).await;
 
-                    match result {
-                        Ok(_) => Ok(ComputeOutput::Completed),
-                        Err(e) => Err(e),
-                    }
-                });
-
-                Ok(handle)
+                match result {
+                    Ok(_) => Ok(ComputeOutput::Completed),
+                    Err(e) => Err(e),
+                }
             }
             ComputeInput::Clear { handle } => {
-                let handle = tokio::task::spawn(async move {
-                    let result = storage.clear(handle).await;
+                let result = storage.clear(handle).await;
 
-                    match result {
-                        Ok(_) => Ok(ComputeOutput::Completed),
-                        Err(e) => Err(e),
-                    }
-                });
-
-                Ok(handle)
+                match result {
+                    Ok(_) => Ok(ComputeOutput::Completed),
+                    Err(e) => Err(e),
+                }
             }
             _ => match self.next.clone() {
                 Some(chan) => chan.compute(ctx, elem).await,
@@ -97,7 +84,11 @@ impl<Context> LabeledStorageChannel<Context> {
     }
 
     pub fn new(storage: Arc<Box<dyn Storage>>, selector: Label) -> Self {
-        let id = format!("{}/{}", Self::get_identifier_type(), util::generate_random_id());
+        let id = format!(
+            "{}/{}",
+            Self::get_identifier_type(),
+            util::generate_random_id()
+        );
 
         Self {
             storage,

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use tokio::task::JoinHandle;
 
 use crate::{
-    kernel::{Kernel, JobSpec, StorageSpec, JobStatus},
+    kernel::{JobSpec, JobStatus, Kernel, StorageSpec},
     types,
 };
 
@@ -15,7 +15,7 @@ pub enum ComputeInput {
     Clear { handle: String },
 
     Run { spec: JobSpec },
-    Extend { handle: String },
+    Extend { handle: String, ttl: u64 },
     Status { handle: String },
     Abort { handle: String },
 }
@@ -26,23 +26,20 @@ pub enum ComputeOutput {
     Completed,
 }
 
-pub type ComputeHandle = JoinHandle<types::Result<ComputeOutput>>;
-
 #[async_trait]
 pub trait ComputeChannel: Send + Sync {
     type Context;
 
     async fn id(&self) -> types::Result<String>;
 
-    async fn compute(&self, ctx: Self::Context, elem: ComputeInput) -> types::Result<ComputeHandle>;
+    async fn compute(&self, ctx: Self::Context, elem: ComputeInput)
+        -> types::Result<ComputeOutput>;
 
     async fn connect(&mut self, next: Arc<Box<dyn ComputeChannel<Context = Self::Context>>>);
 }
 
-
 pub struct ComputeKernel<Context> {
     channel: Arc<Box<dyn ComputeChannel<Context = Context>>>,
-    
 }
 
 // #[async_trait]

@@ -153,20 +153,13 @@ pub enum Error {
 
     // Job errors
     #[error("job with handle '{handle}' was not found")]
-    JobNotFound {
-        handle: String,
-    },
+    JobNotFound { handle: String },
 
     #[error("job with handle '{handle}' expired at '{expiry}'")]
-    JobExpired {
-        handle: String,
-        expiry: String,
-    },
+    JobExpired { handle: String, expiry: String },
 
     #[error("job with handle '{handle}' was aborted")]
-    JobAborted {
-        handle: String,
-    },
+    JobAborted { handle: String },
 
     // Compute channel errors
     #[error("reached compute channel eof")]
