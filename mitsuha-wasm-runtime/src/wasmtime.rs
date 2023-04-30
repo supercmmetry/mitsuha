@@ -141,12 +141,12 @@ impl WasmtimeModule {
 
 #[derive(Clone)]
 pub struct WasmtimeContext {
-    core_stub: SharedAsyncMany<dyn CoreStub>,
+    core_stub: Arc<Box<dyn CoreStub>>,
     instance: SharedAsyncMany<Option<wasmtime::Instance>>,
 }
 
 impl WasmtimeContext {
-    pub fn new(core_stub: SharedAsyncMany<dyn CoreStub>) -> Self {
+    pub fn new(core_stub: Arc<Box<dyn CoreStub>>) -> Self {
         Self {
             core_stub,
             instance: Arc::new(tokio::sync::RwLock::new(None)),
@@ -162,20 +162,20 @@ impl WasmtimeContext {
     }
 
     pub async fn call(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
-        self.core_stub.read().await.run(symbol, input).await
+        self.core_stub.run(symbol, input).await
     }
 }
 
 pub struct WasmtimeLinker {
     engine: wasmtime::Engine,
-    resolver: SharedMany<dyn Resolver<ModuleInfo, WasmtimeModule>>,
+    resolver: Arc<Box<dyn Resolver<ModuleInfo, WasmtimeModule>>>,
     has_ticker_started: AtomicBool,
     ticker_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl WasmtimeLinker {
     pub fn new(
-        resolver: SharedMany<dyn Resolver<ModuleInfo, WasmtimeModule>>,
+        resolver: Arc<Box<dyn Resolver<ModuleInfo, WasmtimeModule>>>,
         engine: wasmtime::Engine,
     ) -> types::Result<Self> {
         Ok(Self {
@@ -207,7 +207,7 @@ impl WasmtimeLinker {
     }
 
     async fn fetch_module(&self, module_info: &ModuleInfo) -> types::Result<WasmtimeModule> {
-        self.resolver.read().unwrap().resolve(module_info).await
+        self.resolver.resolve(module_info).await
     }
 
     fn construct_error(error: &str) -> musubi_api::types::Data {

@@ -1,28 +1,28 @@
 use std::{sync::Arc, collections::HashMap};
 
 use async_trait::async_trait;
-use mitsuha_core::{
+use crate::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     module::ModuleInfo,
     resolver::Resolver,
     types, kernel::StorageSpec,
 };
 
-use mitsuha_core::errors::Error;
+use crate::errors::Error;
 
-pub struct BlobResolver {
-    channel: Arc<Box<dyn ComputeChannel>>,
+pub struct BlobResolver<Context> {
+    channel: Arc<Box<dyn ComputeChannel<Context = Context>>>,
 }
 
 #[async_trait(?Send)]
-impl Resolver<ModuleInfo, Vec<u8>> for BlobResolver {
+impl<Context> Resolver<ModuleInfo, Vec<u8>> for BlobResolver<Context> where Context: Default {
     async fn resolve(&self, key: &ModuleInfo) -> types::Result<Vec<u8>> {
         let handle = key.get_identifier();
 
         let input = ComputeInput::Load { handle };
         let output = self
             .channel
-            .compute(input)
+            .compute(Context::default(), input)
             .await?
             .await
             .map_err(|e| Error::Unknown { source: e.into() })??;
@@ -47,7 +47,7 @@ impl Resolver<ModuleInfo, Vec<u8>> for BlobResolver {
         let input = ComputeInput::Store { spec };
         let output = self
             .channel
-            .compute(input)
+            .compute(Context::default(), input)
             .await?
             .await
             .map_err(|e| Error::Unknown { source: e.into() })??;

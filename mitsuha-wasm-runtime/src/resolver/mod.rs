@@ -1,1 +1,1 @@
-mod wasmtime;
+pub mod wasmtime;

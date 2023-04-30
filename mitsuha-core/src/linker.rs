@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 
@@ -11,11 +11,11 @@ use crate::{
 
 pub struct LinkerContext {
     pub dependency_graph: HashMap<ModuleInfo, HashMap<String, ModuleInfo>>,
-    pub core_stub: SharedAsyncMany<dyn CoreStub>,
+    pub core_stub: Arc<Box<dyn CoreStub>>,
 }
 
 impl LinkerContext {
-    pub fn new(core_stub: SharedAsyncMany<dyn CoreStub>) -> Self {
+    pub fn new(core_stub: Arc<Box<dyn CoreStub>>) -> Self {
         Self {
             dependency_graph: HashMap::new(),
             core_stub,

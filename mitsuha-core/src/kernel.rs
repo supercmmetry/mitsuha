@@ -1,6 +1,7 @@
 use crate::{constants::Constants, selector::Label, symbol::Symbol, types};
 use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use async_trait::async_trait;
@@ -18,11 +19,10 @@ pub struct JobSpec {
 
 #[derive(Serialize, Deserialize)]
 pub enum JobStatusType {
-    Pending,
     Running,
     Completed,
-    Failed,
-    
+    Aborted,
+    ExpiredAt{ datetime: DateTime<Utc> },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -72,4 +72,16 @@ pub trait Kernel: Send + Sync {
 #[async_trait]
 pub trait CoreStub: Send + Sync {
     async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>>;
+}
+
+
+pub struct StubbedKernel {
+
+}
+
+#[async_trait]
+impl CoreStub for StubbedKernel {
+    async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
+        Ok(vec![])
+    }
 }
