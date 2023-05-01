@@ -23,7 +23,7 @@ impl LinkerContext {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 pub trait Linker {
     async fn load(
         &self,
@@ -32,7 +32,7 @@ pub trait Linker {
     ) -> types::Result<()>;
 
     async fn link(
-        &mut self,
+        &self,
         context: &mut LinkerContext,
         module_info: &ModuleInfo,
     ) -> types::Result<ExecutorContext>;

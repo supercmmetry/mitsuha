@@ -1275,6 +1275,7 @@ dependencies = [
  "config",
  "dashmap",
  "futures",
+ "lazy_static",
  "musubi_api",
  "redis",
  "reqwest",

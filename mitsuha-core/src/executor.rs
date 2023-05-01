@@ -38,7 +38,8 @@ impl ExecutorContext {
             })?
             .as_ref()
             .read()
-            .unwrap()(input)
+            .await
+            (input)
         .await;
 
         Ok(output)

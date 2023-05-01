@@ -19,7 +19,7 @@ impl WasmtimeModuleResolver {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl Resolver<ModuleInfo, WasmtimeModule> for WasmtimeModuleResolver {
     async fn resolve(&self, key: &ModuleInfo) -> types::Result<WasmtimeModule> {
         let data = self.resolver.resolve(&key).await?;

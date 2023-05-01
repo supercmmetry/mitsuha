@@ -15,10 +15,10 @@ pub struct BlobResolver<Context> {
     channel: Arc<Box<dyn ComputeChannel<Context = Context>>>,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<Context> Resolver<ModuleInfo, Vec<u8>> for BlobResolver<Context>
 where
-    Context: Default,
+    Context: Default + Send,
 {
     async fn resolve(&self, key: &ModuleInfo) -> types::Result<Vec<u8>> {
         let handle = key.get_identifier();

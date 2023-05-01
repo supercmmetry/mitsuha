@@ -10,7 +10,7 @@ pub struct RedisResolver {
     client: redis::Client,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<K, V> Resolver<K, V> for RedisResolver
 where
     K: ToRedisArgs + Send + Sync,

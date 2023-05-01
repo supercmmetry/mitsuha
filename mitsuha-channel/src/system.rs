@@ -38,14 +38,6 @@ where
     }
 
     async fn compute(&self, ctx: Context, mut elem: ComputeInput) -> types::Result<ComputeOutput> {
-        if let ComputeInput::Store { mut spec } = elem {
-            if ModuleInfo::equals_identifier_type(&spec.handle) {
-                spec.ttl = u64::MAX;
-            }
-
-            elem = ComputeInput::Store { spec };
-        }
-
         match &mut elem {
             ComputeInput::Store { ref mut spec } => {
                 if ModuleInfo::equals_identifier_type(&spec.handle) {

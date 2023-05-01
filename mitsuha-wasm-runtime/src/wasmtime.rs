@@ -14,7 +14,7 @@ use mitsuha_core::{
     module::{Module, ModuleInfo, ModuleType},
     resolver::Resolver,
     symbol::Symbol,
-    types::{self, SharedAsyncMany, SharedMany},
+    types::{self, SharedAsyncMany},
 };
 use num_traits::cast::FromPrimitive;
 
@@ -169,7 +169,6 @@ impl WasmtimeContext {
 pub struct WasmtimeLinker {
     engine: wasmtime::Engine,
     resolver: Arc<Box<dyn Resolver<ModuleInfo, WasmtimeModule>>>,
-    has_ticker_started: AtomicBool,
     ticker_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
@@ -178,20 +177,17 @@ impl WasmtimeLinker {
         resolver: Arc<Box<dyn Resolver<ModuleInfo, WasmtimeModule>>>,
         engine: wasmtime::Engine,
     ) -> types::Result<Self> {
-        Ok(Self {
+        let mut obj = Self {
             resolver,
             engine,
-            has_ticker_started: AtomicBool::new(false),
             ticker_handle: None,
-        })
+        };
+
+        obj.start_ticker();
+        Ok(obj)
     }
 
     fn start_ticker(&mut self) {
-        let value = self.has_ticker_started.get_mut();
-        if *value {
-            return;
-        }
-
         let engine = self.engine.clone();
 
         self.ticker_handle = Some(tokio::task::spawn(async move {
@@ -202,8 +198,6 @@ impl WasmtimeLinker {
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         }));
-
-        *value = true;
     }
 
     async fn fetch_module(&self, module_info: &ModuleInfo) -> types::Result<WasmtimeModule> {
@@ -339,7 +333,7 @@ impl WasmtimeLinker {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl Linker for WasmtimeLinker {
     async fn load(
         &self,
@@ -369,7 +363,7 @@ impl Linker for WasmtimeLinker {
     }
 
     async fn link(
-        &mut self,
+        &self,
         context: &mut LinkerContext,
         module_info: &ModuleInfo,
     ) -> types::Result<ExecutorContext> {
@@ -380,7 +374,6 @@ impl Linker for WasmtimeLinker {
         let mut store = wasmtime::Store::new(&self.engine, wasmtime_context.clone());
 
         store.epoch_deadline_async_yield_and_update(1);
-        self.start_ticker();
 
         let mut linker = wasmtime::Linker::new(&self.engine);
 
@@ -534,7 +527,7 @@ impl Linker for WasmtimeLinker {
                 .boxed()
             };
 
-            executor_context.add_symbol(symbol, Arc::new(RwLock::new(exported_func)))?;
+            executor_context.add_symbol(symbol, Arc::new(tokio::sync::RwLock::new(exported_func)))?;
         }
 
         Ok(executor_context)

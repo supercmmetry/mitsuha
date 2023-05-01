@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     module::{ModuleInfo, ModuleType},
-    types::SharedMany,
+    types::{SharedMany, SharedAsyncMany},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -109,4 +109,4 @@ impl Symbol {
     }
 }
 
-pub type SymbolFunc = SharedMany<dyn Fn(Vec<u8>) -> BoxFuture<'static, Vec<u8>> + Send + Sync>;
+pub type SymbolFunc = SharedAsyncMany<dyn Fn(Vec<u8>) -> BoxFuture<'static, Vec<u8>> + Send + Sync>;

@@ -5,9 +5,8 @@ use crate::types;
 // pub mod module;
 pub mod blob;
 pub mod redis;
-pub mod wasm;
 
-#[async_trait(?Send)]
+#[async_trait]
 pub trait Resolver<Key, Value>: Send + Sync {
     async fn resolve(&self, key: &Key) -> types::Result<Value>;
 
