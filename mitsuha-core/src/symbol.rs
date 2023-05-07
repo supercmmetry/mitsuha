@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     module::{ModuleInfo, ModuleType},
-    types::{SharedMany, SharedAsyncMany},
+    types::{SharedAsyncMany, SharedMany},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

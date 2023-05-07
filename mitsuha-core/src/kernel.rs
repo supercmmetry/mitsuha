@@ -77,7 +77,7 @@ pub trait CoreStub: Send + Sync {
 }
 
 pub struct StubbedKernel {
-    kernel: Arc<Box<dyn Kernel>>
+    kernel: Arc<Box<dyn Kernel>>,
 }
 
 static CORE_SYMBOL_RUN: &str = "run";

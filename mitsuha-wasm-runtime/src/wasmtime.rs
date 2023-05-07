@@ -527,7 +527,8 @@ impl Linker for WasmtimeLinker {
                 .boxed()
             };
 
-            executor_context.add_symbol(symbol, Arc::new(tokio::sync::RwLock::new(exported_func)))?;
+            executor_context
+                .add_symbol(symbol, Arc::new(tokio::sync::RwLock::new(exported_func)))?;
         }
 
         Ok(executor_context)

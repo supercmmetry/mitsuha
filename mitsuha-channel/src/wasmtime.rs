@@ -1,20 +1,28 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Duration, Utc};
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     errors::Error,
+    executor::ExecutorContext,
+    kernel::{CoreStub, JobSpec, Kernel, StorageSpec, StubbedKernel},
+    linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
     resolver::Resolver,
-    types, kernel::{CoreStub, JobSpec, Kernel, StubbedKernel, StorageSpec}, linker::{LinkerContext, Linker}, symbol::Symbol, executor::ExecutorContext,
+    symbol::Symbol,
+    types,
 };
 use mitsuha_wasm_runtime::{
     resolver::wasmtime::WasmtimeModuleResolver,
     wasmtime::{WasmtimeLinker, WasmtimeModule},
 };
 
-use crate::{util, system::SystemContext, job_future::{JobState, JobFuture}};
+use crate::{
+    job_future::{JobFuture, JobState},
+    system::SystemContext,
+    util,
+};
 
 pub struct WasmtimeChannel<Context> {
     id: String,
@@ -35,30 +43,31 @@ where
         Ok(self.id.clone())
     }
 
-    async fn compute(&self, ctx: Context, mut elem: ComputeInput) -> types::Result<ComputeOutput> {
+    async fn compute(&self, ctx: Context, elem: ComputeInput) -> types::Result<ComputeOutput> {
         match elem {
             ComputeInput::Run { spec } if spec.symbol.module_info.modtype == ModuleType::WASM => {
                 let handle = spec.handle.clone();
-                let job_state = ctx.make_job_state(spec.handle.clone(), JobState::ExpireAt(Utc::now() + Duration::seconds(spec.ttl as i64)));
 
                 let linker = self.linker.clone();
                 let stub = self.stub.clone();
                 let kernel = self.kernel.clone();
 
-                let job_handle = tokio::task::spawn(async move {
+                let job_state = ctx.make_job_state(
+                    spec.handle.clone(),
+                    JobState::ExpireAt(Utc::now() + Duration::seconds(spec.ttl as i64)),
+                );
+                let job_task = tokio::task::spawn(async move {
                     Self::run(linker, stub, kernel, spec).await?;
                     Ok(ComputeOutput::Completed)
                 });
 
-                let fut = JobFuture::new(handle, job_handle, job_state);
+                let fut = JobFuture::new(handle, job_task, job_state);
                 fut.await
-            },
-            _ => {
-                match self.next.clone() {
-                    Some(chan) => chan.compute(ctx, elem).await,
-                    None => Err(Error::ComputeChannelEOF),
-                }
             }
+            _ => match self.next.clone() {
+                Some(chan) => chan.compute(ctx, elem).await,
+                None => Err(Error::ComputeChannelEOF),
+            },
         }
     }
 
@@ -72,7 +81,10 @@ impl<Context> WasmtimeChannel<Context> {
         "mitsuha/channel/wasmtime"
     }
 
-    pub fn new(kernel: Arc<Box<dyn Kernel>>, resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>>) -> Self {
+    pub fn new(
+        kernel: Arc<Box<dyn Kernel>>,
+        resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>>,
+    ) -> Self {
         // TODO: Make this configurable
 
         let mut config = wasmtime::Config::default();
@@ -103,7 +115,12 @@ impl<Context> WasmtimeChannel<Context> {
         }
     }
 
-    async fn run(linker: Arc<WasmtimeLinker>, stub: Arc<Box<dyn CoreStub>>, kernel: Arc<Box<dyn Kernel>>, spec: JobSpec) -> types::Result<()> {
+    async fn run(
+        linker: Arc<WasmtimeLinker>,
+        stub: Arc<Box<dyn CoreStub>>,
+        kernel: Arc<Box<dyn Kernel>>,
+        spec: JobSpec,
+    ) -> types::Result<()> {
         let symbol = spec.symbol.clone();
         let module_info = symbol.module_info.clone();
 
@@ -113,17 +130,18 @@ impl<Context> WasmtimeChannel<Context> {
 
         let exec_ctx = Arc::new(linker.link(&mut linker_ctx, &module_info).await?);
 
-
         let input = kernel.load_data(spec.input_handle).await?;
 
         let output = exec_ctx.call(&symbol, input).await?;
 
-        kernel.store_data(StorageSpec {
-            handle: spec.output_handle,
-            data: output,
-            ttl: spec.ttl,
-            extensions: Default::default(),
-        }).await?;
+        kernel
+            .store_data(StorageSpec {
+                handle: spec.output_handle,
+                data: output,
+                ttl: spec.ttl,
+                extensions: Default::default(),
+            })
+            .await?;
 
         Ok(())
     }
