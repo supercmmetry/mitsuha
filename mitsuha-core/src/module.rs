@@ -1,9 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(strum_macros::Display, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ModuleType {
+    #[strum(serialize = "wasm")]
     WASM,
+
+    #[strum(serialize = "service")]
     SERVICE,
+
+    #[strum(serialize = "unknown")]
     UNKNOWN,
 }
 
@@ -20,12 +25,6 @@ impl From<musubi_api::types::ModuleType> for ModuleType {
             musubi_api::types::ModuleType::SERVICE => Self::SERVICE,
             musubi_api::types::ModuleType::UNKNOWN => Self::UNKNOWN,
         }
-    }
-}
-
-impl std::fmt::Display for ModuleType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
     }
 }
 

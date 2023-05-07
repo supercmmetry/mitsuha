@@ -1,21 +1,27 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, time::Duration, sync::Arc};
 
 use mitsuha_channel::{
     context::ChannelContext,
-    labeled_storage::{self, LabeledStorageChannel},
-    system::SystemChannel,
 };
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
-    config,
     kernel::StorageSpec,
-    selector::Label,
-    storage::{Storage, StorageClass, StorageLocality},
 };
-use mitsuha_storage::UnifiedStorage;
+
 
 mod setup;
 use setup::*;
+
+pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
+    let system_channel = make_system_channel();
+    let labeled_storage_channel = make_labeled_storage_channel();
+
+    system_channel
+        .connect(labeled_storage_channel)
+        .await;
+
+    system_channel
+}
 
 #[tokio::test]
 async fn store_and_load() {

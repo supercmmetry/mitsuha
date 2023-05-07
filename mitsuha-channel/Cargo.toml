@@ -16,3 +16,14 @@ rand = "0.8.5"
 async-trait = "0.1.59"
 chrono = "0.4.23"
 wasmtime = { version = "3.0.1", features = ["async"] }
+
+[dev-dependencies]
+# Musubi dependencies
+musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+musubi_wasmtime = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+criterion = { version = "0.4", features = ["html_reports", "async_tokio"] }
+
+
+[[bench]]
+name = "wasmtime"
+harness = false

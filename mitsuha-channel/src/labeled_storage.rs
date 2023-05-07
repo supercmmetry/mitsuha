@@ -8,13 +8,14 @@ use mitsuha_core::{
     storage::Storage,
     types,
 };
+use tokio::sync::RwLock;
 
 use crate::util;
 
-pub struct LabeledStorageChannel<Context> {
+pub struct LabeledStorageChannel<Context: Send> {
     storage: Arc<Box<dyn Storage>>,
     storage_selector: Label,
-    next: Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>,
+    next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
     id: String,
 }
 
@@ -66,19 +67,19 @@ where
                     Err(e) => Err(e),
                 }
             }
-            _ => match self.next.clone() {
+            _ => match self.next.read().await.clone() {
                 Some(chan) => chan.compute(ctx, elem).await,
                 None => Err(Error::ComputeChannelEOF),
             },
         }
     }
 
-    async fn connect(&mut self, next: Arc<Box<dyn ComputeChannel<Context = Context>>>) {
-        self.next = Some(next);
+    async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = Context>>>) {
+        *self.next.write().await = Some(next);
     }
 }
 
-impl<Context> LabeledStorageChannel<Context> {
+impl<Context> LabeledStorageChannel<Context> where Context: Send {
     pub fn get_identifier_type() -> &'static str {
         "mitsuha/channel/labeled_storage"
     }
@@ -93,7 +94,7 @@ impl<Context> LabeledStorageChannel<Context> {
         Self {
             storage,
             storage_selector: selector,
-            next: None,
+            next: Arc::new(RwLock::new(None)),
             id,
         }
     }

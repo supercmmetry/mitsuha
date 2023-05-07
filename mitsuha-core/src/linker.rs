@@ -6,7 +6,7 @@ use crate::{
     executor::ExecutorContext,
     kernel::CoreStub,
     module::ModuleInfo,
-    types::{self, SharedAsyncMany},
+    types,
 };
 
 pub struct LinkerContext {

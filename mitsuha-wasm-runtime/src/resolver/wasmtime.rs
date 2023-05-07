@@ -26,7 +26,7 @@ impl Resolver<ModuleInfo, WasmtimeModule> for WasmtimeModuleResolver {
         Ok(WasmtimeModule::new(data, key.clone(), &self.engine)?)
     }
 
-    async fn register(&self, key: &ModuleInfo, value: &WasmtimeModule) -> types::Result<()> {
+    async fn register(&self, _key: &ModuleInfo, _value: &WasmtimeModule) -> types::Result<()> {
         unimplemented!()
     }
 }

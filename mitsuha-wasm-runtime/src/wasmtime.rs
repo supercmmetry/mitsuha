@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{atomic::AtomicBool, Arc, RwLock},
-    time::Duration,
+    sync::{Arc},
 };
 
 use async_trait::async_trait;

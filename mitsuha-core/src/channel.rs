@@ -35,7 +35,7 @@ pub trait ComputeChannel: Send + Sync {
     async fn compute(&self, ctx: Self::Context, elem: ComputeInput)
         -> types::Result<ComputeOutput>;
 
-    async fn connect(&mut self, next: Arc<Box<dyn ComputeChannel<Context = Self::Context>>>);
+    async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = Self::Context>>>);
 }
 
 pub struct ComputeKernel<Context> {
@@ -113,5 +113,13 @@ where
             .compute(Context::default(), ComputeInput::Clear { handle })
             .await?;
         Ok(())
+    }
+}
+
+impl<Context> ComputeKernel<Context> where Context: Send {
+    pub fn new(channel: Arc<Box<dyn ComputeChannel<Context = Context>>>) -> Self {
+        Self {
+            channel
+        }
     }
 }

@@ -10,9 +10,9 @@ use mitsuha_core::{
 use crate::{job_future::JobState, system::SystemContext};
 use mitsuha_core::errors::Error;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ChannelContext {
-    job_states: DashMap<String, Arc<RwLock<JobState>>>,
+    job_states: Arc<DashMap<String, Arc<RwLock<JobState>>>>,
 }
 
 impl SystemContext for ChannelContext {

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use async_trait::async_trait;
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct JobSpec {
     pub handle: String,
     pub symbol: Symbol,
@@ -126,7 +126,7 @@ impl StubbedKernel {
         CORE_SYMBOL_NAMES.contains(&symbol.name.as_str())
     }
 
-    async fn kernel_call(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
+    async fn kernel_call(&self, _symbol: &Symbol, _input: Vec<u8>) -> types::Result<Vec<u8>> {
         todo!("direct kernel calls are not supported")
     }
 

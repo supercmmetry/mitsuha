@@ -1,22 +1,21 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     errors::Error,
-    executor::ExecutorContext,
     kernel::{CoreStub, JobSpec, Kernel, StorageSpec, StubbedKernel},
     linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
     resolver::Resolver,
-    symbol::Symbol,
     types,
 };
 use mitsuha_wasm_runtime::{
     resolver::wasmtime::WasmtimeModuleResolver,
     wasmtime::{WasmtimeLinker, WasmtimeModule},
 };
+use tokio::sync::RwLock;
 
 use crate::{
     job_future::{JobFuture, JobState},
@@ -24,9 +23,9 @@ use crate::{
     util,
 };
 
-pub struct WasmtimeChannel<Context> {
+pub struct WasmtimeChannel<Context: Send> {
     id: String,
-    next: Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>,
+    next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
     linker: Arc<WasmtimeLinker>,
     kernel: Arc<Box<dyn Kernel>>,
     stub: Arc<Box<dyn CoreStub>>,
@@ -64,19 +63,19 @@ where
                 let fut = JobFuture::new(handle, job_task, job_state);
                 fut.await
             }
-            _ => match self.next.clone() {
+            _ => match self.next.read().await.clone() {
                 Some(chan) => chan.compute(ctx, elem).await,
                 None => Err(Error::ComputeChannelEOF),
             },
         }
     }
 
-    async fn connect(&mut self, next: Arc<Box<dyn ComputeChannel<Context = Context>>>) {
-        self.next = Some(next);
+    async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = Context>>>) {
+        *self.next.write().await = Some(next);
     }
 }
 
-impl<Context> WasmtimeChannel<Context> {
+impl<Context> WasmtimeChannel<Context> where Context: Send {
     pub fn get_identifier_type() -> &'static str {
         "mitsuha/channel/wasmtime"
     }
@@ -108,7 +107,7 @@ impl<Context> WasmtimeChannel<Context> {
 
         Self {
             id,
-            next: None,
+            next: Arc::new(RwLock::new(None)),
             linker,
             kernel,
             stub,

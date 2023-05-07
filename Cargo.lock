@@ -1256,10 +1256,13 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "criterion",
  "dashmap",
  "mitsuha-core",
  "mitsuha-storage",
  "mitsuha-wasm-runtime",
+ "musubi_api",
+ "musubi_wasmtime",
  "rand",
  "tokio",
  "wasmtime",

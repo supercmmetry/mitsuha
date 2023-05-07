@@ -11,8 +11,8 @@ use mitsuha_core::{
 
 use crate::{job_future::JobState, util};
 
-pub struct SystemChannel<Context> {
-    next: Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>,
+pub struct SystemChannel<Context: Send> {
+    next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
     id: String,
 }
 
@@ -41,30 +41,32 @@ where
         match &mut elem {
             ComputeInput::Store { ref mut spec } => {
                 if ModuleInfo::equals_identifier_type(&spec.handle) {
-                    spec.ttl = u64::MAX;
+                    spec.ttl = 864000;
                 }
             }
             ComputeInput::Extend { handle, ttl } => {
                 ctx.extend_job(handle, *ttl)?;
+                return Ok(ComputeOutput::Completed)
             }
             ComputeInput::Abort { handle } => {
                 ctx.abort_job(handle)?;
+                return Ok(ComputeOutput::Completed)
             }
             _ => {}
         }
 
-        match self.next.clone() {
+        match self.next.read().await.clone() {
             Some(chan) => chan.compute(ctx, elem).await,
             None => Err(Error::ComputeChannelEOF),
         }
     }
 
-    async fn connect(&mut self, next: Arc<Box<dyn ComputeChannel<Context = Context>>>) {
-        self.next = Some(next);
+    async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = Context>>>) {
+        *self.next.write().await = Some(next);
     }
 }
 
-impl<Context> SystemChannel<Context> {
+impl<Context> SystemChannel<Context> where Context: Send {
     pub fn get_identifier_type() -> &'static str {
         "mitsuha/channel/system"
     }
@@ -76,6 +78,6 @@ impl<Context> SystemChannel<Context> {
             util::generate_random_id()
         );
 
-        Self { next: None, id }
+        Self { next: Arc::new(tokio::sync::RwLock::new(None)), id }
     }
 }
