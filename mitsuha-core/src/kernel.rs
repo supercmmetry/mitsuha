@@ -1,8 +1,9 @@
-use crate::{constants::Constants, selector::Label, symbol::Symbol, types};
+use crate::{constants::Constants, selector::Label, symbol::Symbol, types, errors::Error};
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
+use musubi_api::{types::{Data, Value}, DataBuilder};
 use serde::{Deserialize, Serialize};
 
 use async_trait::async_trait;
@@ -80,14 +81,14 @@ pub struct StubbedKernel {
     kernel: Arc<Box<dyn Kernel>>,
 }
 
-static CORE_SYMBOL_RUN: &str = "run";
-static CORE_SYMBOL_EXTEND: &str = "extend";
-static CORE_SYMBOL_ABORT: &str = "abort";
-static CORE_SYMBOL_STATUS: &str = "status";
-static CORE_SYMBOL_STORE: &str = "store";
-static CORE_SYMBOL_LOAD: &str = "load";
-static CORE_SYMBOL_PERSIST: &str = "persist";
-static CORE_SYMBOL_CLEAR: &str = "clear";
+const CORE_SYMBOL_RUN: &str = "run";
+const CORE_SYMBOL_EXTEND: &str = "extend";
+const CORE_SYMBOL_ABORT: &str = "abort";
+const CORE_SYMBOL_STATUS: &str = "status";
+const CORE_SYMBOL_STORE: &str = "store";
+const CORE_SYMBOL_LOAD: &str = "load";
+const CORE_SYMBOL_PERSIST: &str = "persist";
+const CORE_SYMBOL_CLEAR: &str = "clear";
 
 lazy_static! {
     static ref CORE_SYMBOL_NAMES: Vec<&'static str> = vec![
@@ -126,8 +127,51 @@ impl StubbedKernel {
         CORE_SYMBOL_NAMES.contains(&symbol.name.as_str())
     }
 
-    async fn kernel_call(&self, _symbol: &Symbol, _input: Vec<u8>) -> types::Result<Vec<u8>> {
-        todo!("direct kernel calls are not supported")
+    async fn kernel_call(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
+        let data = Data::try_from(input).map_err(|e| Error::Unknown { source: e.into() })?;
+        let mut data_builder = DataBuilder::new();
+
+
+        match symbol.name.as_str() {
+            CORE_SYMBOL_RUN => {
+                if data.values().len() != 1 {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected 1 value found {}", CORE_SYMBOL_RUN, data.values().len()) })
+                }
+
+                let spec: JobSpec = musubi_api::types::from_value(data.values().get(0).unwrap().clone())
+                .map_err(|e| Error::Unknown { source: e.into() })?;
+
+                self.kernel.run_job(spec).await?;
+
+                data_builder = data_builder.add(Value::Null);
+            },
+            CORE_SYMBOL_EXTEND => {
+                if data.values().len() != 2 {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected 2 values found {}", CORE_SYMBOL_EXTEND, data.values().len()) })
+                }
+
+                let handle: String;
+                let ttl: u64;
+
+                if let Value::String(x) = data.values().get(0).unwrap() {
+                    handle = x.clone();
+                } else {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected first value to be a string", CORE_SYMBOL_EXTEND) })
+                }
+
+
+
+                let spec: JobSpec = musubi_api::types::from_value(data.values().get(0).unwrap().clone())
+                .map_err(|e| Error::Unknown { source: e.into() })?;
+
+                self.kernel.run_job(spec).await?;
+
+                data_builder = data_builder.add(Value::Null);
+            },
+            _ => {}
+        }
+
+        Ok(TryInto::<Vec<u8>>::try_into(data_builder.build()).map_err(|e| Error::Unknown { source: e.into() })?)
     }
 
     async fn dispatch_job(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {

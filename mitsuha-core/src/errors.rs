@@ -151,6 +151,22 @@ pub enum Error {
         source: anyhow::Error,
     },
 
+
+    #[error("invalid operation, {message}")]
+    InvalidOperation {
+        message: String,
+    },
+
+    // Kernel error
+
+    #[error("failed to perform kernel call, {message}")]
+    KernelError {
+        message: String,
+
+        #[source]
+        source: anyhow::Error,
+    },
+
     // Job errors
     #[error("job with handle '{handle}' was not found")]
     JobNotFound { handle: String },
