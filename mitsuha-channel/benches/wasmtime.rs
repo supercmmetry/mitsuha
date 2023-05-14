@@ -39,6 +39,12 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
         modtype: ModuleType::WASM,
     };
 
+    let module_info_main = ModuleInfo {
+        name: "mitsuha.test.main".to_string(),
+        version: "0.1.0".to_string(),
+        modtype: ModuleType::WASM,
+    };
+
     let spec_echo = StorageSpec {
         handle: module_info_echo.get_identifier(),
         data: wasm_echo,
@@ -53,8 +59,16 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
         extensions: Default::default(),
     };
 
+    let spec_main = StorageSpec {
+        handle: module_info_main.get_identifier(),
+        data: wasm_main,
+        ttl: 0,
+        extensions: Default::default(),
+    };
+
     channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_echo }).await.unwrap();
     channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_loop }).await.unwrap();
+    channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_main }).await.unwrap();
    
 }
 

@@ -138,7 +138,7 @@ impl StubbedKernel {
         let input_spec = StorageSpec {
             handle: input_handle.clone(),
             data: input,
-            ttl: u64::MAX,
+            ttl: 86400,
             extensions: Default::default(),
         };
 
@@ -150,7 +150,7 @@ impl StubbedKernel {
             input_handle,
             output_handle: output_handle.clone(),
             status_handle,
-            ttl: u64::MAX,
+            ttl: 86400,
             extensions: Default::default(),
         };
 

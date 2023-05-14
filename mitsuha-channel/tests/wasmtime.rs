@@ -19,7 +19,6 @@ pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelConte
 
     system_channel
 }
-
 pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) {
     let wasm_echo: Vec<u8> = include_bytes!("../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_echo.wasm").to_vec();
     let wasm_loop: Vec<u8> = include_bytes!("../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_loop.wasm").to_vec();
@@ -33,6 +32,12 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
 
     let module_info_loop = ModuleInfo {
         name: "mitsuha.test.loop".to_string(),
+        version: "0.1.0".to_string(),
+        modtype: ModuleType::WASM,
+    };
+
+    let module_info_main = ModuleInfo {
+        name: "mitsuha.test.main".to_string(),
         version: "0.1.0".to_string(),
         modtype: ModuleType::WASM,
     };
@@ -51,10 +56,19 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
         extensions: Default::default(),
     };
 
+    let spec_main = StorageSpec {
+        handle: module_info_main.get_identifier(),
+        data: wasm_main,
+        ttl: 0,
+        extensions: Default::default(),
+    };
+
     channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_echo }).await.unwrap();
     channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_loop }).await.unwrap();
+    channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_main }).await.unwrap();
    
 }
+
 
 
 #[tokio::test]
@@ -221,4 +235,67 @@ async fn run_and_abort_mugen_loop() {
 
     join_handle.await.unwrap();
    
+}
+
+#[tokio::test]
+async fn run_wasm_with_deps() {
+    let channel = make_channel().await;
+    let ctx = ChannelContext::default();
+
+    upload_artifacts(channel.clone()).await;
+
+    let input = DataBuilder::new()
+        .add(Value::String("Hello world!".to_string()))
+        .build();
+
+    let job_handle = "job_1".to_string();
+    let input_handle = "input_1".to_string();
+    let status_handle = "status_1".to_string();
+    let output_handle = "output_1".to_string();
+
+    let input_spec = StorageSpec {
+        handle: input_handle.clone(),
+        data: input.clone().try_into().unwrap(),
+        ttl: 120,
+        extensions: Default::default(),
+    };
+
+    let job_spec = JobSpec {
+        handle: job_handle,
+        symbol: Symbol {
+            name: "run".to_string(),
+            module_info: ModuleInfo {
+                name: "mitsuha.test.main".to_string(),
+                version: "0.1.0".to_string(),
+                modtype: ModuleType::WASM,
+            },
+        },
+        ttl: 120,
+        input_handle,
+        output_handle: output_handle.clone(),
+        status_handle,
+        extensions: Default::default(),
+    };
+
+    channel.compute(ctx.clone(), ComputeInput::Store { spec: input_spec }).await.unwrap();
+
+    channel.compute(ctx.clone(), ComputeInput::Run { spec: job_spec }).await.unwrap();
+
+
+    let output = channel.compute(ctx.clone(), ComputeInput::Load { handle: output_handle }).await.unwrap();
+
+    if let ComputeOutput::Loaded { data } = output {
+        match Data::try_from(data).unwrap().values().get(0).unwrap() {
+            Value::String(s) => {
+                assert_eq!(s.as_str(), "Hello world!");
+            },
+            x => {
+                dbg!(x);
+                panic!("expected string")
+            }
+        }
+    } else {
+        panic!("expected ComputeOutput of type Loaded");
+    }
+
 }

@@ -269,7 +269,7 @@ impl WasmtimeLinker {
 
         if result.is_err() {
             return Self::emit_wasm32_import_error(
-                format!("failed to call symbol: {:?}", symbol.clone()).as_str(),
+                format!("failed to call symbol: {:?}, error: {}", symbol.clone(), result.err().unwrap()).as_str(),
                 instance.read().await.as_ref().unwrap(),
                 &mut caller,
                 output_ptr,
