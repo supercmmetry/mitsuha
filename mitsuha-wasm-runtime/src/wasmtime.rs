@@ -8,7 +8,7 @@ use futures::FutureExt;
 use mitsuha_core::{
     errors::Error,
     executor::ExecutorContext,
-    kernel::CoreStub,
+    kernel::KernelBinding,
     linker::{Linker, LinkerContext},
     module::{Module, ModuleInfo, ModuleType},
     resolver::Resolver,
@@ -140,12 +140,12 @@ impl WasmtimeModule {
 
 #[derive(Clone)]
 pub struct WasmtimeContext {
-    core_stub: Arc<Box<dyn CoreStub>>,
+    core_stub: Arc<Box<dyn KernelBinding>>,
     instance: SharedAsyncMany<Option<wasmtime::Instance>>,
 }
 
 impl WasmtimeContext {
-    pub fn new(core_stub: Arc<Box<dyn CoreStub>>) -> Self {
+    pub fn new(core_stub: Arc<Box<dyn KernelBinding>>) -> Self {
         Self {
             core_stub,
             instance: Arc::new(tokio::sync::RwLock::new(None)),

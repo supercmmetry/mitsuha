@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use mitsuha_core::{
-    kernel::CoreStub,
+    kernel::KernelBinding,
     linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
     provider::Provider,
@@ -61,7 +61,7 @@ fn get_artifact_resolver() -> ArtifactResolver {
 struct TestCoreStub;
 
 #[async_trait]
-impl CoreStub for TestCoreStub {
+impl KernelBinding for TestCoreStub {
     async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
         Ok(vec![])
     }

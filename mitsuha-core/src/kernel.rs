@@ -73,11 +73,11 @@ pub trait Kernel: Send + Sync {
 }
 
 #[async_trait]
-pub trait CoreStub: Send + Sync {
+pub trait KernelBinding: Send + Sync {
     async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>>;
 }
 
-pub struct StubbedKernel {
+pub struct KernelBridge {
     kernel: Arc<Box<dyn Kernel>>,
 }
 
@@ -104,7 +104,7 @@ lazy_static! {
 }
 
 #[async_trait]
-impl CoreStub for StubbedKernel {
+impl KernelBinding for KernelBridge {
     async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
         if self.is_core_symbol(symbol) {
             self.kernel_call(symbol, input).await
@@ -114,7 +114,7 @@ impl CoreStub for StubbedKernel {
     }
 }
 
-impl StubbedKernel {
+impl KernelBridge {
     pub fn new(kernel: Arc<Box<dyn Kernel>>) -> Self {
         Self { kernel }
     }
@@ -156,15 +156,120 @@ impl StubbedKernel {
                 if let Value::String(x) = data.values().get(0).unwrap() {
                     handle = x.clone();
                 } else {
-                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected first value to be a string", CORE_SYMBOL_EXTEND) })
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected first value to be a string", CORE_SYMBOL_EXTEND) });
                 }
 
+                if let Value::U64(x) = data.values().get(1).unwrap() {
+                    ttl = x.clone();
+                } else {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected second value to be a u64", CORE_SYMBOL_EXTEND) });
+                }
 
+                self.kernel.extend_job(handle, ttl).await?;
 
-                let spec: JobSpec = musubi_api::types::from_value(data.values().get(0).unwrap().clone())
+                data_builder = data_builder.add(Value::Null);
+            },
+            CORE_SYMBOL_ABORT => {
+                if data.values().len() != 1 {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected 1 value found {}", CORE_SYMBOL_ABORT, data.values().len()) })
+                }
+
+                let handle: String;
+
+                if let Value::String(x) = data.values().get(0).unwrap() {
+                    handle = x.clone();
+                } else {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected first value to be a string", CORE_SYMBOL_ABORT) });
+                }
+
+                self.kernel.abort_job(handle).await?;
+
+                data_builder = data_builder.add(Value::Null);
+            },
+            CORE_SYMBOL_STATUS => {
+                if data.values().len() != 1 {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected 1 value found {}", CORE_SYMBOL_STATUS, data.values().len()) })
+                }
+
+                let handle: String;
+
+                if let Value::String(x) = data.values().get(0).unwrap() {
+                    handle = x.clone();
+                } else {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected first value to be a string", CORE_SYMBOL_STATUS) });
+                }
+
+                let status = self.kernel.get_job_status(handle).await?;
+
+                data_builder = data_builder.add(musubi_api::types::to_value(status).map_err(|e| Error::Unknown { source: e.into() })?);
+            },
+            CORE_SYMBOL_STORE => {
+                if data.values().len() != 1 {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected 1 value found {}", CORE_SYMBOL_STORE, data.values().len()) })
+                }
+
+                let spec: StorageSpec = musubi_api::types::from_value(data.values().get(0).unwrap().clone())
                 .map_err(|e| Error::Unknown { source: e.into() })?;
 
-                self.kernel.run_job(spec).await?;
+                self.kernel.store_data(spec).await?;
+
+                data_builder = data_builder.add(Value::Null);
+            },
+            CORE_SYMBOL_LOAD => {
+                if data.values().len() != 1 {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected 1 value found {}", CORE_SYMBOL_LOAD, data.values().len()) })
+                }
+
+                let handle: String;
+
+                if let Value::String(x) = data.values().get(0).unwrap() {
+                    handle = x.clone();
+                } else {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected first value to be a string", CORE_SYMBOL_LOAD) });
+                }
+
+                let data = self.kernel.load_data(handle).await?;
+
+                data_builder = data_builder.add(Value::Bytes(data));
+            },
+            CORE_SYMBOL_PERSIST => {
+                if data.values().len() != 2 {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected 2 values found {}", CORE_SYMBOL_PERSIST, data.values().len()) })
+                }
+
+                let handle: String;
+                let ttl: u64;
+
+                if let Value::String(x) = data.values().get(0).unwrap() {
+                    handle = x.clone();
+                } else {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected first value to be a string", CORE_SYMBOL_PERSIST) });
+                }
+
+                if let Value::U64(x) = data.values().get(1).unwrap() {
+                    ttl = x.clone();
+                } else {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected second value to be a u64", CORE_SYMBOL_PERSIST) });
+                }
+
+                self.kernel.persist_data(handle, ttl).await?;
+
+                data_builder = data_builder.add(Value::Null);
+            },
+            CORE_SYMBOL_CLEAR => {
+                if data.values().len() != 1 {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected 1 value found {}", CORE_SYMBOL_CLEAR, data.values().len()) })
+                }
+
+                let handle: String;
+
+                if let Value::String(x) = data.values().get(0).unwrap() {
+                    handle = x.clone();
+                } else {
+                    return Err(Error::InvalidOperation { message: format!("attempted kernel call: {}, expected first value to be a string", CORE_SYMBOL_CLEAR) });
+                }
+
+                self.kernel.clear_data(handle).await?;
 
                 data_builder = data_builder.add(Value::Null);
             },

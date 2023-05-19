@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     errors::Error,
-    kernel::{CoreStub, JobSpec, Kernel, StorageSpec, StubbedKernel},
+    kernel::{KernelBinding, JobSpec, Kernel, StorageSpec, KernelBridge},
     linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
     resolver::Resolver,
@@ -28,7 +28,7 @@ pub struct WasmtimeChannel<Context: Send> {
     next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
     linker: Arc<WasmtimeLinker>,
     kernel: Arc<Box<dyn Kernel>>,
-    stub: Arc<Box<dyn CoreStub>>,
+    stub: Arc<Box<dyn KernelBinding>>,
 }
 
 #[async_trait]
@@ -103,7 +103,7 @@ impl<Context> WasmtimeChannel<Context> where Context: Send {
             util::generate_random_id()
         );
 
-        let stub: Arc<Box<dyn CoreStub>> = Arc::new(Box::new(StubbedKernel::new(kernel.clone())));
+        let stub: Arc<Box<dyn KernelBinding>> = Arc::new(Box::new(KernelBridge::new(kernel.clone())));
 
         Self {
             id,
@@ -116,7 +116,7 @@ impl<Context> WasmtimeChannel<Context> where Context: Send {
 
     async fn run(
         linker: Arc<WasmtimeLinker>,
-        stub: Arc<Box<dyn CoreStub>>,
+        stub: Arc<Box<dyn KernelBinding>>,
         kernel: Arc<Box<dyn Kernel>>,
         spec: JobSpec,
     ) -> types::Result<()> {

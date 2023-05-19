@@ -4,18 +4,18 @@ use async_trait::async_trait;
 
 use crate::{
     executor::ExecutorContext,
-    kernel::CoreStub,
+    kernel::KernelBinding,
     module::ModuleInfo,
     types,
 };
 
 pub struct LinkerContext {
     pub dependency_graph: HashMap<ModuleInfo, HashMap<String, ModuleInfo>>,
-    pub core_stub: Arc<Box<dyn CoreStub>>,
+    pub core_stub: Arc<Box<dyn KernelBinding>>,
 }
 
 impl LinkerContext {
-    pub fn new(core_stub: Arc<Box<dyn CoreStub>>) -> Self {
+    pub fn new(core_stub: Arc<Box<dyn KernelBinding>>) -> Self {
         Self {
             dependency_graph: HashMap::new(),
             core_stub,
