@@ -128,12 +128,29 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     tokio_rt.block_on(channel.compute(ctx.clone(), ComputeInput::Store { spec: input_spec })).unwrap();
 
-    let job_spec = JobSpec {
-        handle: job_handle,
+    let single_dep_spec = JobSpec {
+        handle: job_handle.clone(),
         symbol: Symbol {
             name: "echo".to_string(),
             module_info: ModuleInfo {
                 name: "mitsuha.test.echo".to_string(),
+                version: "0.1.0".to_string(),
+                modtype: ModuleType::WASM,
+            },
+        },
+        ttl: 120,
+        input_handle: input_handle.clone(),
+        output_handle: output_handle.clone(),
+        status_handle: status_handle.clone(),
+        extensions: Default::default(),
+    };
+
+    let multi_dep_spec = JobSpec {
+        handle: job_handle,
+        symbol: Symbol {
+            name: "run".to_string(),
+            module_info: ModuleInfo {
+                name: "mitsuha.test.main".to_string(),
                 version: "0.1.0".to_string(),
                 modtype: ModuleType::WASM,
             },
@@ -145,9 +162,14 @@ fn criterion_benchmark(c: &mut Criterion) {
         extensions: Default::default(),
     };
 
-    c.bench_function("run_hello_world", |b| {
+    c.bench_function("run_single_dep_job", |b| {
         b.to_async(&tokio_rt)
-            .iter(|| run_hello_world(ctx.clone(), channel.clone(), job_spec.clone()))
+            .iter(|| run_hello_world(ctx.clone(), channel.clone(), single_dep_spec.clone()))
+    });
+
+    c.bench_function("run_multi_dep_job", |b| {
+        b.to_async(&tokio_rt)
+            .iter(|| run_hello_world(ctx.clone(), channel.clone(), multi_dep_spec.clone()))
     });
 }
 

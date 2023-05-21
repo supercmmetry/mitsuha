@@ -20,7 +20,7 @@ use tokio::sync::RwLock;
 use crate::{
     job_future::{JobFuture, JobState},
     system::SystemContext,
-    util,
+    util::{self, make_output_storage_spec},
 };
 
 pub struct WasmtimeChannel<Context: Send> {
@@ -129,17 +129,12 @@ impl<Context> WasmtimeChannel<Context> where Context: Send {
 
         let exec_ctx = Arc::new(linker.link(&mut linker_ctx, &module_info).await?);
 
-        let input = kernel.load_data(spec.input_handle).await?;
+        let input = kernel.load_data(spec.input_handle.clone()).await?;
 
         let output = exec_ctx.call(&symbol, input).await?;
 
         kernel
-            .store_data(StorageSpec {
-                handle: spec.output_handle,
-                data: output,
-                ttl: spec.ttl,
-                extensions: Default::default(),
-            })
+            .store_data(make_output_storage_spec(spec, output)?)
             .await?;
 
         Ok(())
