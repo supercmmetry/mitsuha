@@ -1,5 +1,6 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
+use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use dashmap::DashMap;
 use mitsuha_core::{
@@ -7,21 +8,23 @@ use mitsuha_core::{
     types,
 };
 
-use crate::{job_future::JobState, system::SystemContext};
+use crate::{job_controller::JobState, system::{SystemContext, JobContext}};
 use mitsuha_core::errors::Error;
+
 
 #[derive(Default, Clone)]
 pub struct ChannelContext {
-    job_states: Arc<DashMap<String, Arc<RwLock<JobState>>>>,
+    job_context_map: Arc<DashMap<String, JobContext>>,
 }
 
+#[async_trait]
 impl SystemContext for ChannelContext {
-    fn get_job_status(&self, handle: &String) -> types::Result<JobStatus> {
-        match self.job_states.get(handle) {
-            Some(state) => {
-                let obj = state.read().unwrap();
+    async fn get_job_status(&self, handle: &String) -> types::Result<JobStatus> {
+        match self.job_context_map.get_mut(handle) {
+            Some(mut ctx) => {
+                let obj = ctx.get_state().unwrap();
 
-                let job_status_type = match *obj {
+                let job_status_type = match obj {
                     JobState::Aborted => JobStatusType::Aborted,
                     JobState::Completed => JobStatusType::Completed,
                     JobState::ExpireAt(x) if x <= Utc::now() => {
@@ -41,14 +44,16 @@ impl SystemContext for ChannelContext {
         }
     }
 
-    fn extend_job(&self, handle: &String, ttl: u64) -> types::Result<()> {
-        match self.job_states.get_mut(handle) {
-            Some(state) => {
-                let mut obj = state.write().unwrap();
+    async fn extend_job(&self, handle: &String, ttl: u64) -> types::Result<()> {
+        match self.job_context_map.get_mut(handle) {
+            Some(mut ctx) => {
+                let mut obj = ctx.get_state().unwrap();
 
-                match *obj {
+                match obj {
                     JobState::ExpireAt(x) if x > Utc::now() => {
-                        *obj = JobState::ExpireAt(x + Duration::seconds(ttl as i64));
+                        obj = JobState::ExpireAt(x + Duration::seconds(ttl as i64));
+                        ctx.set_state(obj).await.unwrap();
+
                         Ok(())
                     }
                     _ => Err(Error::JobNotFound {
@@ -62,14 +67,16 @@ impl SystemContext for ChannelContext {
         }
     }
 
-    fn abort_job(&self, handle: &String) -> types::Result<()> {
-        match self.job_states.get_mut(handle) {
-            Some(state) => {
-                let mut obj = state.write().unwrap();
+    async fn abort_job(&self, handle: &String) -> types::Result<()> {
+        match self.job_context_map.get_mut(handle) {
+            Some(mut ctx) => {
+                let mut obj = ctx.get_state().unwrap();
 
-                match *obj {
+                match obj {
                     JobState::ExpireAt(x) if x > Utc::now() => {
-                        *obj = JobState::Aborted;
+                        obj = JobState::Aborted;
+                        ctx.set_state(obj).await.unwrap();
+
                         Ok(())
                     }
                     _ => Err(Error::JobNotFound {
@@ -83,10 +90,7 @@ impl SystemContext for ChannelContext {
         }
     }
 
-    fn make_job_state(&self, handle: String, state: JobState) -> Arc<RwLock<JobState>> {
-        let state = Arc::new(RwLock::new(state));
-        self.job_states.insert(handle, state.clone());
-
-        state
+    fn register_job_context(&self, handle: String, ctx: JobContext) {
+        self.job_context_map.insert(handle, ctx);
     }
 }

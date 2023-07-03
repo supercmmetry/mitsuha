@@ -69,10 +69,22 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
    
 }
 
+macro_rules! graceless_async_test {
+    ($code: block) => {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
 
+        runtime.block_on(async {
+            $code
+        });
 
-#[tokio::test]
-async fn run_hello_world() {
+        runtime.shutdown_background();
+    };
+}
+
+async fn internal_run_hello_world() {
     let channel = make_channel().await;
     let ctx = ChannelContext::default();
 
@@ -82,10 +94,10 @@ async fn run_hello_world() {
         .add(Value::String("Hello world!".to_string()))
         .build();
 
-    let job_handle = "job_1".to_string();
-    let input_handle = "input_1".to_string();
-    let status_handle = "status_1".to_string();
-    let output_handle = "output_1".to_string();
+    let job_handle = "run_hello_world_job_1".to_string();
+    let input_handle = "run_hello_world_input_1".to_string();
+    let status_handle = "run_hello_world_status_1".to_string();
+    let output_handle = "run_hello_world_output_1".to_string();
 
     let input_spec = StorageSpec {
         handle: input_handle.clone(),
@@ -128,12 +140,9 @@ async fn run_hello_world() {
     } else {
         panic!("expected ComputeOutput of type Loaded");
     }
-
 }
 
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn run_mugen_loop() {
+async fn internal_run_mugen_loop() {
     let channel = make_channel().await;
     let ctx = ChannelContext::default();
 
@@ -143,10 +152,10 @@ async fn run_mugen_loop() {
         .add(Value::String("Hello world!".to_string()))
         .build();
 
-    let job_handle = "job_1".to_string();
-    let input_handle = "input_1".to_string();
-    let status_handle = "status_1".to_string();
-    let output_handle = "output_1".to_string();
+    let job_handle = "run_mugen_loop_job_1".to_string();
+    let input_handle = "run_mugen_loop_input_1".to_string();
+    let status_handle = "run_mugen_loop_status_1".to_string();
+    let output_handle = "run_mugen_loop_output_1".to_string();
 
     let input_spec = StorageSpec {
         handle: input_handle.clone(),
@@ -179,8 +188,7 @@ async fn run_mugen_loop() {
     assert!(result.is_err());
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn run_and_abort_mugen_loop() {
+async fn internal_run_and_abort_mugen_loop() {
     let channel = make_channel().await;
     let ctx = ChannelContext::default();
 
@@ -190,10 +198,10 @@ async fn run_and_abort_mugen_loop() {
         .add(Value::String("Hello world!".to_string()))
         .build();
 
-    let job_handle = "job_1".to_string();
-    let input_handle = "input_1".to_string();
-    let status_handle = "status_1".to_string();
-    let output_handle = "output_1".to_string();
+    let job_handle = "run_and_abort_mugen_loop_job_1".to_string();
+    let input_handle = "run_and_abort_mugen_loop_input_1".to_string();
+    let status_handle = "run_and_abort_mugen_loop_status_1".to_string();
+    let output_handle = "run_and_abort_mugen_loop_output_1".to_string();
 
     let input_spec = StorageSpec {
         handle: input_handle.clone(),
@@ -226,6 +234,7 @@ async fn run_and_abort_mugen_loop() {
 
     let join_handle = tokio::task::spawn(async move {
         let result = cloned_channel.compute(cloned_ctx, ComputeInput::Run { spec: job_spec }).await;
+        dbg!(result.as_ref().err());
         assert!(result.is_err());
     });
 
@@ -234,11 +243,10 @@ async fn run_and_abort_mugen_loop() {
     channel.compute(ctx.clone(), ComputeInput::Abort { handle: job_handle }).await.unwrap();
 
     join_handle.await.unwrap();
-   
+    tokio::time::sleep(Duration::from_secs(1)).await;
 }
 
-#[tokio::test]
-async fn run_wasm_with_deps() {
+async fn internal_run_wasm_with_deps() {
     let channel = make_channel().await;
     let ctx = ChannelContext::default();
 
@@ -248,10 +256,10 @@ async fn run_wasm_with_deps() {
         .add(Value::String("Hello world!".to_string()))
         .build();
 
-    let job_handle = "job_1".to_string();
-    let input_handle = "input_1".to_string();
-    let status_handle = "status_1".to_string();
-    let output_handle = "output_1".to_string();
+    let job_handle = "run_wasm_with_deps_job_1".to_string();
+    let input_handle = "run_wasm_with_deps_input_1".to_string();
+    let status_handle = "run_wasm_with_deps_status_1".to_string();
+    let output_handle = "run_wasm_with_deps_output_1".to_string();
 
     let input_spec = StorageSpec {
         handle: input_handle.clone(),
@@ -298,4 +306,32 @@ async fn run_wasm_with_deps() {
         panic!("expected ComputeOutput of type Loaded");
     }
 
+}
+
+#[test]
+fn run_hello_world() {
+    graceless_async_test! ({
+       internal_run_hello_world().await;
+    });
+}
+
+#[test]
+fn run_wasm_with_deps() {
+    graceless_async_test! ({
+       internal_run_wasm_with_deps().await;
+    });
+}
+
+#[test]
+fn run_and_abort_mugen_loop() {
+    graceless_async_test! ({
+       internal_run_and_abort_mugen_loop().await;
+    });
+}
+
+#[test]
+fn run_mugen_loop() {
+    graceless_async_test! ({
+       internal_run_mugen_loop().await;
+    });
 }

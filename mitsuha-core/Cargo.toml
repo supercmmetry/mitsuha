@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 # Musubi dependencies
-musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+musubi_api = { git = "ssh://git@github.com/supercmmetry/musubi", branch = "master" }
 
 uuid = { version = "1.2.2", features = ["v4"] }
 thiserror = "1.0.37"
