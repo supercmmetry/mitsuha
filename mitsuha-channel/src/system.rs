@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use mitsuha_core::{
@@ -8,28 +8,73 @@ use mitsuha_core::{
     module::ModuleInfo,
     types,
 };
+use tokio::sync::mpsc::{Sender, Receiver};
 
-use crate::{job_future::JobState, util};
+use crate::{job_controller::JobState, util};
+
+
+pub struct JobContext {
+    updater: Sender<JobState>,
+    reader: Receiver<JobState>,
+    desired: JobState,
+    actual: JobState,
+}
+
+impl JobContext {
+    pub async fn new(updater: Sender<JobState>, reader: Receiver<JobState>, desired: JobState) -> Self {
+        updater.send(desired.clone()).await.unwrap();
+
+        Self {
+            updater,
+            reader,
+            actual: desired.clone(),
+            desired,
+        }
+    }
+
+    pub async fn set_state(&mut self, desired: JobState) -> types::Result<()> {
+        self.desired = desired;
+
+        if self.desired != self.actual {
+            self.updater.send(self.desired.clone()).await.map_err(|e| Error::Unknown { source: e.into() })?;
+        }
+
+        Ok(())
+    }
+
+    pub fn get_state(&mut self) -> types::Result<JobState> {
+        match self.reader.try_recv() {
+            Ok(x) => {
+                self.actual = x;
+                
+            },
+            Err(_) => {}
+        }
+
+        Ok(self.actual.clone())
+    }
+}
 
 pub struct SystemChannel<Context: Send> {
     next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
     id: String,
 }
 
+#[async_trait]
 pub trait SystemContext {
-    fn get_job_status(&self, handle: &String) -> types::Result<JobStatus>;
+    async fn get_job_status(&self, handle: &String) -> types::Result<JobStatus>;
 
-    fn extend_job(&self, handle: &String, ttl: u64) -> types::Result<()>;
+    async fn extend_job(&self, handle: &String, ttl: u64) -> types::Result<()>;
 
-    fn abort_job(&self, handle: &String) -> types::Result<()>;
+    async fn abort_job(&self, handle: &String) -> types::Result<()>;
 
-    fn make_job_state(&self, handle: String, state: JobState) -> Arc<RwLock<JobState>>;
+    fn register_job_context(&self, handle: String, ctx: JobContext);
 }
 
 #[async_trait]
 impl<Context> ComputeChannel for SystemChannel<Context>
 where
-    Context: SystemContext + Send,
+    Context: SystemContext + Send + Sync,
 {
     type Context = Context;
 
@@ -45,11 +90,11 @@ where
                 }
             }
             ComputeInput::Extend { handle, ttl } => {
-                ctx.extend_job(handle, *ttl)?;
+                ctx.extend_job(handle, *ttl).await?;
                 return Ok(ComputeOutput::Completed)
             }
             ComputeInput::Abort { handle } => {
-                ctx.abort_job(handle)?;
+                ctx.abort_job(handle).await?;
                 return Ok(ComputeOutput::Completed)
             }
             _ => {}

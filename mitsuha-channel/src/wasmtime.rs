@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     errors::Error,
-    kernel::{KernelBinding, JobSpec, Kernel, StorageSpec, KernelBridge},
+    kernel::{KernelBinding, JobSpec, Kernel, KernelBridge},
     linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
     resolver::Resolver,
@@ -15,11 +15,11 @@ use mitsuha_wasm_runtime::{
     resolver::wasmtime::WasmtimeModuleResolver,
     wasmtime::{WasmtimeLinker, WasmtimeModule},
 };
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, task::JoinHandle};
 
 use crate::{
-    job_future::{JobFuture, JobState},
-    system::SystemContext,
+    job_controller::{JobState, JobController},
+    system::{SystemContext, JobContext},
     util::{self, make_output_storage_spec},
 };
 
@@ -51,17 +51,20 @@ where
                 let stub = self.stub.clone();
                 let kernel = self.kernel.clone();
 
-                let job_state = ctx.make_job_state(
-                    spec.handle.clone(),
-                    JobState::ExpireAt(Utc::now() + Duration::seconds(spec.ttl as i64)),
-                );
-                let job_task = tokio::task::spawn(async move {
+                let (updater, updation_target) = tokio::sync::mpsc::channel::<JobState>(16);
+                let (status_updater, status_reader) = tokio::sync::mpsc::channel::<JobState>(16);
+
+                let job_context = JobContext::new(updater.clone(), status_reader, JobState::ExpireAt(Utc::now() + Duration::seconds(spec.ttl as i64))).await;
+
+                ctx.register_job_context(handle.clone(), job_context);
+
+                let job_task: JoinHandle<types::Result<()>> = tokio::task::spawn(async move {
                     Self::run(linker, stub, kernel, spec).await?;
-                    Ok(ComputeOutput::Completed)
+                    Ok(())
                 });
 
-                let fut = JobFuture::new(handle, job_task, job_state);
-                fut.await
+                let job_ctrl = JobController::new(job_task);
+                job_ctrl.run(handle, updater, updation_target, status_updater).await
             }
             _ => match self.next.read().await.clone() {
                 Some(chan) => chan.compute(ctx, elem).await,

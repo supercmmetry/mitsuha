@@ -171,6 +171,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.to_async(&tokio_rt)
             .iter(|| run_hello_world(ctx.clone(), channel.clone(), multi_dep_spec.clone()))
     });
+
+    tokio_rt.shutdown_background();
 }
 
 criterion_group!(benches, criterion_benchmark);

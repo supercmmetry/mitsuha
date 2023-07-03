@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc},
+    sync::{Arc}, time::Duration,
 };
 
 use async_trait::async_trait;
@@ -42,8 +42,8 @@ impl WasmMetadata {
 
                     match payload {
                         wasmparser::Payload::CustomSection(s) => match s.name() {
-                            ".musubi_info" => musubi_info_sections.push(s.data().to_vec()),
-                            ".musubi_header" => musubi_header_sections.push(s.data().to_vec()),
+                            ".msbi" | "msbi,unstable" => musubi_info_sections.push(s.data().to_vec()),
+                            ".msbh" | "msbh,unstable" => musubi_header_sections.push(s.data().to_vec()),
                             _ => {}
                         },
                         wasmparser::Payload::End { .. } => {
@@ -57,13 +57,13 @@ impl WasmMetadata {
 
         if musubi_info_sections.len() == 0 {
             return Err(anyhow::anyhow!(
-                "could not find section .musubi_info in WASM binary"
+                "could not find section for musubi_info in WASM binary"
             ));
         }
 
         if musubi_info_sections.len() > 1 {
             return Err(anyhow::anyhow!(
-                "duplicate .musubi_info sections found in WASM binary"
+                "duplicate musubi_info sections found in WASM binary"
             ));
         }
 
@@ -189,12 +189,10 @@ impl WasmtimeLinker {
     fn start_ticker(&mut self) {
         let engine = self.engine.clone();
 
-        self.ticker_handle = Some(tokio::task::spawn(async move {
+        self.ticker_handle = Some(tokio::task::spawn_blocking(move || {
             loop {
                 engine.increment_epoch();
-
-                // TODO: Make this configurable
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                std::thread::sleep(Duration::from_millis(1000));
             }
         }));
     }
@@ -536,6 +534,7 @@ impl Linker for WasmtimeLinker {
 
 impl Drop for WasmtimeLinker {
     fn drop(&mut self) {
+        dbg!("aborting ticker");
         if let Some(ticker_handle) = self.ticker_handle.as_mut() {
             ticker_handle.abort();
         }
