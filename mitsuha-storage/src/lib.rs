@@ -1,5 +1,5 @@
-mod memory;
 mod localfs;
+mod memory;
 mod metadata;
 pub mod unified;
 

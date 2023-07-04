@@ -151,14 +151,10 @@ pub enum Error {
         source: anyhow::Error,
     },
 
-
     #[error("invalid operation, {message}")]
-    InvalidOperation {
-        message: String,
-    },
+    InvalidOperation { message: String },
 
     // Kernel error
-
     #[error("failed to perform kernel call, {message}")]
     KernelError {
         message: String,

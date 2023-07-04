@@ -1,13 +1,10 @@
-use std::{collections::HashMap, time::Duration, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use mitsuha_channel::{
-    context::ChannelContext,
-};
+use mitsuha_channel::context::ChannelContext;
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     kernel::StorageSpec,
 };
-
 
 mod setup;
 use setup::*;
@@ -16,9 +13,7 @@ pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelConte
     let system_channel = make_system_channel();
     let labeled_storage_channel = make_labeled_storage_channel();
 
-    system_channel
-        .connect(labeled_storage_channel)
-        .await;
+    system_channel.connect(labeled_storage_channel).await;
 
     system_channel
 }

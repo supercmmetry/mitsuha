@@ -1,25 +1,19 @@
-pub mod api;
-pub mod client;
 pub mod executor;
-pub mod provider;
 pub mod storage;
 
 use serde::Deserialize;
 use std::{env, path::Path};
 
-use self::{api::Api, client::Client, executor::Executor, provider::Provider, storage::Storage};
+use self::{executor::Executor, storage::Storage};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
-    pub client: Client,
-    pub provider: Provider,
     pub executor: Executor,
-    pub api: Api,
     pub storage: Storage,
 }
 
 impl Config {
-    fn get_config_dir() -> anyhow::Result<String> {
+    fn get_local_config_dir() -> anyhow::Result<String> {
         let mut path = env::current_exe()?;
         path.pop();
         path.push("config");
@@ -63,16 +57,16 @@ impl Config {
         Ok(config.try_deserialize()?)
     }
 
-    pub fn custom_run_mode(run_mode: String) -> anyhow::Result<Self> {
-        let config_dir: String;
-
+    pub fn get_config_dir() -> anyhow::Result<String> {
         if let Ok(dir) = env::var("MITSUHA_RUNTIME_CONFIG_DIR") {
-            config_dir = dir;
+            return Ok(dir);
         } else {
-            config_dir = Self::get_config_dir()?;
+            return Self::get_local_config_dir();
         }
+    }
 
-        Self::custom(run_mode, config_dir)
+    pub fn custom_run_mode(run_mode: String) -> anyhow::Result<Self> {
+        Self::custom(run_mode, Self::get_config_dir()?)
     }
 
     pub fn new() -> anyhow::Result<Self> {

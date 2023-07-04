@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     errors::Error,
-    kernel::{KernelBinding, JobSpec, Kernel, KernelBridge},
+    kernel::{JobSpec, Kernel, KernelBinding, KernelBridge},
     linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
     resolver::Resolver,
@@ -18,9 +18,10 @@ use mitsuha_wasm_runtime::{
 use tokio::{sync::RwLock, task::JoinHandle};
 
 use crate::{
-    job_controller::{JobState, JobController},
-    system::{SystemContext, JobContext},
+    job_controller::{JobController, JobState},
+    system::{JobContext, SystemContext},
     util::{self, make_output_storage_spec},
+    WrappedComputeChannel,
 };
 
 pub struct WasmtimeChannel<Context: Send> {
@@ -38,8 +39,8 @@ where
 {
     type Context = Context;
 
-    async fn id(&self) -> types::Result<String> {
-        Ok(self.id.clone())
+    fn id(&self) -> String {
+        self.id.clone()
     }
 
     async fn compute(&self, ctx: Context, elem: ComputeInput) -> types::Result<ComputeOutput> {
@@ -54,7 +55,13 @@ where
                 let (updater, updation_target) = tokio::sync::mpsc::channel::<JobState>(16);
                 let (status_updater, status_reader) = tokio::sync::mpsc::channel::<JobState>(16);
 
-                let job_context = JobContext::new(updater.clone(), status_reader, JobState::ExpireAt(Utc::now() + Duration::seconds(spec.ttl as i64))).await;
+                let job_context = JobContext::new(
+                    handle.clone(),
+                    updater.clone(),
+                    status_reader,
+                    JobState::ExpireAt(Utc::now() + Duration::seconds(spec.ttl as i64)),
+                )
+                .await;
 
                 ctx.register_job_context(handle.clone(), job_context);
 
@@ -64,7 +71,19 @@ where
                 });
 
                 let job_ctrl = JobController::new(job_task);
-                job_ctrl.run(handle, updater, updation_target, status_updater).await
+
+                let result = job_ctrl
+                    .run(handle.clone(), updater, updation_target, status_updater)
+                    .await;
+
+                if result.is_err() {
+                    log::error!(
+                        "job execution failed with error: {:?}",
+                        result.as_ref().err().unwrap()
+                    );
+                }
+
+                result
             }
             _ => match self.next.read().await.clone() {
                 Some(chan) => chan.compute(ctx, elem).await,
@@ -78,7 +97,10 @@ where
     }
 }
 
-impl<Context> WasmtimeChannel<Context> where Context: Send {
+impl<Context> WasmtimeChannel<Context>
+where
+    Context: Send + SystemContext,
+{
     pub fn get_identifier_type() -> &'static str {
         "mitsuha/channel/wasmtime"
     }
@@ -86,7 +108,7 @@ impl<Context> WasmtimeChannel<Context> where Context: Send {
     pub fn new(
         kernel: Arc<Box<dyn Kernel>>,
         resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>>,
-    ) -> Self {
+    ) -> WrappedComputeChannel<Self> {
         // TODO: Make this configurable
 
         let mut config = wasmtime::Config::default();
@@ -106,15 +128,16 @@ impl<Context> WasmtimeChannel<Context> where Context: Send {
             util::generate_random_id()
         );
 
-        let stub: Arc<Box<dyn KernelBinding>> = Arc::new(Box::new(KernelBridge::new(kernel.clone())));
+        let stub: Arc<Box<dyn KernelBinding>> =
+            Arc::new(Box::new(KernelBridge::new(kernel.clone())));
 
-        Self {
+        WrappedComputeChannel::new(Self {
             id,
             next: Arc::new(RwLock::new(None)),
             linker,
             kernel,
             stub,
-        }
+        })
     }
 
     async fn run(

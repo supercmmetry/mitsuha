@@ -8,12 +8,12 @@ use mitsuha_core::{
     module::ModuleInfo,
     types,
 };
-use tokio::sync::mpsc::{Sender, Receiver};
+use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{job_controller::JobState, util};
-
+use crate::{job_controller::JobState, util, WrappedComputeChannel};
 
 pub struct JobContext {
+    handle: String,
     updater: Sender<JobState>,
     reader: Receiver<JobState>,
     desired: JobState,
@@ -21,10 +21,16 @@ pub struct JobContext {
 }
 
 impl JobContext {
-    pub async fn new(updater: Sender<JobState>, reader: Receiver<JobState>, desired: JobState) -> Self {
+    pub async fn new(
+        handle: String,
+        updater: Sender<JobState>,
+        reader: Receiver<JobState>,
+        desired: JobState,
+    ) -> Self {
         updater.send(desired.clone()).await.unwrap();
 
         Self {
+            handle,
             updater,
             reader,
             actual: desired.clone(),
@@ -36,7 +42,17 @@ impl JobContext {
         self.desired = desired;
 
         if self.desired != self.actual {
-            self.updater.send(self.desired.clone()).await.map_err(|e| Error::Unknown { source: e.into() })?;
+            log::info!(
+                "updating job context from {:?} to {:?} for handle: {}",
+                self.actual,
+                self.desired,
+                self.handle
+            );
+
+            self.updater
+                .send(self.desired.clone())
+                .await
+                .map_err(|e| Error::Unknown { source: e.into() })?;
         }
 
         Ok(())
@@ -45,9 +61,10 @@ impl JobContext {
     pub fn get_state(&mut self) -> types::Result<JobState> {
         match self.reader.try_recv() {
             Ok(x) => {
+                log::info!("received new job state {:?} for handle: {}", x, self.handle);
+
                 self.actual = x;
-                
-            },
+            }
             Err(_) => {}
         }
 
@@ -69,6 +86,8 @@ pub trait SystemContext {
     async fn abort_job(&self, handle: &String) -> types::Result<()>;
 
     fn register_job_context(&self, handle: String, ctx: JobContext);
+
+    fn deregister_job_context(&self, handle: &String);
 }
 
 #[async_trait]
@@ -78,24 +97,25 @@ where
 {
     type Context = Context;
 
-    async fn id(&self) -> types::Result<String> {
-        Ok(self.id.clone())
+    fn id(&self) -> String {
+        self.id.clone()
     }
 
     async fn compute(&self, ctx: Context, mut elem: ComputeInput) -> types::Result<ComputeOutput> {
         match &mut elem {
             ComputeInput::Store { ref mut spec } => {
                 if ModuleInfo::equals_identifier_type(&spec.handle) {
+                    log::warn!("setting ttl to 86400. this behavior will be deprecated");
                     spec.ttl = 864000;
                 }
             }
             ComputeInput::Extend { handle, ttl } => {
                 ctx.extend_job(handle, *ttl).await?;
-                return Ok(ComputeOutput::Completed)
+                return Ok(ComputeOutput::Completed);
             }
             ComputeInput::Abort { handle } => {
                 ctx.abort_job(handle).await?;
-                return Ok(ComputeOutput::Completed)
+                return Ok(ComputeOutput::Completed);
             }
             _ => {}
         }
@@ -111,18 +131,24 @@ where
     }
 }
 
-impl<Context> SystemChannel<Context> where Context: Send {
+impl<Context> SystemChannel<Context>
+where
+    Context: Send + Sync + SystemContext,
+{
     pub fn get_identifier_type() -> &'static str {
         "mitsuha/channel/system"
     }
 
-    pub fn new() -> Self {
+    pub fn new() -> WrappedComputeChannel<Self> {
         let id = format!(
             "{}/{}",
             Self::get_identifier_type(),
             util::generate_random_id()
         );
 
-        Self { next: Arc::new(tokio::sync::RwLock::new(None)), id }
+        WrappedComputeChannel::new(Self {
+            next: Arc::new(tokio::sync::RwLock::new(None)),
+            id,
+        })
     }
 }

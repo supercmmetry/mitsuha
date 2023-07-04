@@ -1,17 +1,28 @@
 use std::{collections::HashMap, sync::Arc};
 
 use mitsuha_channel::{
-    context::ChannelContext,
-    labeled_storage::{LabeledStorageChannel},
-    system::SystemChannel, wasmtime::WasmtimeChannel,
+    context::ChannelContext, labeled_storage::LabeledStorageChannel, system::SystemChannel,
+    wasmtime::WasmtimeChannel,
 };
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeKernel},
     config,
+    kernel::Kernel,
+    module::ModuleInfo,
+    resolver::{blob::BlobResolver, Resolver},
     selector::Label,
-    storage::{Storage, StorageClass, StorageLocality}, kernel::Kernel, resolver::{blob::BlobResolver, Resolver}, module::ModuleInfo,
+    storage::{Storage, StorageClass, StorageLocality},
 };
 use mitsuha_storage::UnifiedStorage;
+use std::sync::Once;
+
+static LOG_INIT_ONCE: Once = Once::new();
+
+pub fn init_basic_logging() {
+    LOG_INIT_ONCE.call_once(|| {
+        env_logger::init();
+    });
+}
 
 pub fn make_system_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
     Arc::new(Box::new(SystemChannel::new()))
@@ -60,14 +71,23 @@ pub fn make_labeled_storage_channel() -> Arc<Box<dyn ComputeChannel<Context = Ch
     )))
 }
 
-pub fn make_kernel(chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) -> Arc<Box<dyn Kernel>> {
+pub fn make_kernel(
+    chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
+) -> Arc<Box<dyn Kernel>> {
     Arc::new(Box::new(ComputeKernel::new(chan)))
 }
 
-pub fn make_blob_resolver(chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) -> Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>> {
+pub fn make_blob_resolver(
+    chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
+) -> Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>> {
     Arc::new(Box::new(BlobResolver::new(chan)))
 }
 
-pub fn make_wasmtime_channel(chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
-    Arc::new(Box::new(WasmtimeChannel::new(make_kernel(chan.clone()), make_blob_resolver(chan))))
+pub fn make_wasmtime_channel(
+    chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
+) -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
+    Arc::new(Box::new(WasmtimeChannel::new(
+        make_kernel(chan.clone()),
+        make_blob_resolver(chan),
+    )))
 }

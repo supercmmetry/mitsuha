@@ -16,9 +16,14 @@ impl WasmtimeModuleResolver {
         engine: wasmtime::Engine,
         resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>>,
     ) -> Self {
+        // TODO: make this configurable and use a weigher to make this size sensitive
         let cache = moka::future::Cache::new(16);
 
-        Self { resolver, engine, cache }
+        Self {
+            resolver,
+            engine,
+            cache,
+        }
     }
 }
 

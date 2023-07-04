@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc}, time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use futures::FutureExt;
@@ -42,8 +39,12 @@ impl WasmMetadata {
 
                     match payload {
                         wasmparser::Payload::CustomSection(s) => match s.name() {
-                            ".msbi" | "msbi,unstable" => musubi_info_sections.push(s.data().to_vec()),
-                            ".msbh" | "msbh,unstable" => musubi_header_sections.push(s.data().to_vec()),
+                            ".msbi" | "msbi,unstable" => {
+                                musubi_info_sections.push(s.data().to_vec())
+                            }
+                            ".msbh" | "msbh,unstable" => {
+                                musubi_header_sections.push(s.data().to_vec())
+                            }
                             _ => {}
                         },
                         wasmparser::Payload::End { .. } => {
@@ -189,11 +190,9 @@ impl WasmtimeLinker {
     fn start_ticker(&mut self) {
         let engine = self.engine.clone();
 
-        self.ticker_handle = Some(tokio::task::spawn_blocking(move || {
-            loop {
-                engine.increment_epoch();
-                std::thread::sleep(Duration::from_millis(1000));
-            }
+        self.ticker_handle = Some(tokio::task::spawn_blocking(move || loop {
+            engine.increment_epoch();
+            std::thread::sleep(Duration::from_millis(1000));
         }));
     }
 
@@ -230,6 +229,10 @@ impl WasmtimeLinker {
         .await;
 
         if result.is_err() {
+            log::error!(
+                "failed to emit error back to wasm runtime. error: {}",
+                result.err().unwrap()
+            );
             return 0;
         }
 
@@ -267,7 +270,12 @@ impl WasmtimeLinker {
 
         if result.is_err() {
             return Self::emit_wasm32_import_error(
-                format!("failed to call symbol: {:?}, error: {}", symbol.clone(), result.err().unwrap()).as_str(),
+                format!(
+                    "failed to call symbol: {:?}, error: {}",
+                    symbol.clone(),
+                    result.err().unwrap()
+                )
+                .as_str(),
                 instance.read().await.as_ref().unwrap(),
                 &mut caller,
                 output_ptr,
@@ -494,7 +502,11 @@ impl Linker for WasmtimeLinker {
 
             // Ignore export if spoofing was detected.
             if module_name != module_info.name {
-                // TODO: Add log statement
+                log::warn!(
+                    "detected module spoofing! exported symbol: '{}', expected module name: '{}'",
+                    export.name(),
+                    module_info.name
+                );
                 continue;
             }
 
@@ -534,7 +546,6 @@ impl Linker for WasmtimeLinker {
 
 impl Drop for WasmtimeLinker {
     fn drop(&mut self) {
-        dbg!("aborting ticker");
         if let Some(ticker_handle) = self.ticker_handle.as_mut() {
             ticker_handle.abort();
         }

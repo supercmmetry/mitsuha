@@ -1,10 +1,18 @@
 use std::sync::Arc;
 
 mod setup;
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use mitsuha_channel::context::ChannelContext;
-use mitsuha_core::{channel::{ComputeChannel, ComputeInput, ComputeOutput}, module::{ModuleInfo, ModuleType}, kernel::{StorageSpec, JobSpec}, symbol::Symbol};
-use musubi_api::{DataBuilder, types::{Value, Data}};
+use mitsuha_core::{
+    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    kernel::{JobSpec, StorageSpec},
+    module::{ModuleInfo, ModuleType},
+    symbol::Symbol,
+};
+use musubi_api::{
+    types::{Data, Value},
+    DataBuilder,
+};
 use rand::{distributions::Alphanumeric, Rng};
 use setup::*;
 
@@ -15,17 +23,24 @@ pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelConte
 
     labeled_storage_channel.connect(wasmtime_channel).await;
 
-    system_channel
-        .connect(labeled_storage_channel)
-        .await;
+    system_channel.connect(labeled_storage_channel).await;
 
     system_channel
 }
 
 pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) {
-    let wasm_echo: Vec<u8> = include_bytes!("../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_echo.wasm").to_vec();
-    let wasm_loop: Vec<u8> = include_bytes!("../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_loop.wasm").to_vec();
-    let wasm_main: Vec<u8> = include_bytes!("../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_main.wasm").to_vec();
+    let wasm_echo: Vec<u8> = include_bytes!(
+        "../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_echo.wasm"
+    )
+    .to_vec();
+    let wasm_loop: Vec<u8> = include_bytes!(
+        "../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_loop.wasm"
+    )
+    .to_vec();
+    let wasm_main: Vec<u8> = include_bytes!(
+        "../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_main.wasm"
+    )
+    .to_vec();
 
     let module_info_echo = ModuleInfo {
         name: "mitsuha.test.echo".to_string(),
@@ -66,13 +81,34 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
         extensions: Default::default(),
     };
 
-    channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_echo }).await.unwrap();
-    channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_loop }).await.unwrap();
-    channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_main }).await.unwrap();
-   
+    channel
+        .compute(
+            ChannelContext::default(),
+            ComputeInput::Store { spec: spec_echo },
+        )
+        .await
+        .unwrap();
+    channel
+        .compute(
+            ChannelContext::default(),
+            ComputeInput::Store { spec: spec_loop },
+        )
+        .await
+        .unwrap();
+    channel
+        .compute(
+            ChannelContext::default(),
+            ComputeInput::Store { spec: spec_main },
+        )
+        .await
+        .unwrap();
 }
 
-async fn run_hello_world(ctx: ChannelContext, channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>, mut spec: JobSpec) {
+async fn run_hello_world(
+    ctx: ChannelContext,
+    channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
+    mut spec: JobSpec,
+) {
     let handle: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(10)
@@ -82,17 +118,22 @@ async fn run_hello_world(ctx: ChannelContext, channel: Arc<Box<dyn ComputeChanne
     spec.handle = handle.clone();
     spec.output_handle = handle.clone();
 
-    channel.compute(ctx.clone(), ComputeInput::Run { spec }).await.unwrap();
+    channel
+        .compute(ctx.clone(), ComputeInput::Run { spec })
+        .await
+        .unwrap();
 
-    
-    let output = channel.compute(ctx, ComputeInput::Load { handle }).await.unwrap();
+    let output = channel
+        .compute(ctx, ComputeInput::Load { handle })
+        .await
+        .unwrap();
 
     if let ComputeOutput::Loaded { data } = output {
         match Data::try_from(data).unwrap().values().get(0).unwrap() {
             Value::String(s) => {
                 assert_eq!(s.as_str(), "Hello world!");
-            },
-            _ => panic!("expected string")
+            }
+            _ => panic!("expected string"),
         }
     } else {
         panic!("expected ComputeOutput of type Loaded");
@@ -126,7 +167,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         extensions: Default::default(),
     };
 
-    tokio_rt.block_on(channel.compute(ctx.clone(), ComputeInput::Store { spec: input_spec })).unwrap();
+    tokio_rt
+        .block_on(channel.compute(ctx.clone(), ComputeInput::Store { spec: input_spec }))
+        .unwrap();
 
     let single_dep_spec = JobSpec {
         handle: job_handle.clone(),
