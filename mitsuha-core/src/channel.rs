@@ -30,7 +30,7 @@ pub enum ComputeOutput {
 pub trait ComputeChannel: Send + Sync {
     type Context;
 
-    async fn id(&self) -> types::Result<String>;
+    fn id(&self) -> String;
 
     async fn compute(&self, ctx: Self::Context, elem: ComputeInput)
         -> types::Result<ComputeOutput>;
@@ -116,10 +116,11 @@ where
     }
 }
 
-impl<Context> ComputeKernel<Context> where Context: Send {
+impl<Context> ComputeKernel<Context>
+where
+    Context: Send,
+{
     pub fn new(channel: Arc<Box<dyn ComputeChannel<Context = Context>>>) -> Self {
-        Self {
-            channel
-        }
+        Self { channel }
     }
 }

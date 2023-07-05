@@ -8,9 +8,11 @@ use mitsuha_core::{
     types,
 };
 
-use crate::{job_controller::JobState, system::{SystemContext, JobContext}};
+use crate::{
+    job_controller::JobState,
+    system::{JobContext, SystemContext},
+};
 use mitsuha_core::errors::Error;
-
 
 #[derive(Default, Clone)]
 pub struct ChannelContext {
@@ -91,6 +93,14 @@ impl SystemContext for ChannelContext {
     }
 
     fn register_job_context(&self, handle: String, ctx: JobContext) {
+        log::info!("registering job context for handle '{}'", handle);
+
         self.job_context_map.insert(handle, ctx);
+    }
+
+    fn deregister_job_context(&self, handle: &String) {
+        log::info!("deregistering job context for handle '{}'", handle);
+
+        self.job_context_map.remove(handle);
     }
 }

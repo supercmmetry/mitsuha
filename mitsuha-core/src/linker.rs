@@ -2,12 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 
-use crate::{
-    executor::ExecutorContext,
-    kernel::KernelBinding,
-    module::ModuleInfo,
-    types,
-};
+use crate::{executor::ExecutorContext, kernel::KernelBinding, module::ModuleInfo, types};
 
 pub struct LinkerContext {
     pub dependency_graph: HashMap<ModuleInfo, HashMap<String, ModuleInfo>>,

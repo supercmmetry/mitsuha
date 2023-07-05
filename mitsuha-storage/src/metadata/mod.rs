@@ -24,5 +24,6 @@ pub trait MetadataProvider {
 
     async fn get_physical_location(&self, key: &MetadataKey) -> types::Result<String>;
 
-    async fn set_physical_location(&self, key: &MetadataKey, location: String) -> types::Result<()>;
+    async fn set_physical_location(&self, key: &MetadataKey, location: String)
+        -> types::Result<()>;
 }

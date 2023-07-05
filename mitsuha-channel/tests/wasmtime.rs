@@ -2,27 +2,44 @@ use std::{sync::Arc, time::Duration};
 
 mod setup;
 use mitsuha_channel::context::ChannelContext;
-use mitsuha_core::{channel::{ComputeChannel, ComputeInput, ComputeOutput}, module::{ModuleInfo, ModuleType}, kernel::{StorageSpec, JobSpec}, symbol::Symbol};
-use musubi_api::{DataBuilder, types::{Value, Data}};
+use mitsuha_core::{
+    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    kernel::{JobSpec, StorageSpec},
+    module::{ModuleInfo, ModuleType},
+    symbol::Symbol,
+};
+use musubi_api::{
+    types::{Data, Value},
+    DataBuilder,
+};
 use setup::*;
 
 pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
+    init_basic_logging();
+
     let system_channel = make_system_channel();
     let labeled_storage_channel = make_labeled_storage_channel();
     let wasmtime_channel = make_wasmtime_channel(system_channel.clone());
 
     labeled_storage_channel.connect(wasmtime_channel).await;
 
-    system_channel
-        .connect(labeled_storage_channel)
-        .await;
+    system_channel.connect(labeled_storage_channel).await;
 
     system_channel
 }
 pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) {
-    let wasm_echo: Vec<u8> = include_bytes!("../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_echo.wasm").to_vec();
-    let wasm_loop: Vec<u8> = include_bytes!("../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_loop.wasm").to_vec();
-    let wasm_main: Vec<u8> = include_bytes!("../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_main.wasm").to_vec();
+    let wasm_echo: Vec<u8> = include_bytes!(
+        "../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_echo.wasm"
+    )
+    .to_vec();
+    let wasm_loop: Vec<u8> = include_bytes!(
+        "../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_loop.wasm"
+    )
+    .to_vec();
+    let wasm_main: Vec<u8> = include_bytes!(
+        "../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_main.wasm"
+    )
+    .to_vec();
 
     let module_info_echo = ModuleInfo {
         name: "mitsuha.test.echo".to_string(),
@@ -63,10 +80,27 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
         extensions: Default::default(),
     };
 
-    channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_echo }).await.unwrap();
-    channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_loop }).await.unwrap();
-    channel.compute(ChannelContext::default(), ComputeInput::Store { spec: spec_main }).await.unwrap();
-   
+    channel
+        .compute(
+            ChannelContext::default(),
+            ComputeInput::Store { spec: spec_echo },
+        )
+        .await
+        .unwrap();
+    channel
+        .compute(
+            ChannelContext::default(),
+            ComputeInput::Store { spec: spec_loop },
+        )
+        .await
+        .unwrap();
+    channel
+        .compute(
+            ChannelContext::default(),
+            ComputeInput::Store { spec: spec_main },
+        )
+        .await
+        .unwrap();
 }
 
 macro_rules! graceless_async_test {
@@ -76,9 +110,7 @@ macro_rules! graceless_async_test {
             .build()
             .unwrap();
 
-        runtime.block_on(async {
-            $code
-        });
+        runtime.block_on(async { $code });
 
         runtime.shutdown_background();
     };
@@ -123,19 +155,32 @@ async fn internal_run_hello_world() {
         extensions: Default::default(),
     };
 
-    channel.compute(ctx.clone(), ComputeInput::Store { spec: input_spec }).await.unwrap();
+    channel
+        .compute(ctx.clone(), ComputeInput::Store { spec: input_spec })
+        .await
+        .unwrap();
 
-    channel.compute(ctx.clone(), ComputeInput::Run { spec: job_spec }).await.unwrap();
+    channel
+        .compute(ctx.clone(), ComputeInput::Run { spec: job_spec })
+        .await
+        .unwrap();
 
-
-    let output = channel.compute(ctx.clone(), ComputeInput::Load { handle: output_handle }).await.unwrap();
+    let output = channel
+        .compute(
+            ctx.clone(),
+            ComputeInput::Load {
+                handle: output_handle,
+            },
+        )
+        .await
+        .unwrap();
 
     if let ComputeOutput::Loaded { data } = output {
         match Data::try_from(data).unwrap().values().get(0).unwrap() {
             Value::String(s) => {
                 assert_eq!(s.as_str(), "Hello world!");
-            },
-            _ => panic!("expected string")
+            }
+            _ => panic!("expected string"),
         }
     } else {
         panic!("expected ComputeOutput of type Loaded");
@@ -181,9 +226,14 @@ async fn internal_run_mugen_loop() {
         extensions: Default::default(),
     };
 
-    channel.compute(ctx.clone(), ComputeInput::Store { spec: input_spec }).await.unwrap();
+    channel
+        .compute(ctx.clone(), ComputeInput::Store { spec: input_spec })
+        .await
+        .unwrap();
 
-    let result = channel.compute(ctx.clone(), ComputeInput::Run { spec: job_spec }).await;
+    let result = channel
+        .compute(ctx.clone(), ComputeInput::Run { spec: job_spec })
+        .await;
 
     assert!(result.is_err());
 }
@@ -227,20 +277,27 @@ async fn internal_run_and_abort_mugen_loop() {
         extensions: Default::default(),
     };
 
-    channel.compute(ctx.clone(), ComputeInput::Store { spec: input_spec }).await.unwrap();
+    channel
+        .compute(ctx.clone(), ComputeInput::Store { spec: input_spec })
+        .await
+        .unwrap();
 
     let cloned_channel = channel.clone();
     let cloned_ctx = ctx.clone();
 
     let join_handle = tokio::task::spawn(async move {
-        let result = cloned_channel.compute(cloned_ctx, ComputeInput::Run { spec: job_spec }).await;
-        dbg!(result.as_ref().err());
+        let result = cloned_channel
+            .compute(cloned_ctx, ComputeInput::Run { spec: job_spec })
+            .await;
         assert!(result.is_err());
     });
 
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    channel.compute(ctx.clone(), ComputeInput::Abort { handle: job_handle }).await.unwrap();
+    channel
+        .compute(ctx.clone(), ComputeInput::Abort { handle: job_handle })
+        .await
+        .unwrap();
 
     join_handle.await.unwrap();
     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -285,18 +342,31 @@ async fn internal_run_wasm_with_deps() {
         extensions: Default::default(),
     };
 
-    channel.compute(ctx.clone(), ComputeInput::Store { spec: input_spec }).await.unwrap();
+    channel
+        .compute(ctx.clone(), ComputeInput::Store { spec: input_spec })
+        .await
+        .unwrap();
 
-    channel.compute(ctx.clone(), ComputeInput::Run { spec: job_spec }).await.unwrap();
+    channel
+        .compute(ctx.clone(), ComputeInput::Run { spec: job_spec })
+        .await
+        .unwrap();
 
-
-    let output = channel.compute(ctx.clone(), ComputeInput::Load { handle: output_handle }).await.unwrap();
+    let output = channel
+        .compute(
+            ctx.clone(),
+            ComputeInput::Load {
+                handle: output_handle,
+            },
+        )
+        .await
+        .unwrap();
 
     if let ComputeOutput::Loaded { data } = output {
         match Data::try_from(data).unwrap().values().get(0).unwrap() {
             Value::String(s) => {
                 assert_eq!(s.as_str(), "Hello world!");
-            },
+            }
             x => {
                 dbg!(x);
                 panic!("expected string")
@@ -305,33 +375,32 @@ async fn internal_run_wasm_with_deps() {
     } else {
         panic!("expected ComputeOutput of type Loaded");
     }
-
 }
 
 #[test]
 fn run_hello_world() {
-    graceless_async_test! ({
-       internal_run_hello_world().await;
+    graceless_async_test!({
+        internal_run_hello_world().await;
     });
 }
 
 #[test]
 fn run_wasm_with_deps() {
-    graceless_async_test! ({
-       internal_run_wasm_with_deps().await;
+    graceless_async_test!({
+        internal_run_wasm_with_deps().await;
     });
 }
 
 #[test]
 fn run_and_abort_mugen_loop() {
-    graceless_async_test! ({
-       internal_run_and_abort_mugen_loop().await;
+    graceless_async_test!({
+        internal_run_and_abort_mugen_loop().await;
     });
 }
 
 #[test]
 fn run_mugen_loop() {
-    graceless_async_test! ({
-       internal_run_mugen_loop().await;
+    graceless_async_test!({
+        internal_run_mugen_loop().await;
     });
 }

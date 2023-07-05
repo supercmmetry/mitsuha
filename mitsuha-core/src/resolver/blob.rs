@@ -55,7 +55,10 @@ where
     }
 }
 
-impl<Context> BlobResolver<Context> where Context: Send + Default {
+impl<Context> BlobResolver<Context>
+where
+    Context: Send + Default,
+{
     pub fn new(channel: Arc<Box<dyn ComputeChannel<Context = Context>>>) -> Self {
         Self { channel }
     }

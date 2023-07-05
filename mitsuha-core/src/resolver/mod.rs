@@ -2,7 +2,6 @@ use async_trait::async_trait;
 
 use crate::types;
 
-// pub mod module;
 pub mod blob;
 pub mod redis;
 

@@ -10,7 +10,7 @@ use mitsuha_core::{
 };
 use tokio::sync::RwLock;
 
-use crate::util;
+use crate::{util, WrappedComputeChannel};
 
 pub struct LabeledStorageChannel<Context: Send> {
     storage: Arc<Box<dyn Storage>>,
@@ -26,8 +26,8 @@ where
 {
     type Context = Context;
 
-    async fn id(&self) -> types::Result<String> {
-        Ok(self.id.clone())
+    fn id(&self) -> String {
+        self.id.clone()
     }
 
     async fn compute(&self, ctx: Context, elem: ComputeInput) -> types::Result<ComputeOutput> {
@@ -79,23 +79,26 @@ where
     }
 }
 
-impl<Context> LabeledStorageChannel<Context> where Context: Send {
+impl<Context> LabeledStorageChannel<Context>
+where
+    Context: Send,
+{
     pub fn get_identifier_type() -> &'static str {
         "mitsuha/channel/labeled_storage"
     }
 
-    pub fn new(storage: Arc<Box<dyn Storage>>, selector: Label) -> Self {
+    pub fn new(storage: Arc<Box<dyn Storage>>, selector: Label) -> WrappedComputeChannel<Self> {
         let id = format!(
             "{}/{}",
             Self::get_identifier_type(),
             util::generate_random_id()
         );
 
-        Self {
+        WrappedComputeChannel::new(Self {
             storage,
             storage_selector: selector,
             next: Arc::new(RwLock::new(None)),
             id,
-        }
+        })
     }
 }
