@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 mitsuha-core = { path = "../mitsuha-core" }
 
+
 async-trait = "0.1.59"
 strum_macros = "0.24.3"
 strum = "0.24"
@@ -17,11 +18,18 @@ serde = "1.0.148"
 serde_json = "1.0.89"
 dashmap = "5.4.0"
 tokio = { version = "1.24.1", features = ["full"] }
+tokio-stream = { version = "0.1.14", features = ["full"] }
 moka = { version = "0.11", features = ["future"] }
+sha2 = "0.10.7"
+hex = "0.4.3"
+lazy_static = "1.4.0"
+log = "0.4.19"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports", "async_tokio"] }
 rand = "0.8.5"
+env_logger = "0.10.0"
+
 
 [[bench]]
 name = "memory_storage"

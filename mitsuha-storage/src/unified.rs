@@ -12,7 +12,7 @@ use mitsuha_core::{
     types,
 };
 
-use crate::memory::MemoryStorage;
+use crate::{local::LocalStorage, memory::MemoryStorage};
 
 pub struct UnifiedStorage {
     stores: Arc<HashMap<String, Arc<Box<dyn Storage>>>>,
@@ -175,6 +175,7 @@ impl UnifiedStorage {
 
             let storage_impl: Arc<Box<dyn Storage>> = match storage_class.kind {
                 StorageKind::Memory => MemoryStorage::new()?,
+                StorageKind::Local => LocalStorage::new(storage_class.clone())?,
             };
 
             let mut processed_storage_class = storage_class.clone();
@@ -267,7 +268,11 @@ impl UnifiedStorage {
     fn start_gc(collectable: Arc<Box<dyn Storage>>) {
         tokio::task::spawn(async move {
             loop {
-                collectable.garbage_collect().await.unwrap();
+                log::debug!("running gc cycle");
+
+                if let Err(e) = collectable.garbage_collect().await {
+                    log::debug!("failed to run gc cycle. error: {}", e);
+                }
 
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
