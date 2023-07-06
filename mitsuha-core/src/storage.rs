@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use serde::Deserialize;
 
-use crate::{kernel::StorageSpec, selector::Label, types};
+use crate::{errors::Error, kernel::StorageSpec, selector::Label, types};
 
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum StorageLocality {
@@ -23,6 +23,7 @@ impl StorageLocality {
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum StorageKind {
     Memory,
+    Local,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -32,6 +33,20 @@ pub struct StorageClass {
     pub name: String,
     pub labels: Vec<Label>,
     pub extensions: HashMap<String, String>,
+}
+
+impl StorageClass {
+    pub fn get_extension_property(&self, key: &str) -> types::Result<String> {
+        self.extensions
+            .get(key)
+            .ok_or(Error::UnknownWithMsgOnly {
+                message: format!(
+                    "extension '{}' was not found in storage class '{}'",
+                    key, self.name
+                ),
+            })
+            .map(|x| x.clone())
+    }
 }
 
 #[async_trait]

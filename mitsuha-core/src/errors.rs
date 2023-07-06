@@ -178,7 +178,7 @@ pub enum Error {
     ComputeChannelEOF,
 
     // unknown errors
-    #[error("encountered unknown error")]
+    #[error("encountered unknown error, source: {source}")]
     Unknown {
         #[source]
         source: anyhow::Error,
