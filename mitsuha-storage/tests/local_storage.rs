@@ -17,10 +17,7 @@ static LOCAL_ROOT_DIR_SETUP_ONCE: std::sync::Once = std::sync::Once::new();
 fn get_root_dir() -> String {
     format!(
         "{}/{}",
-        std::env::temp_dir()
-            .as_os_str()
-            .to_str()
-            .unwrap(),
+        std::env::temp_dir().as_os_str().to_str().unwrap(),
         "mitsuha-storage-local-test"
     )
 }

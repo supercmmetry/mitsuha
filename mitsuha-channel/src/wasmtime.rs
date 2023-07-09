@@ -18,32 +18,34 @@ use mitsuha_wasm_runtime::{
 use tokio::{sync::RwLock, task::JoinHandle};
 
 use crate::{
+    context::ChannelContext,
     job_controller::{JobController, JobState},
-    system::{JobContext, SystemContext},
+    system::JobContext,
     util::{self, make_output_storage_spec},
     WrappedComputeChannel,
 };
 
-pub struct WasmtimeChannel<Context: Send> {
+pub struct WasmtimeChannel {
     id: String,
-    next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
+    next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
     linker: Arc<WasmtimeLinker>,
     kernel: Arc<Box<dyn Kernel>>,
     stub: Arc<Box<dyn KernelBinding>>,
 }
 
 #[async_trait]
-impl<Context> ComputeChannel for WasmtimeChannel<Context>
-where
-    Context: Send + SystemContext,
-{
-    type Context = Context;
+impl ComputeChannel for WasmtimeChannel {
+    type Context = ChannelContext;
 
     fn id(&self) -> String {
         self.id.clone()
     }
 
-    async fn compute(&self, ctx: Context, elem: ComputeInput) -> types::Result<ComputeOutput> {
+    async fn compute(
+        &self,
+        ctx: ChannelContext,
+        elem: ComputeInput,
+    ) -> types::Result<ComputeOutput> {
         match elem {
             ComputeInput::Run { spec } if spec.symbol.module_info.modtype == ModuleType::WASM => {
                 let handle = spec.handle.clone();
@@ -65,12 +67,13 @@ where
 
                 ctx.register_job_context(handle.clone(), job_context);
 
+                let job_task_spec = spec.clone();
                 let job_task: JoinHandle<types::Result<()>> = tokio::task::spawn(async move {
-                    Self::run(linker, stub, kernel, spec).await?;
+                    Self::run(linker, stub, kernel, job_task_spec).await?;
                     Ok(())
                 });
 
-                let job_ctrl = JobController::new(job_task);
+                let job_ctrl = JobController::new(spec.clone(), job_task, ctx.clone());
 
                 let result = job_ctrl
                     .run(handle.clone(), updater, updation_target, status_updater)
@@ -83,6 +86,10 @@ where
                     );
                 }
 
+                // TODO: Store JobStatus in storage.
+
+                // ctx.deregister_job_context(&handle);
+
                 result
             }
             _ => match self.next.read().await.clone() {
@@ -92,15 +99,12 @@ where
         }
     }
 
-    async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = Context>>>) {
+    async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) {
         *self.next.write().await = Some(next);
     }
 }
 
-impl<Context> WasmtimeChannel<Context>
-where
-    Context: Send + SystemContext,
-{
+impl WasmtimeChannel {
     pub fn get_identifier_type() -> &'static str {
         "mitsuha/channel/wasmtime"
     }

@@ -4,13 +4,12 @@ use async_trait::async_trait;
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     errors::Error,
-    kernel::JobStatus,
     module::ModuleInfo,
     types,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{job_controller::JobState, util, WrappedComputeChannel};
+use crate::{context::ChannelContext, job_controller::JobState, util, WrappedComputeChannel};
 
 pub struct JobContext {
     handle: String,
@@ -43,7 +42,7 @@ impl JobContext {
 
         if self.desired != self.actual {
             log::info!(
-                "updating job context from {:?} to {:?} for handle: {}",
+                "updating job context from {:?} to {:?} for handle: '{}'",
                 self.actual,
                 self.desired,
                 self.handle
@@ -61,7 +60,11 @@ impl JobContext {
     pub fn get_state(&mut self) -> types::Result<JobState> {
         match self.reader.try_recv() {
             Ok(x) => {
-                log::info!("received new job state {:?} for handle: {}", x, self.handle);
+                log::info!(
+                    "received new job state {:?} for handle: '{}'",
+                    x,
+                    self.handle
+                );
 
                 self.actual = x;
             }
@@ -72,36 +75,24 @@ impl JobContext {
     }
 }
 
-pub struct SystemChannel<Context: Send> {
-    next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
+pub struct SystemChannel {
+    next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
     id: String,
 }
 
 #[async_trait]
-pub trait SystemContext {
-    async fn get_job_status(&self, handle: &String) -> types::Result<JobStatus>;
-
-    async fn extend_job(&self, handle: &String, ttl: u64) -> types::Result<()>;
-
-    async fn abort_job(&self, handle: &String) -> types::Result<()>;
-
-    fn register_job_context(&self, handle: String, ctx: JobContext);
-
-    fn deregister_job_context(&self, handle: &String);
-}
-
-#[async_trait]
-impl<Context> ComputeChannel for SystemChannel<Context>
-where
-    Context: SystemContext + Send + Sync,
-{
-    type Context = Context;
+impl ComputeChannel for SystemChannel {
+    type Context = ChannelContext;
 
     fn id(&self) -> String {
         self.id.clone()
     }
 
-    async fn compute(&self, ctx: Context, mut elem: ComputeInput) -> types::Result<ComputeOutput> {
+    async fn compute(
+        &self,
+        ctx: ChannelContext,
+        mut elem: ComputeInput,
+    ) -> types::Result<ComputeOutput> {
         match &mut elem {
             ComputeInput::Store { ref mut spec } => {
                 if ModuleInfo::equals_identifier_type(&spec.handle) {
@@ -117,6 +108,10 @@ where
                 ctx.abort_job(handle).await?;
                 return Ok(ComputeOutput::Completed);
             }
+            ComputeInput::Status { handle } => {
+                let status = ctx.get_job_status(handle).await?;
+                return Ok(ComputeOutput::Status { status });
+            }
             _ => {}
         }
 
@@ -126,15 +121,12 @@ where
         }
     }
 
-    async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = Context>>>) {
+    async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) {
         *self.next.write().await = Some(next);
     }
 }
 
-impl<Context> SystemChannel<Context>
-where
-    Context: Send + Sync + SystemContext,
-{
+impl SystemChannel {
     pub fn get_identifier_type() -> &'static str {
         "mitsuha/channel/system"
     }

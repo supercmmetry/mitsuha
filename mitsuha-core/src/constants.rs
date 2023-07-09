@@ -14,4 +14,7 @@ pub enum Constants {
 
     #[strum(serialize = "mitsuha.job.output.ttl")]
     JobOutputTTL,
+
+    #[strum(serialize = "mitsuha.job.status.last_updated")]
+    JobStatusLastUpdated,
 }
