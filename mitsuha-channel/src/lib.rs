@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use context::ChannelContext;
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    errors::Error,
     types,
 };
 
@@ -30,10 +32,9 @@ where
 #[async_trait]
 impl<T> ComputeChannel for WrappedComputeChannel<T>
 where
-    T: ComputeChannel,
-    <T as ComputeChannel>::Context: Send + Sync,
+    T: ComputeChannel<Context = ChannelContext>,
 {
-    type Context = <T as ComputeChannel>::Context;
+    type Context = ChannelContext;
 
     fn id(&self) -> String {
         self.inner.id()
@@ -50,5 +51,56 @@ where
     async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = Self::Context>>>) {
         log::info!("connecting channel '{}' to '{}'", self.id(), next.id());
         self.inner.connect(next).await
+    }
+}
+
+pub struct InitChannel {
+    next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
+    id: String,
+}
+
+#[async_trait]
+impl ComputeChannel for InitChannel {
+    type Context = ChannelContext;
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    async fn compute(
+        &self,
+        mut ctx: ChannelContext,
+        elem: ComputeInput,
+    ) -> types::Result<ComputeOutput> {
+        match self.next.read().await.clone() {
+            Some(chan) => {
+                ctx.set_channel_start(chan.clone());
+                chan.compute(ctx, elem).await
+            }
+            None => Err(Error::ComputeChannelEOF),
+        }
+    }
+
+    async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) {
+        *self.next.write().await = Some(next);
+    }
+}
+
+impl InitChannel {
+    pub fn get_identifier_type() -> &'static str {
+        "mitsuha/channel/init"
+    }
+
+    pub fn new() -> WrappedComputeChannel<Self> {
+        let id = format!(
+            "{}/{}",
+            Self::get_identifier_type(),
+            util::generate_random_id()
+        );
+
+        WrappedComputeChannel::new(Self {
+            next: Arc::new(tokio::sync::RwLock::new(None)),
+            id,
+        })
     }
 }

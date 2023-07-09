@@ -1,6 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(strum_macros::Display, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    strum_macros::Display,
+    strum_macros::EnumString,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum ModuleType {
     #[strum(serialize = "wasm")]
     WASM,

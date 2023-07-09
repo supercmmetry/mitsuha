@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     errors::Error,
@@ -8,6 +9,7 @@ use crate::{
     types,
 };
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ComputeInput {
     Store { spec: StorageSpec },
     Load { handle: String },

@@ -1,0 +1,122 @@
+syntax = "proto3";
+package channel;
+
+import "google/protobuf/timestamp.proto";
+
+service Channel {
+    rpc Compute (ComputeRequest) returns (ComputeResponse);
+}
+
+message ComputeRequest {
+    oneof ComputeRequestOneOf {
+        StoreRequest store = 1;
+        LoadRequest load = 2;
+        PersistRequest persist = 3;
+        ClearRequest clear = 4;
+        RunRequest run = 5;
+        ExtendRequest extend = 6;
+        StatusRequest status = 7;
+        AbortRequest abort = 8;
+    }
+}
+
+message ComputeResponse {
+    oneof ComputeResponseOneOf {
+        StatusResponse status = 1;
+        LoadedResponse loaded = 2;
+        CompletedResponse completed = 3;
+    }
+}
+
+message StatusResponse {
+    JobStatus status = 1;
+}
+
+message LoadedResponse {
+    bytes data = 1;
+}
+
+message CompletedResponse {}
+
+message StoreRequest {
+    StorageSpec spec = 1;
+}
+
+message LoadRequest {
+    string handle = 1;
+}
+
+message PersistRequest {
+    string handle = 1;
+    uint64 ttl = 2;
+}
+
+message ClearRequest {
+    string handle = 1;
+}
+
+message RunRequest {
+    JobSpec spec = 1;
+}
+
+message ExtendRequest {
+    string handle = 1;
+    uint64 ttl = 2;
+}
+
+message StatusRequest {
+    string handle = 1;
+}
+
+message AbortRequest {
+    string handle = 1;
+}
+
+message StorageSpec {
+    string handle = 1;
+    bytes data = 2;
+    uint64 ttl = 3;
+    map<string, string> extensions = 4;
+}
+
+message JobSpec {
+    string handle = 1;
+    string input_handle = 2;
+    string output_handle = 3;
+    string status_handle = 4;
+    uint64 ttl = 5;
+    Symbol symbol = 6;
+    map<string, string> extensions = 7;
+}
+
+message Symbol {
+    string name = 1;
+    ModuleInfo module_info = 2;
+}
+
+message ModuleInfo {
+    string name = 1;
+    string version = 2;
+    string modtype = 3;
+}
+
+message JobStatus {
+    JobStatusType status = 1;
+    map<string, string> extensions = 2;
+}
+
+message JobStatusType {
+    message Running {}
+    message Completed {}
+    message Aborted {}
+    message ExpiredAt {
+        google.protobuf.Timestamp datetime = 1;
+    }
+
+    oneof JobStatusTypeOneOf {
+        Running running = 1;
+        Completed completed = 2;
+        Aborted aborted = 3;
+        ExpiredAt expired_at = 4;
+    }
+}

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use async_trait::async_trait;
 use uuid::Uuid;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobSpec {
     pub handle: String,
     pub symbol: Symbol,
@@ -37,7 +37,7 @@ pub struct JobStatus {
     pub extensions: HashMap<String, String>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageSpec {
     pub handle: String,
     pub data: Vec<u8>,
@@ -379,6 +379,8 @@ impl KernelBridge {
         let input_handle = Uuid::new_v4().to_string();
         let output_handle = Uuid::new_v4().to_string();
         let status_handle = Uuid::new_v4().to_string();
+
+        // TODO: Set sane ttls here
 
         let input_spec = StorageSpec {
             handle: input_handle.clone(),

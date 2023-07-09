@@ -258,7 +258,7 @@ impl UnifiedStorage {
 
         Err(Error::StorageOperationFailed {
             message: format!(
-                "failed to get a storage that serves the handle: {}.",
+                "failed to get a storage that serves the handle: '{}'.",
                 handle.clone()
             ),
             source: anyhow::anyhow!(""),
