@@ -88,17 +88,11 @@ where
     }
 
     pub fn new(storage: Arc<Box<dyn Storage>>, selector: Label) -> WrappedComputeChannel<Self> {
-        let id = format!(
-            "{}/{}",
-            Self::get_identifier_type(),
-            util::generate_random_id()
-        );
-
         WrappedComputeChannel::new(Self {
             storage,
             storage_selector: selector,
             next: Arc::new(RwLock::new(None)),
-            id,
+            id: Self::get_identifier_type().to_string(),
         })
     }
 }

@@ -1,13 +1,15 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use lazy_static::lazy_static;
-use mitsuha_channel::context::ChannelContext;
-use mitsuha_core::{channel::ComputeChannel, config::Config, types};
+use mitsuha_channel::{context::ChannelContext, WrappedComputeChannel};
+use mitsuha_core::{
+    channel::ComputeChannel, config::Config, constants::Constants, errors::Error, types,
+};
 
-use self::{init::InitPlugin, one_storage::OneStoragePlugin, wasmtime::WasmtimePlugin};
+use self::{common::InitPlugin, one_storage::OneStoragePlugin, wasmtime::WasmtimePlugin};
 
-pub mod init;
+pub mod delegator;
+pub mod common;
 pub mod one_storage;
 pub mod wasmtime;
 
@@ -64,4 +66,30 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
     ctx.merge(new_ctx);
 
     ctx
+}
+
+pub fn initialize_channel<T>(
+    ctx: &PluginContext,
+    mut chan: WrappedComputeChannel<T>,
+) -> types::Result<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>
+where
+    T: 'static + ComputeChannel<Context = ChannelContext>,
+{
+    chan = match ctx.extensions.get(&Constants::ChannelId.to_string()) {
+        Some(id) => chan.with_id(id.clone()),
+        None => {
+            return Err(Error::UnknownWithMsgOnly {
+                message: format!("channel id was not assigned"),
+            })
+        }
+    };
+
+    let boxed_chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> =
+        Arc::new(Box::new(chan));
+
+    ctx.channel_context
+        .channel_map
+        .insert(boxed_chan.id(), boxed_chan.clone());
+
+    Ok(boxed_chan)
 }

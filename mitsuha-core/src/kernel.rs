@@ -23,7 +23,7 @@ pub struct JobSpec {
     pub extensions: HashMap<String, String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum JobStatusType {
     Running,
     Completed,

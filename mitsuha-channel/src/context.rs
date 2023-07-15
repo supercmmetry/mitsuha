@@ -15,6 +15,7 @@ use mitsuha_core::errors::Error;
 pub struct ChannelContext {
     job_context_map: Arc<DashMap<String, JobContext>>,
     pub channel_start: Option<Arc<Box<dyn ComputeChannel<Context = Self>>>>,
+    pub channel_map: Arc<DashMap<String, Arc<Box<dyn ComputeChannel<Context = Self>>>>>,
 }
 
 impl ChannelContext {

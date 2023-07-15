@@ -126,17 +126,11 @@ impl WasmtimeChannel {
 
         let linker = Arc::new(WasmtimeLinker::new(module_resolver, engine).unwrap());
 
-        let id = format!(
-            "{}/{}",
-            Self::get_identifier_type(),
-            util::generate_random_id()
-        );
-
         let stub: Arc<Box<dyn KernelBinding>> =
             Arc::new(Box::new(KernelBridge::new(kernel.clone())));
 
         WrappedComputeChannel::new(Self {
-            id,
+            id: Self::get_identifier_type().to_string(),
             next: Arc::new(RwLock::new(None)),
             linker,
             kernel,

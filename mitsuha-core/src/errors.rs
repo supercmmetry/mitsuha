@@ -174,7 +174,7 @@ pub enum Error {
     JobAborted { handle: String },
 
     // Compute channel errors
-    #[error("reached compute channel eof")]
+    #[error("reached compute channel EOF")]
     ComputeChannelEOF,
 
     // unknown errors
