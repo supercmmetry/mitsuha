@@ -3,12 +3,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mitsuha_channel::wasmtime::WasmtimeChannel;
 use mitsuha_core::{
-    channel::ComputeKernel,
-    kernel::Kernel,
-    module::ModuleInfo,
-    resolver::blob::BlobResolver,
-    resolver::Resolver,
-    types,
+    channel::ComputeKernel, kernel::Kernel, module::ModuleInfo, resolver::blob::BlobResolver,
+    resolver::Resolver, types,
 };
 
 use super::{initialize_channel, Plugin, PluginContext};

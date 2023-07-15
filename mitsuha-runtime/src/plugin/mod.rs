@@ -8,8 +8,8 @@ use mitsuha_core::{
 
 use self::{common::InitPlugin, one_storage::OneStoragePlugin, wasmtime::WasmtimePlugin};
 
-pub mod delegator;
 pub mod common;
+pub mod delegator;
 pub mod one_storage;
 pub mod wasmtime;
 

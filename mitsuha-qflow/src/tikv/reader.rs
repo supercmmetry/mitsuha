@@ -1,19 +1,22 @@
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use async_trait::async_trait;
 use mitsuha_core::channel::ComputeInput;
 
-use crate::{qmux::QueueMuxer, util};
+use crate::{util, Reader};
 
-pub struct Consumer {
+use super::muxer::TikvQueueMuxer;
+
+pub struct TikvReader {
     client: Arc<tikv_client::TransactionClient>,
-    muxer: Arc<QueueMuxer>,
+    muxer: Arc<TikvQueueMuxer>,
 }
 
-impl Consumer {
+impl TikvReader {
     pub async fn new(
         client: Arc<tikv_client::TransactionClient>,
-        muxer: Arc<QueueMuxer>,
+        muxer: Arc<TikvQueueMuxer>,
     ) -> anyhow::Result<Self> {
         Ok(Self { client, muxer })
     }
@@ -54,40 +57,6 @@ impl Consumer {
         Ok(musubi_api::types::from_value(value)?)
     }
 
-    pub async fn read_compute_input(&self, client_id: String) -> anyhow::Result<ComputeInput> {
-        let options = tikv_client::TransactionOptions::new_pessimistic()
-            .retry_options(tikv_client::RetryOptions::default_pessimistic());
-
-        let mut sticky_tx = self.client.begin_with_options(options.clone()).await?;
-
-        match self.read_sticky_element_tx(&mut sticky_tx, client_id.clone()).await {
-            Ok(input) => {
-                sticky_tx.commit().await?;
-                return Ok(input);
-            },
-            Err(e) => {
-                // log error
-                sticky_tx.rollback().await?;
-            }
-        }
-
-        let mut tx = self.client.begin_with_options(options.clone()).await?;
-
-        match self.read_compute_input_tx(&mut tx).await {
-            Ok(input) => {
-                // log error
-                _ = self.process_sticky_element(&mut tx, client_id, &input).await;
-
-                tx.commit().await?;
-                Ok(input)
-            }
-            Err(e) => {
-                tx.rollback().await?;
-                Err(e)
-            }
-        }
-    }
-
     async fn process_sticky_element(
         &self,
         tx: &mut tikv_client::Transaction,
@@ -98,8 +67,10 @@ impl Consumer {
             ComputeInput::Run { spec } => {
                 let handle = spec.handle.clone();
 
-                let client_trigger_handle = util::generate_sticky_element_trigger_handle(client_id.clone());
-                let input_trigger_handle = util::generate_sticky_element_trigger_handle(handle.clone());
+                let client_trigger_handle =
+                    util::generate_sticky_element_trigger_handle(client_id.clone());
+                let input_trigger_handle =
+                    util::generate_sticky_element_trigger_handle(handle.clone());
 
                 tx.put(client_trigger_handle, handle).await?;
                 tx.put(input_trigger_handle, client_id).await?;
@@ -110,9 +81,13 @@ impl Consumer {
         Ok(())
     }
 
-    async fn read_sticky_element_tx(&self, tx: &mut tikv_client::Transaction, client_id: String) -> anyhow::Result<ComputeInput> {
+    async fn read_sticky_element_tx(
+        &self,
+        tx: &mut tikv_client::Transaction,
+        client_id: String,
+    ) -> anyhow::Result<ComputeInput> {
         let queue_offset_handle = util::generate_sticky_queue_offset_handle(client_id.clone());
-                
+
         let offset_data = tx.get_for_update(queue_offset_handle.clone()).await?;
         let mut offset = 0u64;
 
@@ -139,6 +114,46 @@ impl Consumer {
 
         Ok(musubi_api::types::from_value(value)?)
     }
+}
 
+#[async_trait]
+impl Reader for TikvReader {
+    async fn read_compute_input(&self, client_id: String) -> anyhow::Result<ComputeInput> {
+        let options = tikv_client::TransactionOptions::new_optimistic()
+            .retry_options(tikv_client::RetryOptions::default_optimistic());
 
+        let mut sticky_tx = self.client.begin_with_options(options.clone()).await?;
+
+        match self
+            .read_sticky_element_tx(&mut sticky_tx, client_id.clone())
+            .await
+        {
+            Ok(input) => {
+                sticky_tx.commit().await?;
+                return Ok(input);
+            }
+            Err(e) => {
+                // log error
+                sticky_tx.rollback().await?;
+            }
+        }
+
+        let mut tx = self.client.begin_with_options(options.clone()).await?;
+
+        match self.read_compute_input_tx(&mut tx).await {
+            Ok(input) => {
+                // log error
+                _ = self
+                    .process_sticky_element(&mut tx, client_id, &input)
+                    .await;
+
+                tx.commit().await?;
+                Ok(input)
+            }
+            Err(e) => {
+                tx.rollback().await?;
+                Err(e)
+            }
+        }
+    }
 }
