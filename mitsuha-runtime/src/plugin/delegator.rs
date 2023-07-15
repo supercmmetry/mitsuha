@@ -1,25 +1,27 @@
 use async_trait::async_trait;
-use mitsuha_channel::labeled_storage::LabeledStorageChannel;
+use mitsuha_channel::delegator::DelegatorChannel;
 use mitsuha_core::types;
-use mitsuha_storage::UnifiedStorage;
 
 use super::{initialize_channel, Plugin, PluginContext};
 
 #[derive(Clone)]
-pub struct OneStoragePlugin;
+pub struct DelegatorPlugin;
 
 #[async_trait]
-impl Plugin for OneStoragePlugin {
+impl Plugin for DelegatorPlugin {
     fn name(&self) -> &'static str {
-        "mitsuha.plugin.one_storage"
+        "mitsuha.plugin.delegator"
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let storage = UnifiedStorage::new(&ctx.config.storage).unwrap();
-
-        let raw_channel = LabeledStorageChannel::new(
-            storage,
-            serde_json::from_str(ctx.extensions.get("selector").unwrap()).unwrap(),
+        let raw_channel = DelegatorChannel::new(
+            ctx.extensions.get("slave_id").unwrap().clone(),
+            ctx.extensions
+                .get("max_jobs")
+                .unwrap()
+                .clone()
+                .parse()
+                .unwrap(),
         );
 
         let channel = initialize_channel(&ctx, raw_channel)?;

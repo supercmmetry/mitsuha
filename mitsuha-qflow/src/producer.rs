@@ -1,0 +1,120 @@
+use std::sync::Arc;
+
+use anyhow::anyhow;
+use mitsuha_core::channel::ComputeInput;
+
+use crate::{qmux::QueueMuxer, util};
+
+pub struct Producer {
+    client: Arc<tikv_client::TransactionClient>,
+    muxer: Arc<QueueMuxer>,
+}
+
+impl Producer {
+    pub async fn new(
+        client: Arc<tikv_client::TransactionClient>,
+        muxer: Arc<QueueMuxer>,
+    ) -> anyhow::Result<Self> {
+        Ok(Self { client, muxer })
+    }
+
+    async fn write_compute_input_tx(
+        &mut self,
+        tx: &mut tikv_client::Transaction,
+        input: ComputeInput,
+    ) -> anyhow::Result<()> {
+
+        // If sticky, then redirect to sticky queue
+        if self.process_sticky_element(tx, &input).await? {
+            return Ok(());
+        }
+
+        let queue_index = self.muxer.get_producer_queue_index(tx).await?;
+        let queue_length_handle = util::generate_queue_length_handle(queue_index);
+
+        let length_data = tx.get_for_update(queue_length_handle.clone()).await?;
+        let mut length = 0u64;
+
+        if length_data.is_none() {
+            tx.put(queue_length_handle.clone(), 0u64.to_le_bytes().to_vec())
+                .await?;
+        } else {
+            length = util::vec_to_u64(length_data.unwrap())?;
+        }
+
+        let element_handle = util::generate_queue_element_handle(queue_index, length);
+        let data: Vec<u8> = musubi_api::types::to_value(input)?.try_into()?;
+
+        tx.put(element_handle, data).await?;
+
+        length += 1;
+
+        tx.put(queue_length_handle, length.to_le_bytes()).await?;
+
+        Ok(())
+    }
+
+    pub async fn write_compute_input(&mut self, input: ComputeInput) -> anyhow::Result<()> {
+        let options = tikv_client::TransactionOptions::new_pessimistic()
+            .retry_options(tikv_client::RetryOptions::default_pessimistic());
+
+        let mut tx = self.client.begin_with_options(options).await?;
+
+        match self.write_compute_input_tx(&mut tx, input).await {
+            Ok(_) => {
+                tx.commit().await?;
+                Ok(())
+            }
+            Err(e) => {
+                tx.rollback().await?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn process_sticky_element(
+        &self,
+        tx: &mut tikv_client::Transaction,
+        input: &ComputeInput,
+    ) -> anyhow::Result<bool> {
+        match input {
+            ComputeInput::Status { handle } | ComputeInput::Abort { handle } | ComputeInput::Extend { handle, .. } => {
+                let input_trigger_handle = util::generate_sticky_element_trigger_handle(handle.clone());
+                let client_trigger_handle = tx.get(input_trigger_handle).await?;
+                if client_trigger_handle.is_none() {
+                    // TODO: Add warning that we are dropping the input operation here
+                    return Ok(true);
+                }
+
+                let client_trigger_handle = String::from_utf8(client_trigger_handle.unwrap())?;
+                let client_id = util::unwrap_sticky_element_trigger_handle(client_trigger_handle)?;
+
+                let queue_length_handle = util::generate_sticky_queue_length_handle(client_id.clone());
+                
+                let length_data = tx.get_for_update(queue_length_handle.clone()).await?;
+                let mut length = 0u64;
+
+                if length_data.is_none() {
+                    tx.put(queue_length_handle.clone(), 0u64.to_le_bytes().to_vec())
+                        .await?;
+                } else {
+                    length = util::vec_to_u64(length_data.unwrap())?;
+                }
+
+                let element_handle = util::generate_sticky_element_handle(client_id.clone(), length);
+                let data: Vec<u8> = musubi_api::types::to_value(input)?.try_into()?;
+
+                tx.put(element_handle, data).await?;
+
+                length += 1;
+
+                tx.put(queue_length_handle, length.to_le_bytes()).await?;
+            }   
+            _ => {
+                return Ok(false)
+            }
+        }
+
+        Ok(true)
+    }
+}

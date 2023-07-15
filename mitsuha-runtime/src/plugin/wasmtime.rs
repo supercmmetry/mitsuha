@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use mitsuha_channel::{context::ChannelContext, wasmtime::WasmtimeChannel};
+use mitsuha_channel::wasmtime::WasmtimeChannel;
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeKernel},
+    channel::ComputeKernel,
     kernel::Kernel,
     module::ModuleInfo,
     resolver::blob::BlobResolver,
@@ -11,7 +11,7 @@ use mitsuha_core::{
     types,
 };
 
-use super::{Plugin, PluginContext};
+use super::{initialize_channel, Plugin, PluginContext};
 
 #[derive(Clone)]
 pub struct WasmtimePlugin;
@@ -27,8 +27,9 @@ impl Plugin for WasmtimePlugin {
             Arc::new(Box::new(ComputeKernel::new(ctx.channel_start.clone())));
         let blob_resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>> =
             Arc::new(Box::new(BlobResolver::new(ctx.channel_start.clone())));
-        let channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> =
-            Arc::new(Box::new(WasmtimeChannel::new(kernel, blob_resolver)));
+
+        let raw_channel = WasmtimeChannel::new(kernel, blob_resolver);
+        let channel = initialize_channel(&ctx, raw_channel)?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;

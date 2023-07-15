@@ -132,15 +132,9 @@ impl SystemChannel {
     }
 
     pub fn new() -> WrappedComputeChannel<Self> {
-        let id = format!(
-            "{}/{}",
-            Self::get_identifier_type(),
-            util::generate_random_id()
-        );
-
         WrappedComputeChannel::new(Self {
             next: Arc::new(tokio::sync::RwLock::new(None)),
-            id,
+            id: Self::get_identifier_type().to_string(),
         })
     }
 }
