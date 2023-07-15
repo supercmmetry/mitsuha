@@ -30,7 +30,6 @@ pub async fn make_tikv_writer(
 
     let client = Arc::new(client);
 
-
     let muxer = Arc::new(
         TikvQueueMuxer::new(client.clone(), desired_queue_count)
             .await

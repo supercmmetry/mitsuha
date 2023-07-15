@@ -10,7 +10,7 @@ use mitsuha_core::{
 };
 use tokio::sync::RwLock;
 
-use crate::{util, WrappedComputeChannel};
+use crate::WrappedComputeChannel;
 
 pub struct LabeledStorageChannel<Context: Send> {
     storage: Arc<Box<dyn Storage>>,

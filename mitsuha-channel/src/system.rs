@@ -9,7 +9,7 @@ use mitsuha_core::{
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{context::ChannelContext, job_controller::JobState, util, WrappedComputeChannel};
+use crate::{context::ChannelContext, job_controller::JobState, WrappedComputeChannel};
 
 pub struct JobContext {
     handle: String,
