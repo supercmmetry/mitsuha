@@ -6,11 +6,17 @@ use mitsuha_core::{
     channel::ComputeChannel, config::Config, constants::Constants, errors::Error, types,
 };
 
-use self::{common::InitPlugin, one_storage::OneStoragePlugin, wasmtime::WasmtimePlugin};
+use self::{
+    common::{EofPlugin, InitPlugin},
+    one_storage::OneStoragePlugin,
+    qflow::QFlowPlugin,
+    wasmtime::WasmtimePlugin,
+};
 
 pub mod common;
 pub mod delegator;
 pub mod one_storage;
+pub mod qflow;
 pub mod wasmtime;
 
 #[derive(Clone)]
@@ -38,8 +44,12 @@ pub trait Plugin: Send + Sync {
 }
 
 pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
-    let plugin_list: Vec<Box<dyn Plugin>> =
-        vec![Box::new(OneStoragePlugin), Box::new(WasmtimePlugin)];
+    let plugin_list: Vec<Box<dyn Plugin>> = vec![
+        Box::new(EofPlugin),
+        Box::new(OneStoragePlugin),
+        Box::new(WasmtimePlugin),
+        Box::new(QFlowPlugin),
+    ];
 
     let plugin_map: HashMap<&'static str, Box<dyn Plugin>> = plugin_list
         .into_iter()
