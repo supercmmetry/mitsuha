@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use mitsuha_channel::{InitChannel, EofChannel};
+use mitsuha_channel::{EofChannel, InitChannel};
 use mitsuha_core::types;
 
 use super::{initialize_channel, Plugin, PluginContext};
@@ -36,7 +36,7 @@ impl Plugin for EofPlugin {
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
         let channel = initialize_channel(&ctx, EofChannel::new())?;
-        
+
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;
 

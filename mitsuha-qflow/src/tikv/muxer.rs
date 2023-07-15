@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 use crate::util;
 
 #[derive(Clone)]
-pub struct QueueMuxer {
+pub struct TikvQueueMuxer {
     index_space: Arc<RwLock<Vec<u64>>>,
     index: Arc<RwLock<u64>>,
     desired_queue_count: u64,
@@ -14,7 +14,7 @@ pub struct QueueMuxer {
     client: Arc<tikv_client::TransactionClient>,
 }
 
-impl QueueMuxer {
+impl TikvQueueMuxer {
     pub async fn new(
         client: Arc<tikv_client::TransactionClient>,
         desired_queue_count: u64,
@@ -37,8 +37,8 @@ impl QueueMuxer {
         let handle = util::generate_queue_count_handle();
         let mut queue_count = 0u64;
 
-        let options = tikv_client::TransactionOptions::new_pessimistic()
-            .retry_options(tikv_client::RetryOptions::default_pessimistic());
+        let options = tikv_client::TransactionOptions::new_optimistic()
+            .retry_options(tikv_client::RetryOptions::default_optimistic());
 
         let mut tx = client.begin_with_options(options).await?;
 
@@ -136,5 +136,53 @@ impl QueueMuxer {
         *self.observed_queue_count.write().await = queue_count;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tikv::muxer::TikvQueueMuxer;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_qmux_single_queue_producer() {
+        let client = tikv_client::TransactionClient::new(vec!["127.0.0.1:2379"])
+            .await
+            .unwrap();
+        let client = Arc::new(client);
+
+        let muxer = TikvQueueMuxer::new(client.clone(), 1).await.unwrap();
+
+        for i in 0..10 {
+            let mut tx = client.begin_pessimistic().await.unwrap();
+
+            assert_eq!(0, muxer.get_producer_queue_index(&mut tx).await.unwrap());
+
+            tx.commit().await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_qmux_multi_queue_producer() {
+        let client = tikv_client::TransactionClient::new(vec!["127.0.0.1:2379"])
+            .await
+            .unwrap();
+        let client = Arc::new(client);
+
+        let muxer = TikvQueueMuxer::new(client.clone(), 10).await.unwrap();
+        let mut visited = vec![false; 10];
+
+        for _ in 0..10 {
+            let mut tx = client.begin_pessimistic().await.unwrap();
+
+            let index = muxer.get_producer_queue_index(&mut tx).await.unwrap();
+            visited[index as usize] = true;
+
+            tx.commit().await.unwrap();
+        }
+
+        for v in visited {
+            assert!(v);
+        }
     }
 }

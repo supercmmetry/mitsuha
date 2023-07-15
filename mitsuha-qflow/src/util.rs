@@ -37,10 +37,15 @@ pub fn generate_sticky_element_trigger_handle(elem_id: String) -> String {
 }
 
 pub fn unwrap_sticky_element_trigger_handle(s: String) -> anyhow::Result<String> {
-    let v: Vec<&str> = s.split(generate_sticky_queue_handle("trigger".to_string()).as_str()).collect();
+    let v: Vec<&str> = s
+        .split(generate_sticky_queue_handle("trigger".to_string()).as_str())
+        .collect();
 
     if v.len() != 2 {
-        return Err(anyhow!("failed to parse sticky element trigger handle: {}", s));
+        return Err(anyhow!(
+            "failed to parse sticky element trigger handle: {}",
+            s
+        ));
     }
 
     Ok(v[1].to_string())
@@ -56,27 +61,6 @@ pub fn generate_sticky_queue_length_handle(node_id: String) -> String {
 
 pub fn generate_queue_count_handle() -> String {
     "mitsuha/qflow/queue/count".to_string()
-}
-
-pub async fn apply_queue_muxer_lock(
-    queue_index: u64,
-    tx: &mut tikv_client::Transaction,
-) -> anyhow::Result<()> {
-    let lock_handle = generate_queue_lock_handle(queue_index);
-    tx.put(lock_handle.clone(), lock_handle.clone()).await?;
-    tx.get_for_update(lock_handle).await?;
-
-    Ok(())
-}
-
-pub async fn release_queue_muxer_lock(
-    queue_index: u64,
-    tx: &mut tikv_client::Transaction,
-) -> anyhow::Result<()> {
-    let lock_handle = generate_queue_lock_handle(queue_index);
-    tx.delete(lock_handle).await?;
-
-    Ok(())
 }
 
 pub fn vec_to_u64(data: Vec<u8>) -> anyhow::Result<u64> {
