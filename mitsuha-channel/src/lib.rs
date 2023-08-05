@@ -30,6 +30,11 @@ where
         log::info!("initialized channel '{}'", inner.id());
         Self { inner, id: None }
     }
+
+    pub fn new_with_id(inner: T, id: String) -> Self {
+        log::info!("initialized channel '{}'", id);
+        Self { inner, id: Some(id) }
+    }
 }
 
 #[async_trait]
@@ -41,7 +46,7 @@ where
 
     fn id(&self) -> String {
         match self.id.clone() {
-            Some(id) => format!("{}/{}", self.inner.id(), id),
+            Some(id) => id,
             _ => panic!("id was not assigned to channel"),
         }
     }
@@ -51,6 +56,7 @@ where
         ctx: Self::Context,
         elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
+        log::debug!("performing compute on channel: '{}'", self.id());
         self.inner.compute(ctx, elem).await
     }
 
@@ -70,6 +76,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct InitChannel {
     next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
     id: String,
@@ -88,9 +95,14 @@ impl ComputeChannel for InitChannel {
         mut ctx: ChannelContext,
         elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
-        match self.next.read().await.clone() {
+        let next_channel = self.next.read().await.clone();
+
+        match next_channel {
             Some(chan) => {
-                ctx.set_channel_start(chan.clone());
+                let new_start: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> = Arc::new(Box::new(self.clone()));
+                new_start.connect(chan.clone()).await;
+
+                ctx.set_channel_start(new_start);
                 chan.compute(ctx, elem).await
             }
             None => Err(Error::ComputeChannelEOF),
@@ -108,10 +120,10 @@ impl InitChannel {
     }
 
     pub fn new() -> WrappedComputeChannel<Self> {
-        WrappedComputeChannel::new(Self {
+        WrappedComputeChannel::new_with_id(Self {
             next: Arc::new(tokio::sync::RwLock::new(None)),
             id: Self::get_identifier_type().to_string(),
-        })
+        }, format!("{}/{}", Self::get_identifier_type().to_string(), util::generate_random_id()))
     }
 }
 

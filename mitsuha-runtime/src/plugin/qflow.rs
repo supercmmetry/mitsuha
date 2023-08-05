@@ -45,12 +45,15 @@ impl Plugin for QFlowPlugin {
             loop {
                 match reader.read_compute_input(client_id.clone()).await {
                     Ok(input) => {
+                        log::debug!("received qflow compute input!");
                         // log error
                         _ = channel_start.compute(channel_context.clone(), input).await;
-                    }
-                    Err(_e) => {
-                        // log error
+                        
                         tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                    Err(e) => {
+                        // log::error!("error occured during consumption: {}", e);
+                        // log error
                     }
                 }
             }

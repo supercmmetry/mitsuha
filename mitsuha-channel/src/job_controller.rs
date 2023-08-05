@@ -48,6 +48,8 @@ impl JobController {
         status_type: JobStatusType,
         current_time: DateTime<Utc>,
     ) -> types::Result<()> {
+        log::debug!("updating status for job '{}' to '{:?}'", spec.handle, status_type);
+
         let status = JobStatus {
             status: status_type,
             extensions: [(
@@ -94,10 +96,18 @@ impl JobController {
         status_updater: Sender<JobState>,
     ) -> types::Result<ComputeOutput> {
         let completion_notifier = updater.clone();
+        let job_handle = self.spec.handle.clone();
 
         let observable_task: JoinHandle<types::Result<()>> = tokio::task::spawn(async move {
             let result = self.task.await;
-            _ = completion_notifier.send(JobState::Completed).await;
+            match completion_notifier.send(JobState::Completed).await {
+                Ok(_) => {
+                    log::debug!("completion_notifier triggered for job '{}'!", job_handle);
+                },
+                Err(e) => {
+                    log::debug!("failed to trigger completion_notifier for job '{}'. error: {}", job_handle, e);
+                },
+            }
 
             result.map_err(|e| Error::Unknown { source: e.into() })?
         });
@@ -124,7 +134,7 @@ impl JobController {
                         .await?;
 
                         log::info!(
-                            "job with handle: '{}' expired at '{}'",
+                            "job with handle '{}' expired at '{}'",
                             &handle,
                             x.to_string()
                         );
@@ -147,13 +157,20 @@ impl JobController {
                         )
                         .await?;
 
-                        log::info!("job with handle: '{}' was aborted", &handle);
+                        log::info!("job with handle '{}' was aborted", &handle);
 
                         return Err(Error::JobAborted { handle });
                     }
                     JobState::Completed => {
                         let result = observable_task.await;
-                        _ = status_updater.send(JobState::Completed).await;
+                        match status_updater.send(JobState::Completed).await {
+                            Ok(_) => {
+                                log::debug!("status_updater triggered for job '{}'!", &self.spec.handle);
+                            },
+                            Err(e) => {
+                                log::debug!("failed to trigger status_updater for job '{}'. error: {}", &self.spec.handle, e);
+                            },
+                        }
 
                         result.map_err(|e| Error::Unknown { source: e.into() })??;
 
@@ -165,7 +182,7 @@ impl JobController {
                         )
                         .await?;
 
-                        log::info!("job with handle: '{}' was completed", &handle);
+                        log::info!("job with handle '{}' was completed", &handle);
 
                         return Ok(ComputeOutput::Completed);
                     }
@@ -182,7 +199,7 @@ impl JobController {
                         match self.prev_status_update {
                             // TODO: Make status updation interval configurable
                             Some(t)
-                                if t > current_time && (t - current_time).num_seconds() >= 1 =>
+                                if current_time > t && (current_time - t).num_seconds() >= 1 =>
                             {
                                 Self::update_status(
                                     &self.spec,
@@ -191,6 +208,8 @@ impl JobController {
                                     current_time,
                                 )
                                 .await?;
+
+                                self.prev_status_update = Some(current_time);
                             }
                             Some(_) => {}
                             None => {

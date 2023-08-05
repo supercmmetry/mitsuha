@@ -1,18 +1,7 @@
-use std::sync::Arc;
-
 use mitsuha_channel::context::ChannelContext;
-use mitsuha_core::channel::ComputeChannel;
-
-use crate::proto;
+use mitsuha_runtime_rpc::{proto, model::channel::channel_proto};
 
 use super::Service;
-
-mod channel_proto {
-    include!("../proto/channel.rs");
-
-    pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
-        tonic::include_file_descriptor_set!("channel_descriptor");
-}
 
 #[derive(Clone)]
 pub struct ChannelService {
@@ -60,7 +49,7 @@ impl ChannelService {
 impl Service for ChannelService {
     fn register_rpc(
         &self,
-        mut server: tonic::transport::server::Router,
+        server: tonic::transport::server::Router,
     ) -> tonic::transport::server::Router {
         let reflector = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(channel_proto::FILE_DESCRIPTOR_SET)

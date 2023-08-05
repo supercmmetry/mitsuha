@@ -9,7 +9,7 @@ use mitsuha_core::{
     linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
     resolver::Resolver,
-    types,
+    types, constants::Constants,
 };
 use mitsuha_wasm_runtime::{
     resolver::wasmtime::WasmtimeModuleResolver,
@@ -75,22 +75,28 @@ impl ComputeChannel for WasmtimeChannel {
 
                 let job_ctrl = JobController::new(spec.clone(), job_task, ctx.clone());
 
-                let result = job_ctrl
+                let consolidated_task = tokio::task::spawn(async move {
+                    let result = job_ctrl
                     .run(handle.clone(), updater, updation_target, status_updater)
                     .await;
 
-                if result.is_err() {
-                    log::error!(
-                        "job execution failed with error: {:?}",
-                        result.as_ref().err().unwrap()
-                    );
+                    if result.is_err() {
+                        log::error!(
+                            "job execution failed with error: {:?}",
+                            result.as_ref().err().unwrap()
+                        );
+                    }
+
+                    ctx.deregister_job_context(&handle);
+
+                    result
+                });
+
+                if let Some("true") = spec.extensions.get(&Constants::JobChannelAwait.to_string()).map(|e| e.as_str()) {
+                    consolidated_task.await.map_err(|e| Error::Unknown { source: e.into() })?
+                } else {
+                    Ok(ComputeOutput::Submitted)
                 }
-
-                // TODO: Store JobStatus in storage.
-
-                // ctx.deregister_job_context(&handle);
-
-                result
             }
             _ => match self.next.read().await.clone() {
                 Some(chan) => chan.compute(ctx, elem).await,

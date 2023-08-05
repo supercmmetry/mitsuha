@@ -1,16 +1,16 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use mitsuha_channel::{context::ChannelContext, WrappedComputeChannel};
+use mitsuha_channel::{context::ChannelContext, WrappedComputeChannel, InitChannel};
 use mitsuha_core::{
     channel::ComputeChannel, config::Config, constants::Constants, errors::Error, types,
 };
 
 use self::{
-    common::{EofPlugin, InitPlugin},
+    common::{EofPlugin, InitPlugin, SystemPlugin},
     one_storage::OneStoragePlugin,
     qflow::QFlowPlugin,
-    wasmtime::WasmtimePlugin,
+    wasmtime::WasmtimePlugin, delegator::DelegatorPlugin,
 };
 
 pub mod common;
@@ -29,6 +29,21 @@ pub struct PluginContext {
 }
 
 impl PluginContext {
+    pub fn new(config: Config, extensions: HashMap<String, String>) -> Self {
+        let init_channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> = Arc::new(Box::new(InitChannel::new()));
+
+        let mut channel_context = ChannelContext::default();
+        channel_context.channel_start = Some(init_channel.clone());
+
+        Self {
+            channel_start: init_channel.clone(),
+            channel_end: init_channel.clone(),
+            channel_context,
+            config,
+            extensions,
+        }
+    }
+
     fn merge(&mut self, value: PluginContext) {
         self.channel_context = value.channel_context;
         self.channel_start = value.channel_start;
@@ -46,8 +61,10 @@ pub trait Plugin: Send + Sync {
 pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
     let plugin_list: Vec<Box<dyn Plugin>> = vec![
         Box::new(EofPlugin),
+        Box::new(SystemPlugin),
         Box::new(OneStoragePlugin),
         Box::new(WasmtimePlugin),
+        Box::new(DelegatorPlugin),
         Box::new(QFlowPlugin),
     ];
 
@@ -70,10 +87,10 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
     }
 
     // Run the init plugin at the end to ensure that the InitChannel is always in the beginning
-    let init_plugin = InitPlugin;
-    let new_ctx = init_plugin.run(ctx.clone()).await.unwrap();
+    // let init_plugin = InitPlugin;
+    // let new_ctx = init_plugin.run(ctx.clone()).await.unwrap();
 
-    ctx.merge(new_ctx);
+    // ctx.merge(new_ctx);
 
     ctx
 }

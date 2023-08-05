@@ -35,7 +35,7 @@ pub mod compute_request {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ComputeResponse {
-    #[prost(oneof = "compute_response::ComputeResponseOneOf", tags = "1, 2, 3")]
+    #[prost(oneof = "compute_response::ComputeResponseOneOf", tags = "1, 2, 3, 4")]
     pub compute_response_one_of: ::core::option::Option<
         compute_response::ComputeResponseOneOf,
     >,
@@ -51,6 +51,8 @@ pub mod compute_response {
         Loaded(super::LoadedResponse),
         #[prost(message, tag = "3")]
         Completed(super::CompletedResponse),
+        #[prost(message, tag = "4")]
+        Submitted(super::SubmittedResponse),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -68,6 +70,9 @@ pub struct LoadedResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CompletedResponse {}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubmittedResponse {}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StoreRequest {

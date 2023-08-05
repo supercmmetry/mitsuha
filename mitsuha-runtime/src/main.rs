@@ -1,36 +1,29 @@
-mod model;
 mod plugin;
-mod proto;
 mod service;
 
 use std::collections::HashMap;
 
 use mitsuha_core::{
     channel::ComputeInput,
-    kernel::{JobSpec, StorageSpec},
+    kernel::StorageSpec,
     module::{ModuleInfo, ModuleType},
-    symbol::Symbol,
 };
 use plugin::{
-    load_plugins, one_storage::OneStoragePlugin, wasmtime::WasmtimePlugin, Plugin, PluginContext,
+    load_plugins, one_storage::OneStoragePlugin, wasmtime::WasmtimePlugin, Plugin, PluginContext, common::{EofPlugin, SystemPlugin}, qflow::QFlowPlugin, delegator::DelegatorPlugin,
 };
 use service::channel::ChannelService;
 
 use std::sync::Arc;
 
 use mitsuha_channel::{
-    context::ChannelContext, labeled_storage::LabeledStorageChannel, system::SystemChannel,
-    wasmtime::WasmtimeChannel,
+    context::ChannelContext, system::SystemChannel,
 };
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeKernel},
+    channel::ComputeChannel,
     config,
-    kernel::Kernel,
-    resolver::{blob::BlobResolver, Resolver},
     selector::Label,
-    storage::{Storage, StorageClass, StorageLocality},
+    storage::{StorageClass, StorageLocality},
 };
-use mitsuha_storage::UnifiedStorage;
 use std::sync::Once;
 
 static LOG_INIT_ONCE: Once = Once::new();
@@ -77,14 +70,78 @@ pub fn make_basic_config() -> config::Config {
         storage: make_basic_storage_config(),
         plugins: vec![
             config::plugin::Plugin {
+                name: DelegatorPlugin.name().to_string(),
+                extensions: [(
+                    "channel_id".to_string(),
+                    "delegator-0".to_string(),
+                ),
+                (
+                    "slave_id".to_string(),
+                    "qflow-0".to_string(),
+                ),
+                (
+                    "max_jobs".to_string(),
+                    "1".to_string(),
+                )]
+                .into_iter()
+                .collect(),
+            },
+            config::plugin::Plugin {
+                name: SystemPlugin.name().to_string(),
+                extensions: [(
+                    "channel_id".to_string(),
+                    "system-0".to_string(),
+                )]
+                .into_iter()
+                .collect(),
+            },
+            config::plugin::Plugin {
                 name: WasmtimePlugin.name().to_string(),
-                extensions: Default::default(),
+                extensions: [(
+                    "channel_id".to_string(),
+                    "wasmtime-0".to_string(),
+                )]
+                .into_iter()
+                .collect(),
             },
             config::plugin::Plugin {
                 name: OneStoragePlugin.name().to_string(),
                 extensions: [(
                     "selector".to_string(),
                     "{\"name\": \"storage\", \"value\": \"sample\"}".to_string(),
+                ),(
+                    "channel_id".to_string(),
+                    "onestorage-0".to_string(),
+                )]
+                .into_iter()
+                .collect(),
+            },
+            config::plugin::Plugin {
+                name: EofPlugin.name().to_string(),
+                extensions: [(
+                    "channel_id".to_string(),
+                    "eof-0".to_string(),
+                )]
+                .into_iter()
+                .collect(),
+            },
+            config::plugin::Plugin {
+                name: QFlowPlugin.name().to_string(),
+                extensions: [(
+                    "channel_id".to_string(),
+                    "qflow-0".to_string(),
+                ),(
+                    "kind".to_string(),
+                    "tikv".to_string(),
+                ),(
+                    "client_id".to_string(),
+                    "localhost".to_string(),
+                ),(
+                    "desired_queue_count".to_string(),
+                    "16".to_string(),
+                ),(
+                    "pd_endpoints".to_string(),
+                    "127.0.0.1:2379".to_string()
                 )]
                 .into_iter()
                 .collect(),
@@ -96,22 +153,14 @@ pub fn make_basic_config() -> config::Config {
 pub async fn make_channel_context() -> ChannelContext {
     init_basic_logging();
 
-    let system_channel = make_system_channel();
-
-    let mut plugin_ctx = PluginContext {
-        channel_start: system_channel.clone(),
-        channel_end: system_channel.clone(),
-        channel_context: Default::default(),
-        config: make_basic_config(),
-        extensions: Default::default(),
-    };
+    let mut plugin_ctx = PluginContext::new(make_basic_config(), Default::default());
 
     plugin_ctx = load_plugins(plugin_ctx).await;
 
     plugin_ctx.channel_context
 }
 
-pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) {
+pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>, ctx: ChannelContext) {
     let wasm_echo: Vec<u8> = include_bytes!(
         "../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_echo.wasm"
     )
@@ -146,41 +195,41 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
     let spec_echo = StorageSpec {
         handle: module_info_echo.get_identifier(),
         data: wasm_echo,
-        ttl: 0,
+        ttl: 86400,
         extensions: Default::default(),
     };
 
     let spec_loop = StorageSpec {
         handle: module_info_loop.get_identifier(),
         data: wasm_loop,
-        ttl: 0,
+        ttl: 86400,
         extensions: Default::default(),
     };
 
     let spec_main = StorageSpec {
         handle: module_info_main.get_identifier(),
         data: wasm_main,
-        ttl: 0,
+        ttl: 86400,
         extensions: Default::default(),
     };
 
     channel
         .compute(
-            ChannelContext::default(),
+            ctx.clone(),
             ComputeInput::Store { spec: spec_echo },
         )
         .await
         .unwrap();
     channel
         .compute(
-            ChannelContext::default(),
+            ctx.clone(),
             ComputeInput::Store { spec: spec_loop },
         )
         .await
         .unwrap();
     channel
         .compute(
-            ChannelContext::default(),
+            ctx.clone(),
             ComputeInput::Store { spec: spec_main },
         )
         .await
@@ -191,7 +240,7 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
 async fn main() {
     let channel_context = make_channel_context().await;
 
-    upload_artifacts(channel_context.channel_start.clone().unwrap()).await;
+    upload_artifacts(channel_context.channel_start.clone().unwrap(), channel_context.clone()).await;
 
     let channel_service = ChannelService::new(channel_context.clone());
 

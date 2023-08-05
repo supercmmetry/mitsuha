@@ -1661,6 +1661,7 @@ dependencies = [
  "tonic",
  "tonic-health",
  "tonic-reflection",
+ "uuid",
 ]
 
 [[package]]
@@ -1672,12 +1673,36 @@ dependencies = [
  "chrono",
  "env_logger",
  "lazy_static",
+ "log",
  "mitsuha-channel",
  "mitsuha-core",
  "mitsuha-qflow",
+ "mitsuha-runtime-rpc",
  "mitsuha-storage",
  "mitsuha-wasm-runtime",
  "musubi_api",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "tonic-health",
+ "tonic-reflection",
+]
+
+[[package]]
+name = "mitsuha-runtime-rpc"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "env_logger",
+ "lazy_static",
+ "log",
+ "mitsuha-core",
  "prost",
  "prost-types",
  "serde",

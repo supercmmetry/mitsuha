@@ -48,6 +48,7 @@ async fn test_spsc_processing() {
         |x, y| Box::pin(reader_fn(x, y)),
         1,
         1,
+        false
     )
     .await;
 }
@@ -61,6 +62,7 @@ async fn test_spmc_processing() {
         |x, y| Box::pin(reader_fn(x, y)),
         100,
         100,
+        false
     )
     .await;
 }
@@ -74,6 +76,7 @@ async fn test_mpsc_processing() {
         |x, y| Box::pin(reader_fn(x, y)),
         100,
         100,
+        false
     )
     .await;
 }
@@ -87,6 +90,21 @@ async fn test_mpmc_processing() {
         |x, y| Box::pin(reader_fn(x, y)),
         100,
         100,
+        false
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_sticky_mpmc_processing() {
+    common::test_rw_processing(
+        100,
+        |x, y| Box::pin(writer_fn(x, y)),
+        100,
+        |x, y| Box::pin(reader_fn(x, y)),
+        100,
+        100,
+        true
     )
     .await;
 }

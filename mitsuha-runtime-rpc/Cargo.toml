@@ -1,19 +1,12 @@
 [package]
-name = "mitsuha-runtime"
+name = "mitsuha-runtime-rpc"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-musubi_api = { git = "ssh://git@github.com/supercmmetry/musubi", branch = "master" }
-
 mitsuha-core = { path = "../mitsuha-core" }
-mitsuha-storage = { path = "../mitsuha-storage" }
-mitsuha-channel = { path = "../mitsuha-channel" }
-mitsuha-wasm-runtime = { path = "../mitsuha-wasm-runtime" }
-mitsuha-qflow = { path = "../mitsuha-qflow" }
-mitsuha-runtime-rpc = { path = "../mitsuha-runtime-rpc" }
 
 tonic = "0.9.2"
 tonic-reflection = "0.9.2"

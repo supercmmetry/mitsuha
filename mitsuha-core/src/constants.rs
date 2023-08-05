@@ -18,6 +18,9 @@ pub enum Constants {
     #[strum(serialize = "mitsuha.job.status.last_updated")]
     JobStatusLastUpdated,
 
+    #[strum(serialize = "mitsuha.channel.job.await")]
+    JobChannelAwait,
+
     #[strum(serialize = "channel_id")]
     ChannelId,
 }

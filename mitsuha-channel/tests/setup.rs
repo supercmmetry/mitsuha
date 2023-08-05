@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use mitsuha_channel::{
     context::ChannelContext, labeled_storage::LabeledStorageChannel, system::SystemChannel,
-    wasmtime::WasmtimeChannel,
+    wasmtime::WasmtimeChannel, InitChannel,
 };
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeKernel},
@@ -22,6 +22,10 @@ pub fn init_basic_logging() {
     LOG_INIT_ONCE.call_once(|| {
         env_logger::init();
     });
+}
+
+pub fn make_init_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
+    Arc::new(Box::new(InitChannel::new()))
 }
 
 pub fn make_system_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {

@@ -6,7 +6,7 @@ use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     kernel::{JobSpec, StorageSpec},
     module::{ModuleInfo, ModuleType},
-    symbol::Symbol,
+    symbol::Symbol, constants::Constants,
 };
 use musubi_api::{
     types::{Data, Value},
@@ -17,15 +17,18 @@ use setup::*;
 pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
     init_basic_logging();
 
+    let init_channel = make_init_channel();
     let system_channel = make_system_channel();
     let labeled_storage_channel = make_labeled_storage_channel();
-    let wasmtime_channel = make_wasmtime_channel(system_channel.clone());
+    let wasmtime_channel = make_wasmtime_channel(init_channel.clone());
 
     labeled_storage_channel.connect(wasmtime_channel).await;
 
     system_channel.connect(labeled_storage_channel).await;
 
-    system_channel
+    init_channel.connect(system_channel).await;
+
+    init_channel
 }
 pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>) {
     let wasm_echo: Vec<u8> = include_bytes!(
@@ -62,21 +65,21 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
     let spec_echo = StorageSpec {
         handle: module_info_echo.get_identifier(),
         data: wasm_echo,
-        ttl: 0,
+        ttl: 86400,
         extensions: Default::default(),
     };
 
     let spec_loop = StorageSpec {
         handle: module_info_loop.get_identifier(),
         data: wasm_loop,
-        ttl: 0,
+        ttl: 86400,
         extensions: Default::default(),
     };
 
     let spec_main = StorageSpec {
         handle: module_info_main.get_identifier(),
         data: wasm_main,
-        ttl: 0,
+        ttl: 86400,
         extensions: Default::default(),
     };
 
@@ -118,7 +121,9 @@ macro_rules! graceless_async_test {
 
 async fn internal_run_hello_world() {
     let channel = make_channel().await;
-    let ctx = ChannelContext::default();
+    let mut ctx = ChannelContext::default();
+
+    ctx.channel_start = Some(channel.clone());
 
     upload_artifacts(channel.clone()).await;
 
@@ -152,7 +157,10 @@ async fn internal_run_hello_world() {
         input_handle,
         output_handle: output_handle.clone(),
         status_handle,
-        extensions: Default::default(),
+        extensions: [
+            (Constants::JobOutputTTL.to_string(), "120".to_string()),
+            (Constants::JobChannelAwait.to_string(), "true".to_string()),
+        ].into_iter().collect(),
     };
 
     channel
@@ -189,7 +197,10 @@ async fn internal_run_hello_world() {
 
 async fn internal_run_mugen_loop() {
     let channel = make_channel().await;
-    let ctx = ChannelContext::default();
+    let mut ctx = ChannelContext::default();
+
+    ctx.channel_start = Some(channel.clone());
+
 
     upload_artifacts(channel.clone()).await;
 
@@ -223,7 +234,10 @@ async fn internal_run_mugen_loop() {
         input_handle,
         output_handle: output_handle.clone(),
         status_handle,
-        extensions: Default::default(),
+        extensions: [
+            (Constants::JobOutputTTL.to_string(), "120".to_string()),
+            (Constants::JobChannelAwait.to_string(), "true".to_string()),
+        ].into_iter().collect(),
     };
 
     channel
@@ -240,7 +254,9 @@ async fn internal_run_mugen_loop() {
 
 async fn internal_run_and_abort_mugen_loop() {
     let channel = make_channel().await;
-    let ctx = ChannelContext::default();
+    let mut ctx = ChannelContext::default();
+
+    ctx.channel_start = Some(channel.clone());
 
     upload_artifacts(channel.clone()).await;
 
@@ -274,7 +290,10 @@ async fn internal_run_and_abort_mugen_loop() {
         input_handle,
         output_handle: output_handle.clone(),
         status_handle,
-        extensions: Default::default(),
+        extensions: [
+            (Constants::JobOutputTTL.to_string(), "120".to_string()),
+            (Constants::JobChannelAwait.to_string(), "true".to_string()),
+        ].into_iter().collect(),
     };
 
     channel
@@ -305,7 +324,9 @@ async fn internal_run_and_abort_mugen_loop() {
 
 async fn internal_run_wasm_with_deps() {
     let channel = make_channel().await;
-    let ctx = ChannelContext::default();
+    let mut ctx = ChannelContext::default();
+
+    ctx.channel_start = Some(channel.clone());
 
     upload_artifacts(channel.clone()).await;
 
@@ -339,7 +360,10 @@ async fn internal_run_wasm_with_deps() {
         input_handle,
         output_handle: output_handle.clone(),
         status_handle,
-        extensions: Default::default(),
+        extensions: [
+            (Constants::JobOutputTTL.to_string(), "120".to_string()),
+            (Constants::JobChannelAwait.to_string(), "true".to_string()),
+        ].into_iter().collect(),
     };
 
     channel

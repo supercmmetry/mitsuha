@@ -33,7 +33,7 @@ where
             .await
             .map_err(|e| Error::Unknown { source: e })?;
 
-        Ok(ComputeOutput::Completed)
+        Ok(ComputeOutput::Submitted)
     }
 
     async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = Context>>>) {

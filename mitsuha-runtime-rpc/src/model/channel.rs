@@ -11,6 +11,13 @@ use mitsuha_core::{
 
 use crate::proto;
 
+pub mod channel_proto {
+    include!("../proto/channel.rs");
+
+    pub const FILE_DESCRIPTOR_SET: &[u8] =
+        tonic::include_file_descriptor_set!("channel_descriptor");
+}
+
 impl TryInto<ComputeInput> for proto::channel::ComputeRequest {
     type Error = anyhow::Error;
 
@@ -80,6 +87,13 @@ impl TryFrom<ComputeOutput> for proto::channel::ComputeResponse {
                 compute_response_one_of: Some(
                     proto::channel::compute_response::ComputeResponseOneOf::Completed(
                         proto::channel::CompletedResponse {},
+                    ),
+                ),
+            }),
+            ComputeOutput::Submitted => Ok(proto::channel::ComputeResponse {
+                compute_response_one_of: Some(
+                    proto::channel::compute_response::ComputeResponseOneOf::Submitted(
+                        proto::channel::SubmittedResponse {},
                     ),
                 ),
             }),

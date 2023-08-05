@@ -94,12 +94,6 @@ impl ComputeChannel for SystemChannel {
         mut elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
         match &mut elem {
-            ComputeInput::Store { ref mut spec } => {
-                if ModuleInfo::equals_identifier_type(&spec.handle) {
-                    log::warn!("setting ttl to 86400. this behavior will be deprecated");
-                    spec.ttl = 864000;
-                }
-            }
             ComputeInput::Extend { handle, ttl } => {
                 ctx.extend_job(handle, *ttl).await?;
                 return Ok(ComputeOutput::Completed);

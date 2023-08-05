@@ -25,6 +25,7 @@ message ComputeResponse {
         StatusResponse status = 1;
         LoadedResponse loaded = 2;
         CompletedResponse completed = 3;
+        SubmittedResponse submitted = 4;
     }
 }
 
@@ -37,6 +38,8 @@ message LoadedResponse {
 }
 
 message CompletedResponse {}
+
+message SubmittedResponse {}
 
 message StoreRequest {
     StorageSpec spec = 1;

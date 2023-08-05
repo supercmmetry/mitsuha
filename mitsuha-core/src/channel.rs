@@ -26,6 +26,7 @@ pub enum ComputeOutput {
     Status { status: JobStatus },
     Loaded { data: Vec<u8> },
     Completed,
+    Submitted,
 }
 
 #[async_trait]

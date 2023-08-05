@@ -2,6 +2,7 @@
 members = [
     "mitsuha-core",
     "mitsuha-runtime",
+    "mitsuha-runtime-rpc",
     "mitsuha-wasm-runtime",
     "mitsuha-storage",
     "mitsuha-channel",

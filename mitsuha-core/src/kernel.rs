@@ -398,7 +398,10 @@ impl KernelBridge {
             output_handle: output_handle.clone(),
             status_handle,
             ttl: 86400,
-            extensions: Default::default(),
+            extensions: [
+                (Constants::JobOutputTTL.to_string(), "120".to_string()),
+                (Constants::JobChannelAwait.to_string(), "true".to_string()),
+            ].into_iter().collect(),
         };
 
         self.kernel.run_job(job_spec).await?;
