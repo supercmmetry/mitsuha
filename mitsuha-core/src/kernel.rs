@@ -401,7 +401,9 @@ impl KernelBridge {
             extensions: [
                 (Constants::JobOutputTTL.to_string(), "120".to_string()),
                 (Constants::JobChannelAwait.to_string(), "true".to_string()),
-            ].into_iter().collect(),
+            ]
+            .into_iter()
+            .collect(),
         };
 
         self.kernel.run_job(job_spec).await?;

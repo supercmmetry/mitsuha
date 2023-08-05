@@ -48,7 +48,7 @@ impl Plugin for QFlowPlugin {
                         log::debug!("received qflow compute input!");
                         // log error
                         _ = channel_start.compute(channel_context.clone(), input).await;
-                        
+
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                     Err(e) => {

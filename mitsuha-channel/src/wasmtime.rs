@@ -4,12 +4,13 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    constants::Constants,
     errors::Error,
     kernel::{JobSpec, Kernel, KernelBinding, KernelBridge},
     linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
     resolver::Resolver,
-    types, constants::Constants,
+    types,
 };
 use mitsuha_wasm_runtime::{
     resolver::wasmtime::WasmtimeModuleResolver,
@@ -77,8 +78,8 @@ impl ComputeChannel for WasmtimeChannel {
 
                 let consolidated_task = tokio::task::spawn(async move {
                     let result = job_ctrl
-                    .run(handle.clone(), updater, updation_target, status_updater)
-                    .await;
+                        .run(handle.clone(), updater, updation_target, status_updater)
+                        .await;
 
                     if result.is_err() {
                         log::error!(
@@ -92,8 +93,14 @@ impl ComputeChannel for WasmtimeChannel {
                     result
                 });
 
-                if let Some("true") = spec.extensions.get(&Constants::JobChannelAwait.to_string()).map(|e| e.as_str()) {
-                    consolidated_task.await.map_err(|e| Error::Unknown { source: e.into() })?
+                if let Some("true") = spec
+                    .extensions
+                    .get(&Constants::JobChannelAwait.to_string())
+                    .map(|e| e.as_str())
+                {
+                    consolidated_task
+                        .await
+                        .map_err(|e| Error::Unknown { source: e.into() })?
                 } else {
                     Ok(ComputeOutput::Submitted)
                 }

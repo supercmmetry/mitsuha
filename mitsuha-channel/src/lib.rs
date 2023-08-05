@@ -33,7 +33,10 @@ where
 
     pub fn new_with_id(inner: T, id: String) -> Self {
         log::info!("initialized channel '{}'", id);
-        Self { inner, id: Some(id) }
+        Self {
+            inner,
+            id: Some(id),
+        }
     }
 }
 
@@ -99,7 +102,8 @@ impl ComputeChannel for InitChannel {
 
         match next_channel {
             Some(chan) => {
-                let new_start: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> = Arc::new(Box::new(self.clone()));
+                let new_start: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> =
+                    Arc::new(Box::new(self.clone()));
                 new_start.connect(chan.clone()).await;
 
                 ctx.set_channel_start(new_start);
@@ -120,10 +124,17 @@ impl InitChannel {
     }
 
     pub fn new() -> WrappedComputeChannel<Self> {
-        WrappedComputeChannel::new_with_id(Self {
-            next: Arc::new(tokio::sync::RwLock::new(None)),
-            id: Self::get_identifier_type().to_string(),
-        }, format!("{}/{}", Self::get_identifier_type().to_string(), util::generate_random_id()))
+        WrappedComputeChannel::new_with_id(
+            Self {
+                next: Arc::new(tokio::sync::RwLock::new(None)),
+                id: Self::get_identifier_type().to_string(),
+            },
+            format!(
+                "{}/{}",
+                Self::get_identifier_type().to_string(),
+                util::generate_random_id()
+            ),
+        )
     }
 }
 

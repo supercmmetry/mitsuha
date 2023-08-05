@@ -62,6 +62,95 @@ impl TryInto<ComputeInput> for proto::channel::ComputeRequest {
     }
 }
 
+impl TryFrom<ComputeInput> for proto::channel::ComputeRequest {
+    type Error = anyhow::Error;
+
+    fn try_from(value: ComputeInput) -> Result<Self, Self::Error> {
+        let one_of: anyhow::Result<proto::channel::compute_request::ComputeRequestOneOf> =
+            match value {
+                ComputeInput::Store { spec } => {
+                    Ok(proto::channel::compute_request::ComputeRequestOneOf::Store(
+                        proto::channel::StoreRequest {
+                            spec: Some(spec.try_into()?),
+                        },
+                    ))
+                }
+                ComputeInput::Load { handle } => {
+                    Ok(proto::channel::compute_request::ComputeRequestOneOf::Load(
+                        proto::channel::LoadRequest { handle },
+                    ))
+                }
+                ComputeInput::Persist { handle, ttl } => Ok(
+                    proto::channel::compute_request::ComputeRequestOneOf::Persist(
+                        proto::channel::PersistRequest { handle, ttl },
+                    ),
+                ),
+                ComputeInput::Clear { handle } => {
+                    Ok(proto::channel::compute_request::ComputeRequestOneOf::Clear(
+                        proto::channel::ClearRequest { handle },
+                    ))
+                }
+                ComputeInput::Run { spec } => {
+                    Ok(proto::channel::compute_request::ComputeRequestOneOf::Run(
+                        proto::channel::RunRequest {
+                            spec: Some(spec.try_into()?),
+                        },
+                    ))
+                }
+                ComputeInput::Extend { handle, ttl } => Ok(
+                    proto::channel::compute_request::ComputeRequestOneOf::Extend(
+                        proto::channel::ExtendRequest { handle, ttl },
+                    ),
+                ),
+                ComputeInput::Status { handle } => Ok(
+                    proto::channel::compute_request::ComputeRequestOneOf::Status(
+                        proto::channel::StatusRequest { handle },
+                    ),
+                ),
+                ComputeInput::Abort { handle } => {
+                    Ok(proto::channel::compute_request::ComputeRequestOneOf::Abort(
+                        proto::channel::AbortRequest { handle },
+                    ))
+                }
+            };
+
+        Ok(proto::channel::ComputeRequest {
+            compute_request_one_of: Some(one_of?),
+        })
+    }
+}
+
+impl TryInto<ComputeOutput> for proto::channel::ComputeResponse {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<ComputeOutput, Self::Error> {
+        Ok(
+            match self
+                .compute_response_one_of
+                .ok_or(anyhow!("could not find compute_response_one_of"))?
+            {
+                proto::channel::compute_response::ComputeResponseOneOf::Status(x) => {
+                    ComputeOutput::Status {
+                        status: x
+                            .status
+                            .ok_or(anyhow!("could not find status"))?
+                            .try_into()?,
+                    }
+                }
+                proto::channel::compute_response::ComputeResponseOneOf::Loaded(x) => {
+                    ComputeOutput::Loaded { data: x.data }
+                }
+                proto::channel::compute_response::ComputeResponseOneOf::Completed(_) => {
+                    ComputeOutput::Completed
+                }
+                proto::channel::compute_response::ComputeResponseOneOf::Submitted(_) => {
+                    ComputeOutput::Submitted
+                }
+            },
+        )
+    }
+}
+
 impl TryFrom<ComputeOutput> for proto::channel::ComputeResponse {
     type Error = anyhow::Error;
 
@@ -113,6 +202,18 @@ impl TryInto<ModuleInfo> for proto::channel::ModuleInfo {
     }
 }
 
+impl TryFrom<ModuleInfo> for proto::channel::ModuleInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(value: ModuleInfo) -> Result<Self, Self::Error> {
+        Ok(Self {
+            name: value.name,
+            version: value.version,
+            modtype: value.modtype.to_string(),
+        })
+    }
+}
+
 impl TryInto<Symbol> for proto::channel::Symbol {
     type Error = anyhow::Error;
 
@@ -123,6 +224,17 @@ impl TryInto<Symbol> for proto::channel::Symbol {
                 .ok_or(anyhow!("could not find module_info"))?
                 .try_into()?,
             name: self.name,
+        })
+    }
+}
+
+impl TryFrom<Symbol> for proto::channel::Symbol {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Symbol) -> Result<Self, Self::Error> {
+        Ok(Self {
+            module_info: Some(value.module_info.try_into()?),
+            name: value.name,
         })
     }
 }
@@ -146,6 +258,22 @@ impl TryInto<JobSpec> for proto::channel::JobSpec {
     }
 }
 
+impl TryFrom<JobSpec> for proto::channel::JobSpec {
+    type Error = anyhow::Error;
+
+    fn try_from(value: JobSpec) -> Result<Self, Self::Error> {
+        Ok(Self {
+            handle: value.handle,
+            input_handle: value.input_handle,
+            output_handle: value.output_handle,
+            status_handle: value.status_handle,
+            ttl: value.ttl,
+            symbol: Some(value.symbol.try_into()?),
+            extensions: value.extensions,
+        })
+    }
+}
+
 impl TryInto<StorageSpec> for proto::channel::StorageSpec {
     type Error = anyhow::Error;
 
@@ -155,6 +283,19 @@ impl TryInto<StorageSpec> for proto::channel::StorageSpec {
             data: self.data,
             ttl: self.ttl,
             extensions: self.extensions,
+        })
+    }
+}
+
+impl TryFrom<StorageSpec> for proto::channel::StorageSpec {
+    type Error = anyhow::Error;
+
+    fn try_from(value: StorageSpec) -> Result<Self, Self::Error> {
+        Ok(Self {
+            handle: value.handle,
+            data: value.data,
+            ttl: value.ttl,
+            extensions: value.extensions,
         })
     }
 }

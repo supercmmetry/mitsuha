@@ -1,5 +1,5 @@
 use mitsuha_channel::context::ChannelContext;
-use mitsuha_runtime_rpc::{proto, model::channel::channel_proto};
+use mitsuha_runtime_rpc::{model::channel::channel_proto, proto};
 
 use super::Service;
 

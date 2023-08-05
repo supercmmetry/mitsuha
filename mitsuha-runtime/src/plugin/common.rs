@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use mitsuha_channel::{EofChannel, InitChannel, system::SystemChannel};
+use mitsuha_channel::{system::SystemChannel, EofChannel, InitChannel};
 use mitsuha_core::types;
 
 use super::{initialize_channel, Plugin, PluginContext};

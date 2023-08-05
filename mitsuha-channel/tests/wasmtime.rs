@@ -4,9 +4,10 @@ mod setup;
 use mitsuha_channel::context::ChannelContext;
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    constants::Constants,
     kernel::{JobSpec, StorageSpec},
     module::{ModuleInfo, ModuleType},
-    symbol::Symbol, constants::Constants,
+    symbol::Symbol,
 };
 use musubi_api::{
     types::{Data, Value},
@@ -160,7 +161,9 @@ async fn internal_run_hello_world() {
         extensions: [
             (Constants::JobOutputTTL.to_string(), "120".to_string()),
             (Constants::JobChannelAwait.to_string(), "true".to_string()),
-        ].into_iter().collect(),
+        ]
+        .into_iter()
+        .collect(),
     };
 
     channel
@@ -201,7 +204,6 @@ async fn internal_run_mugen_loop() {
 
     ctx.channel_start = Some(channel.clone());
 
-
     upload_artifacts(channel.clone()).await;
 
     let input = DataBuilder::new()
@@ -237,7 +239,9 @@ async fn internal_run_mugen_loop() {
         extensions: [
             (Constants::JobOutputTTL.to_string(), "120".to_string()),
             (Constants::JobChannelAwait.to_string(), "true".to_string()),
-        ].into_iter().collect(),
+        ]
+        .into_iter()
+        .collect(),
     };
 
     channel
@@ -293,7 +297,9 @@ async fn internal_run_and_abort_mugen_loop() {
         extensions: [
             (Constants::JobOutputTTL.to_string(), "120".to_string()),
             (Constants::JobChannelAwait.to_string(), "true".to_string()),
-        ].into_iter().collect(),
+        ]
+        .into_iter()
+        .collect(),
     };
 
     channel
@@ -363,7 +369,9 @@ async fn internal_run_wasm_with_deps() {
         extensions: [
             (Constants::JobOutputTTL.to_string(), "120".to_string()),
             (Constants::JobChannelAwait.to_string(), "true".to_string()),
-        ].into_iter().collect(),
+        ]
+        .into_iter()
+        .collect(),
     };
 
     channel

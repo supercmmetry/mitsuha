@@ -1,6 +1,11 @@
-use std::{future::Future, pin::Pin, sync::Arc, collections::{HashSet, HashMap}};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+};
 
-use mitsuha_core::{channel::ComputeInput, kernel::JobSpec, symbol::Symbol, module::ModuleInfo};
+use mitsuha_core::{channel::ComputeInput, kernel::JobSpec, module::ModuleInfo, symbol::Symbol};
 use mitsuha_qflow::{Reader, Writer};
 use tokio::sync::RwLock;
 
@@ -46,22 +51,33 @@ pub async fn test_rw_processing(
         if run_sticky_test {
             for _ in 0..retries {
                 if writer
-                .write_compute_input(ComputeInput::Run { spec: jobs[writer_index as usize].clone() })
-                .await.is_ok() {
+                    .write_compute_input(ComputeInput::Run {
+                        spec: jobs[writer_index as usize].clone(),
+                    })
+                    .await
+                    .is_ok()
+                {
                     break;
                 }
             }
 
             for _ in 0..writer_index * 2 + 1 {
                 _ = writer
-                .write_compute_input(ComputeInput::Status { handle: jobs[writer_index as usize].handle.clone() })
-                .await;
+                    .write_compute_input(ComputeInput::Status {
+                        handle: jobs[writer_index as usize].handle.clone(),
+                    })
+                    .await;
                 _ = writer
-                .write_compute_input(ComputeInput::Extend { handle: jobs[writer_index as usize].handle.clone(), ttl: 1 })
-                .await;
+                    .write_compute_input(ComputeInput::Extend {
+                        handle: jobs[writer_index as usize].handle.clone(),
+                        ttl: 1,
+                    })
+                    .await;
                 _ = writer
-                .write_compute_input(ComputeInput::Abort { handle: jobs[writer_index as usize].handle.clone() })
-                .await;
+                    .write_compute_input(ComputeInput::Abort {
+                        handle: jobs[writer_index as usize].handle.clone(),
+                    })
+                    .await;
             }
         }
 
@@ -112,14 +128,14 @@ pub async fn test_rw_processing(
             let client_id = format!("client-{}", reader_index);
 
             if run_sticky_test {
-                sticky_map.write().await.insert(client_id.clone(), HashSet::new());
+                sticky_map
+                    .write()
+                    .await
+                    .insert(client_id.clone(), HashSet::new());
             }
 
             while local_message_counter < max_messages && retry_counter >= 0 {
-                match reader
-                    .read_compute_input(client_id.clone())
-                    .await
-                {
+                match reader.read_compute_input(client_id.clone()).await {
                     Ok(input) => {
                         local_message_counter += 1;
 
@@ -132,10 +148,22 @@ pub async fn test_rw_processing(
                         if run_sticky_test {
                             match input {
                                 ComputeInput::Run { spec } => {
-                                    sticky_map.write().await.get_mut(&client_id).unwrap().insert(spec.handle);
-                                },
-                                ComputeInput::Abort { handle } | ComputeInput::Extend { handle, .. }  | ComputeInput::Status { handle } => {
-                                    assert!(sticky_map.read().await.get(&client_id).unwrap().contains(&handle));
+                                    sticky_map
+                                        .write()
+                                        .await
+                                        .get_mut(&client_id)
+                                        .unwrap()
+                                        .insert(spec.handle);
+                                }
+                                ComputeInput::Abort { handle }
+                                | ComputeInput::Extend { handle, .. }
+                                | ComputeInput::Status { handle } => {
+                                    assert!(sticky_map
+                                        .read()
+                                        .await
+                                        .get(&client_id)
+                                        .unwrap()
+                                        .contains(&handle));
                                 }
                                 _ => {}
                             }

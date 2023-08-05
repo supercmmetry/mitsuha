@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     errors::Error,
-    kernel::{JobStatusType, JobStatus},
+    kernel::{JobStatus, JobStatusType},
     types,
 };
 use tokio::sync::RwLock;
@@ -88,7 +88,7 @@ impl DelegatorChannel {
             Some(chan) => {
                 log::debug!("forwarding compute to channel '{}'", chan.id());
                 chan.compute(ctx, elem).await
-            },
+            }
             None => Err(Error::ComputeChannelEOF),
         }
     }
@@ -118,7 +118,7 @@ impl DelegatorChannel {
 
         let handles = self.job_handles.read().await.clone();
 
-        for handle in handles { 
+        for handle in handles {
             log::debug!("running gc for job with handle: '{}'", handle.clone());
 
             match ctx.get_job_status(&handle).await {

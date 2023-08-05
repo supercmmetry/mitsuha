@@ -1,16 +1,17 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use mitsuha_channel::{context::ChannelContext, WrappedComputeChannel, InitChannel};
+use mitsuha_channel::{context::ChannelContext, InitChannel, WrappedComputeChannel};
 use mitsuha_core::{
     channel::ComputeChannel, config::Config, constants::Constants, errors::Error, types,
 };
 
 use self::{
     common::{EofPlugin, InitPlugin, SystemPlugin},
+    delegator::DelegatorPlugin,
     one_storage::OneStoragePlugin,
     qflow::QFlowPlugin,
-    wasmtime::WasmtimePlugin, delegator::DelegatorPlugin,
+    wasmtime::WasmtimePlugin,
 };
 
 pub mod common;
@@ -30,7 +31,8 @@ pub struct PluginContext {
 
 impl PluginContext {
     pub fn new(config: Config, extensions: HashMap<String, String>) -> Self {
-        let init_channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> = Arc::new(Box::new(InitChannel::new()));
+        let init_channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> =
+            Arc::new(Box::new(InitChannel::new()));
 
         let mut channel_context = ChannelContext::default();
         channel_context.channel_start = Some(init_channel.clone());

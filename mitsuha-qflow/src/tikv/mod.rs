@@ -24,15 +24,11 @@ pub async fn make_tikv_writer(
         .get("pd_endpoints")
         .ok_or(anyhow!("cannot find pd_endpoints"))?;
 
-    let client = tikv_client::TransactionClient::new(pd_endpoints.split(",").collect())
-        .await?;
+    let client = tikv_client::TransactionClient::new(pd_endpoints.split(",").collect()).await?;
 
     let client = Arc::new(client);
 
-    let muxer = Arc::new(
-        TikvQueueMuxer::new(client.clone(), desired_queue_count)
-            .await?,
-    );
+    let muxer = Arc::new(TikvQueueMuxer::new(client.clone(), desired_queue_count).await?);
 
     let writer = TikvWriter::new(client, muxer).await?;
 
@@ -50,15 +46,11 @@ pub async fn make_tikv_reader(
         .get("pd_endpoints")
         .ok_or(anyhow!("cannot find pd_endpoints"))?;
 
-    let client = tikv_client::TransactionClient::new(pd_endpoints.split(",").collect())
-        .await?;
+    let client = tikv_client::TransactionClient::new(pd_endpoints.split(",").collect()).await?;
 
     let client = Arc::new(client);
 
-    let muxer = Arc::new(
-        TikvQueueMuxer::new(client.clone(), desired_queue_count)
-            .await?,
-    );
+    let muxer = Arc::new(TikvQueueMuxer::new(client.clone(), desired_queue_count).await?);
 
     let reader = TikvReader::new(client, muxer).await?;
 
