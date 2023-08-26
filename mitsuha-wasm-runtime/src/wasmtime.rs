@@ -191,6 +191,7 @@ impl WasmtimeLinker {
         let engine = self.engine.clone();
 
         self.ticker_handle = Some(tokio::task::spawn_blocking(move || loop {
+            log::debug!("incrementing wasmtime engine epoch");
             engine.increment_epoch();
             std::thread::sleep(Duration::from_millis(1000));
         }));
@@ -464,7 +465,7 @@ impl Linker for WasmtimeLinker {
             );
 
             linker
-                .define(module_name.as_str(), import.name(), imported_func)
+                .define(&store, module_name.as_str(), import.name(), imported_func)
                 .map_err(|e| Error::LinkerLinkFailed {
                     message: "failed to define import in wasmtime module".to_string(),
                     target: module_info.clone(),

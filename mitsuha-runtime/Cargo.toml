@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-musubi_api = { git = "ssh://git@github.com/supercmmetry/musubi", branch = "master" }
+musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
 
 mitsuha-core = { path = "../mitsuha-core" }
 mitsuha-storage = { path = "../mitsuha-storage" }
@@ -29,6 +29,7 @@ async-trait = "0.1.59"
 serde = "1.0.148"
 serde_json = "1.0.89"
 lazy_static = "1.4.0"
+dotenv = "0.15.0"
 
 
 

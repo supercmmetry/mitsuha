@@ -5,7 +5,9 @@ pub struct ComputeRequest {
         oneof = "compute_request::ComputeRequestOneOf",
         tags = "1, 2, 3, 4, 5, 6, 7, 8"
     )]
-    pub compute_request_one_of: ::core::option::Option<compute_request::ComputeRequestOneOf>,
+    pub compute_request_one_of: ::core::option::Option<
+        compute_request::ComputeRequestOneOf,
+    >,
 }
 /// Nested message and enum types in `ComputeRequest`.
 pub mod compute_request {
@@ -34,7 +36,9 @@ pub mod compute_request {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ComputeResponse {
     #[prost(oneof = "compute_response::ComputeResponseOneOf", tags = "1, 2, 3, 4")]
-    pub compute_response_one_of: ::core::option::Option<compute_response::ComputeResponseOneOf>,
+    pub compute_response_one_of: ::core::option::Option<
+        compute_response::ComputeResponseOneOf,
+    >,
 }
 /// Nested message and enum types in `ComputeResponse`.
 pub mod compute_response {
@@ -131,8 +135,10 @@ pub struct StorageSpec {
     #[prost(uint64, tag = "3")]
     pub ttl: u64,
     #[prost(map = "string, string", tag = "4")]
-    pub extensions:
-        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
+    pub extensions: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -150,8 +156,10 @@ pub struct JobSpec {
     #[prost(message, optional, tag = "6")]
     pub symbol: ::core::option::Option<Symbol>,
     #[prost(map = "string, string", tag = "7")]
-    pub extensions:
-        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
+    pub extensions: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -177,14 +185,18 @@ pub struct JobStatus {
     #[prost(message, optional, tag = "1")]
     pub status: ::core::option::Option<JobStatusType>,
     #[prost(map = "string, string", tag = "2")]
-    pub extensions:
-        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
+    pub extensions: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JobStatusType {
     #[prost(oneof = "job_status_type::JobStatusTypeOneOf", tags = "1, 2, 3, 4")]
-    pub job_status_type_one_of: ::core::option::Option<job_status_type::JobStatusTypeOneOf>,
+    pub job_status_type_one_of: ::core::option::Option<
+        job_status_type::JobStatusTypeOneOf,
+    >,
 }
 /// Nested message and enum types in `JobStatusType`.
 pub mod job_status_type {
@@ -219,8 +231,8 @@ pub mod job_status_type {
 /// Generated client implementations.
 pub mod channel_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::http::Uri;
     use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
     pub struct ChannelClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -264,8 +276,9 @@ pub mod channel_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
-                Into<StdError> + Send + Sync,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+            >>::Error: Into<StdError> + Send + Sync,
         {
             ChannelClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -303,18 +316,23 @@ pub mod channel_client {
         pub async fn compute(
             &mut self,
             request: impl tonic::IntoRequest<super::ComputeRequest>,
-        ) -> std::result::Result<tonic::Response<super::ComputeResponse>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::new(
-                    tonic::Code::Unknown,
-                    format!("Service was not ready: {}", e.into()),
-                )
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::ComputeResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/channel.Channel/Compute");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("channel.Channel", "Compute"));
+            req.extensions_mut().insert(GrpcMethod::new("channel.Channel", "Compute"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -354,7 +372,10 @@ pub mod channel_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -410,9 +431,13 @@ pub mod channel_server {
                 "/channel.Channel/Compute" => {
                     #[allow(non_camel_case_types)]
                     struct ComputeSvc<T: Channel>(pub Arc<T>);
-                    impl<T: Channel> tonic::server::UnaryService<super::ComputeRequest> for ComputeSvc<T> {
+                    impl<T: Channel> tonic::server::UnaryService<super::ComputeRequest>
+                    for ComputeSvc<T> {
                         type Response = super::ComputeResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ComputeRequest>,
@@ -445,14 +470,18 @@ pub mod channel_server {
                     };
                     Box::pin(fut)
                 }
-                _ => Box::pin(async move {
-                    Ok(http::Response::builder()
-                        .status(200)
-                        .header("grpc-status", "12")
-                        .header("content-type", "application/grpc")
-                        .body(empty_body())
-                        .unwrap())
-                }),
+                _ => {
+                    Box::pin(async move {
+                        Ok(
+                            http::Response::builder()
+                                .status(200)
+                                .header("grpc-status", "12")
+                                .header("content-type", "application/grpc")
+                                .body(empty_body())
+                                .unwrap(),
+                        )
+                    })
+                }
             }
         }
     }

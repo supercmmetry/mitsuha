@@ -27,12 +27,11 @@ where
     T: ComputeChannel,
 {
     pub fn new(inner: T) -> Self {
-        log::info!("initialized channel '{}'", inner.id());
         Self { inner, id: None }
     }
 
     pub fn new_with_id(inner: T, id: String) -> Self {
-        log::info!("initialized channel '{}'", id);
+        log::info!("initialized channel with id: '{}'", id);
         Self {
             inner,
             id: Some(id),
@@ -74,6 +73,7 @@ where
     T: ComputeChannel<Context = ChannelContext>,
 {
     pub fn with_id(mut self, id: String) -> Self {
+        log::info!("initialized channel with id: '{}'", id);
         self.id = Some(id);
         self
     }

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
+use futures::stream::{Abortable, AbortHandle};
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     constants::Constants,
@@ -69,12 +70,21 @@ impl ComputeChannel for WasmtimeChannel {
                 ctx.register_job_context(handle.clone(), job_context);
 
                 let job_task_spec = spec.clone();
+                
+                let (abort_handle, abort_registration) = AbortHandle::new_pair();
+
                 let job_task: JoinHandle<types::Result<()>> = tokio::task::spawn(async move {
-                    Self::run(linker, stub, kernel, job_task_spec).await?;
+                    let abortable_future = Abortable::new(async move {
+                        Self::run(linker, stub, kernel, job_task_spec).await?;
+                        Ok(())
+                    }, abort_registration);
+
+                    abortable_future.await.map_err(|e| Error::UnknownWithMsgOnly { message: e.to_string() })??;
+
                     Ok(())
                 });
 
-                let job_ctrl = JobController::new(spec.clone(), job_task, ctx.clone());
+                let job_ctrl = JobController::new(spec.clone(), job_task, abort_handle, ctx.clone());
 
                 let consolidated_task = tokio::task::spawn(async move {
                     let result = job_ctrl

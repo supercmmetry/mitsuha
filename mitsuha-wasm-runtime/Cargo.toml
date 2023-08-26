@@ -10,13 +10,13 @@ mitsuha-core = { path = "../mitsuha-core" }
 mitsuha-storage = { path = "../mitsuha-storage" }
 
 # Musubi dependencies
-musubi_api = { git = "ssh://git@github.com/supercmmetry/musubi", branch = "master" }
-musubi_wasmtime = { git = "ssh://git@github.com/supercmmetry/musubi", branch = "master" }
+musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+musubi_wasmtime = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
 
 lazy_static = "1.4.0"
 reqwest = { version = "0.11.13", features = ["blocking"] }
 anyhow = "1.0.66"
-wasmtime = { version = "3.0.1", features = ["async"] }
+wasmtime = { version = "12.0.0", features = ["async"] }
 wasmparser = "0.96.0"
 async-trait = "0.1.59"
 serde = "1.0.148"

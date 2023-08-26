@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-musubi_api = { git = "ssh://git@github.com/supercmmetry/musubi", branch = "master" }
+musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
 
 mitsuha-core = { path = "../mitsuha-core" }
 mitsuha-storage = { path = "../mitsuha-storage" }
@@ -18,15 +18,16 @@ tokio = { version = "1.24.1", features = ["full"] }
 rand = "0.8.5"
 async-trait = "0.1.59"
 chrono = "0.4.23"
-wasmtime = { version = "3.0.1", features = ["async"] }
+wasmtime = { version = "12.0.0", features = ["async"] }
 log = "0.4.19"
 anyhow = "1.0.66"
+futures = "0.3.28"
 
 
 [dev-dependencies]
 # Musubi dependencies
-musubi_api = { git = "ssh://git@github.com/supercmmetry/musubi", branch = "master" }
-musubi_wasmtime = { git = "ssh://git@github.com/supercmmetry/musubi", branch = "master" }
+musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+musubi_wasmtime = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
 criterion = { version = "0.4", features = ["html_reports", "async_tokio"] }
 env_logger = "0.10.0"
 

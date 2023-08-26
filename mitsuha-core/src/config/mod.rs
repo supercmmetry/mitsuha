@@ -1,15 +1,15 @@
-pub mod executor;
+pub mod api;
 pub mod plugin;
 pub mod storage;
 
 use serde::Deserialize;
-use std::{collections::HashMap, env, path::Path};
+use std::{env, path::Path};
 
-use self::{executor::Executor, plugin::Plugin, storage::Storage};
+use self::{api::Api, plugin::Plugin, storage::Storage};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
-    pub executor: Executor,
+    pub api: Api,
     pub storage: Storage,
     pub plugins: Vec<Plugin>,
 }

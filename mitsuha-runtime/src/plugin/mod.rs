@@ -88,12 +88,6 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
         ctx.merge(new_ctx);
     }
 
-    // Run the init plugin at the end to ensure that the InitChannel is always in the beginning
-    // let init_plugin = InitPlugin;
-    // let new_ctx = init_plugin.run(ctx.clone()).await.unwrap();
-
-    // ctx.merge(new_ctx);
-
     ctx
 }
 

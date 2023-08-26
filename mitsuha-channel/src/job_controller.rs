@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
+use futures::stream::AbortHandle;
 use mitsuha_core::{
     channel::{ComputeInput, ComputeOutput},
     constants::Constants,
@@ -24,6 +25,7 @@ pub enum JobState {
 pub struct JobController {
     spec: JobSpec,
     task: JoinHandle<types::Result<()>>,
+    abort_handle: AbortHandle,
     channel_context: ChannelContext,
     prev_status_update: Option<DateTime<Utc>>,
 }
@@ -32,11 +34,13 @@ impl JobController {
     pub fn new(
         spec: JobSpec,
         task: JoinHandle<types::Result<()>>,
+        abort_handle: AbortHandle,
         channel_context: ChannelContext,
     ) -> Self {
         Self {
             spec,
             task,
+            abort_handle,
             channel_context,
             prev_status_update: None,
         }
@@ -128,7 +132,7 @@ impl JobController {
             match updation_target.recv().await {
                 Some(x) => match x {
                     JobState::ExpireAt(x) if x <= current_time => {
-                        observable_task.abort();
+                        self.abort_handle.abort();
                         _ = observable_task.await;
 
                         Self::update_status(
@@ -153,7 +157,7 @@ impl JobController {
                         });
                     }
                     JobState::Aborted => {
-                        observable_task.abort();
+                        self.abort_handle.abort();
                         _ = observable_task.await;
                         _ = status_updater.send(JobState::Aborted).await;
 

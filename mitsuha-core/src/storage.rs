@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{errors::Error, kernel::StorageSpec, selector::Label, types};
 
-#[derive(Debug, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[serde(rename_all = "snake_case")]
 pub enum StorageLocality {
     Solid { cache_name: Option<String> },
     Cache { ttl: u64 },
@@ -20,13 +21,14 @@ impl StorageLocality {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[serde(rename_all = "snake_case")]
 pub enum StorageKind {
     Memory,
     Local,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StorageClass {
     pub kind: StorageKind,
     pub locality: StorageLocality,
