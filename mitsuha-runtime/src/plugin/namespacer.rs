@@ -1,25 +1,20 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
-use mitsuha_channel::wasmtime::WasmtimeChannel;
-use mitsuha_core::{channel::ComputeKernel, kernel::Kernel, types};
+use mitsuha_channel::namespacer::NamespacerChannel;
+use mitsuha_core::types;
 
 use super::{initialize_channel, Plugin, PluginContext};
 
 #[derive(Clone)]
-pub struct WasmtimePlugin;
+pub struct NamespacerPlugin;
 
 #[async_trait]
-impl Plugin for WasmtimePlugin {
+impl Plugin for NamespacerPlugin {
     fn name(&self) -> &'static str {
-        "mitsuha.plugin.wasmtime"
+        "mitsuha.plugin.namespacer"
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let kernel: Arc<Box<dyn Kernel>> =
-            Arc::new(Box::new(ComputeKernel::new(ctx.channel_start.clone())));
-
-        let raw_channel = WasmtimeChannel::new(kernel);
+        let raw_channel = NamespacerChannel::new();
         let channel = initialize_channel(&ctx, raw_channel)?;
 
         ctx.channel_end.connect(channel.clone()).await;

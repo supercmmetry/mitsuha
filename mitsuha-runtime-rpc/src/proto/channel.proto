@@ -47,15 +47,18 @@ message StoreRequest {
 
 message LoadRequest {
     string handle = 1;
+    map<string, string> extensions = 2;
 }
 
 message PersistRequest {
     string handle = 1;
     uint64 ttl = 2;
+    map<string, string> extensions = 3;
 }
 
 message ClearRequest {
     string handle = 1;
+    map<string, string> extensions = 2;
 }
 
 message RunRequest {
@@ -65,14 +68,17 @@ message RunRequest {
 message ExtendRequest {
     string handle = 1;
     uint64 ttl = 2;
+    map<string, string> extensions = 3;
 }
 
 message StatusRequest {
     string handle = 1;
+    map<string, string> extensions = 2;
 }
 
 message AbortRequest {
     string handle = 1;
+    map<string, string> extensions = 2;
 }
 
 message StorageSpec {

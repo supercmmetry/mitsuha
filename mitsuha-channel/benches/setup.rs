@@ -77,8 +77,5 @@ pub fn make_blob_resolver(
 pub fn make_wasmtime_channel(
     chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
 ) -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
-    Arc::new(Box::new(WasmtimeChannel::new(
-        make_kernel(chan.clone()),
-        make_blob_resolver(chan),
-    )))
+    Arc::new(Box::new(WasmtimeChannel::new(make_kernel(chan.clone()))))
 }

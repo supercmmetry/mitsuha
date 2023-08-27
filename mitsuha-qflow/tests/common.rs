@@ -65,17 +65,20 @@ pub async fn test_rw_processing(
                 _ = writer
                     .write_compute_input(ComputeInput::Status {
                         handle: jobs[writer_index as usize].handle.clone(),
+                        extensions: Default::default(),
                     })
                     .await;
                 _ = writer
                     .write_compute_input(ComputeInput::Extend {
                         handle: jobs[writer_index as usize].handle.clone(),
                         ttl: 1,
+                        extensions: Default::default(),
                     })
                     .await;
                 _ = writer
                     .write_compute_input(ComputeInput::Abort {
                         handle: jobs[writer_index as usize].handle.clone(),
+                        extensions: Default::default(),
                     })
                     .await;
             }
@@ -89,6 +92,7 @@ pub async fn test_rw_processing(
                 match writer
                     .write_compute_input(ComputeInput::Clear {
                         handle: format!("some-handle-{}", counter),
+                        extensions: Default::default(),
                     })
                     .await
                 {
@@ -100,7 +104,7 @@ pub async fn test_rw_processing(
                         );
                         *writer_message_counter.write().await += 1;
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         retry_counter -= 1;
                         // dbg!(e);
                     }
@@ -155,9 +159,9 @@ pub async fn test_rw_processing(
                                         .unwrap()
                                         .insert(spec.handle);
                                 }
-                                ComputeInput::Abort { handle }
+                                ComputeInput::Abort { handle, .. }
                                 | ComputeInput::Extend { handle, .. }
-                                | ComputeInput::Status { handle } => {
+                                | ComputeInput::Status { handle, .. } => {
                                     assert!(sticky_map
                                         .read()
                                         .await
@@ -169,7 +173,7 @@ pub async fn test_rw_processing(
                             }
                         }
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         retry_counter -= 1;
                         // dbg!(e);
                     }

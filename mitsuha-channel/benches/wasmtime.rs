@@ -124,7 +124,13 @@ async fn run_hello_world(
         .unwrap();
 
     let output = channel
-        .compute(ctx, ComputeInput::Load { handle })
+        .compute(
+            ctx,
+            ComputeInput::Load {
+                handle,
+                extensions: Default::default(),
+            },
+        )
         .await
         .unwrap();
 

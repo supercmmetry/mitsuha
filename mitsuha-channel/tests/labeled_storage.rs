@@ -38,6 +38,7 @@ async fn store_and_load() {
             ChannelContext::default(),
             ComputeInput::Load {
                 handle: "spec1".to_string(),
+                extensions: Default::default(),
             },
         )
         .await
@@ -73,6 +74,7 @@ async fn store_and_expire() {
             ChannelContext::default(),
             ComputeInput::Load {
                 handle: "spec1".to_string(),
+                extensions: Default::default(),
             },
         )
         .await;
@@ -99,6 +101,7 @@ async fn store_and_persist() {
         ComputeInput::Persist {
             handle: "spec1".to_string(),
             ttl: 1,
+            extensions: Default::default(),
         },
     )
     .await
@@ -111,6 +114,7 @@ async fn store_and_persist() {
             ChannelContext::default(),
             ComputeInput::Load {
                 handle: "spec1".to_string(),
+                extensions: Default::default(),
             },
         )
         .await

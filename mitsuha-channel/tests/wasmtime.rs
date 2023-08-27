@@ -181,6 +181,7 @@ async fn internal_run_hello_world() {
             ctx.clone(),
             ComputeInput::Load {
                 handle: output_handle,
+                extensions: Default::default(),
             },
         )
         .await
@@ -320,7 +321,13 @@ async fn internal_run_and_abort_mugen_loop() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     channel
-        .compute(ctx.clone(), ComputeInput::Abort { handle: job_handle })
+        .compute(
+            ctx.clone(),
+            ComputeInput::Abort {
+                handle: job_handle,
+                extensions: Default::default(),
+            },
+        )
         .await
         .unwrap();
 
@@ -389,6 +396,7 @@ async fn internal_run_wasm_with_deps() {
             ctx.clone(),
             ComputeInput::Load {
                 handle: output_handle,
+                extensions: Default::default(),
             },
         )
         .await

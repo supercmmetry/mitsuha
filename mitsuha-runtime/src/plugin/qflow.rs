@@ -51,7 +51,7 @@ impl Plugin for QFlowPlugin {
 
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         // log::error!("error occured during consumption: {}", e);
                         // log error
                     }

@@ -7,7 +7,7 @@ use mitsuha_core::{
 };
 
 use self::{
-    common::{EofPlugin, InitPlugin, SystemPlugin},
+    common::{EofPlugin, SystemPlugin},
     delegator::DelegatorPlugin,
     one_storage::OneStoragePlugin,
     qflow::QFlowPlugin,
@@ -16,6 +16,7 @@ use self::{
 
 pub mod common;
 pub mod delegator;
+pub mod namespacer;
 pub mod one_storage;
 pub mod qflow;
 pub mod wasmtime;

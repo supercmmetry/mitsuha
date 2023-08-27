@@ -1650,6 +1650,7 @@ dependencies = [
  "dashmap",
  "env_logger",
  "futures",
+ "lazy_static",
  "log",
  "mitsuha-core",
  "mitsuha-qflow",

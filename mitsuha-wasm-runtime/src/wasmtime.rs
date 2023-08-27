@@ -14,7 +14,7 @@ use mitsuha_core::{
 };
 use num_traits::cast::FromPrimitive;
 
-use crate::constants::Constants;
+use crate::{constants::Constants, resolver::wasmtime::WasmtimeModuleResolver};
 
 #[derive(Clone)]
 pub struct WasmMetadata {
@@ -141,14 +141,14 @@ impl WasmtimeModule {
 
 #[derive(Clone)]
 pub struct WasmtimeContext {
-    core_stub: Arc<Box<dyn KernelBinding>>,
+    kernel_binding: Arc<Box<dyn KernelBinding>>,
     instance: SharedAsyncMany<Option<wasmtime::Instance>>,
 }
 
 impl WasmtimeContext {
-    pub fn new(core_stub: Arc<Box<dyn KernelBinding>>) -> Self {
+    pub fn new(kernel_binding: Arc<Box<dyn KernelBinding>>) -> Self {
         Self {
-            core_stub,
+            kernel_binding,
             instance: Arc::new(tokio::sync::RwLock::new(None)),
         }
     }
@@ -162,23 +162,20 @@ impl WasmtimeContext {
     }
 
     pub async fn call(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
-        self.core_stub.run(symbol, input).await
+        self.kernel_binding.run(symbol, input).await
     }
 }
 
 pub struct WasmtimeLinker {
     engine: wasmtime::Engine,
-    resolver: Arc<Box<dyn Resolver<ModuleInfo, WasmtimeModule>>>,
+    module_cache: moka::future::Cache<(String, ModuleInfo), WasmtimeModule>,
     ticker_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl WasmtimeLinker {
-    pub fn new(
-        resolver: Arc<Box<dyn Resolver<ModuleInfo, WasmtimeModule>>>,
-        engine: wasmtime::Engine,
-    ) -> types::Result<Self> {
+    pub fn new(engine: wasmtime::Engine) -> types::Result<Self> {
         let mut obj = Self {
-            resolver,
+            module_cache: moka::future::Cache::new(16),
             engine,
             ticker_handle: None,
         };
@@ -197,8 +194,29 @@ impl WasmtimeLinker {
         }));
     }
 
-    async fn fetch_module(&self, module_info: &ModuleInfo) -> types::Result<WasmtimeModule> {
-        self.resolver.resolve(module_info).await
+    async fn fetch_module(
+        &self,
+        ctx: &LinkerContext,
+        module_info: &ModuleInfo,
+    ) -> types::Result<WasmtimeModule> {
+        let resolver_prefix = ctx
+            .extensions
+            .get(&mitsuha_core::constants::Constants::ModuleResolverPrefix.to_string())
+            .cloned()
+            .unwrap_or(module_info.get_identifier());
+        let cache_key = (resolver_prefix, module_info.clone());
+        if let Some(v) = self.module_cache.get(&cache_key) {
+            return Ok(v);
+        }
+
+        let module_resolver =
+            WasmtimeModuleResolver::new(self.engine.clone(), ctx.module_resolver.clone());
+
+        let module = module_resolver.resolve(module_info).await?;
+
+        self.module_cache.insert(cache_key, module.clone()).await;
+
+        Ok(module)
     }
 
     fn construct_error(error: &str) -> musubi_api::types::Data {
@@ -346,7 +364,7 @@ impl Linker for WasmtimeLinker {
         context: &mut LinkerContext,
         module_info: &ModuleInfo,
     ) -> types::Result<()> {
-        let mut module = self.fetch_module(&module_info).await?;
+        let mut module = self.fetch_module(&context, &module_info).await?;
         let mut spec = module
             .get_musubi_spec()
             .map_err(|e| Error::LinkerLoadFailed {
@@ -373,9 +391,9 @@ impl Linker for WasmtimeLinker {
         context: &mut LinkerContext,
         module_info: &ModuleInfo,
     ) -> types::Result<ExecutorContext> {
-        let mut module = self.fetch_module(&module_info).await?;
+        let mut module = self.fetch_module(&context, &module_info).await?;
 
-        let wasmtime_context = WasmtimeContext::new(context.core_stub.clone());
+        let wasmtime_context = WasmtimeContext::new(context.kernel_binding.clone());
 
         let mut store = wasmtime::Store::new(&self.engine, wasmtime_context.clone());
 
@@ -476,14 +494,10 @@ impl Linker for WasmtimeLinker {
         let instance = linker
             .instantiate_async(&mut store, module.inner())
             .await
-            .map_err(|e| {
-                dbg!(e.to_string());
-
-                Error::LinkerLinkFailed {
-                    message: format!("failed to instantiate wasmtime module with imports"),
-                    target: module_info.clone(),
-                    source: e,
-                }
+            .map_err(|e| Error::LinkerLinkFailed {
+                message: format!("failed to instantiate wasmtime module with imports"),
+                target: module_info.clone(),
+                source: e,
             })?;
 
         wasmtime_context.set_instance(instance).await;

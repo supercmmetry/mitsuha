@@ -43,7 +43,7 @@ where
                     Err(e) => Err(e),
                 }
             }
-            ComputeInput::Load { handle } => {
+            ComputeInput::Load { handle, .. } => {
                 let result = storage.load(handle).await;
 
                 match result {
@@ -51,7 +51,7 @@ where
                     Err(e) => Err(e),
                 }
             }
-            ComputeInput::Persist { handle, ttl } => {
+            ComputeInput::Persist { handle, ttl, .. } => {
                 let result = storage.persist(handle, ttl).await;
 
                 match result {
@@ -59,7 +59,7 @@ where
                     Err(e) => Err(e),
                 }
             }
-            ComputeInput::Clear { handle } => {
+            ComputeInput::Clear { handle, .. } => {
                 let result = storage.clear(handle).await;
 
                 match result {

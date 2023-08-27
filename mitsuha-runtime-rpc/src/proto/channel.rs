@@ -84,6 +84,11 @@ pub struct StoreRequest {
 pub struct LoadRequest {
     #[prost(string, tag = "1")]
     pub handle: ::prost::alloc::string::String,
+    #[prost(map = "string, string", tag = "2")]
+    pub extensions: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -92,12 +97,22 @@ pub struct PersistRequest {
     pub handle: ::prost::alloc::string::String,
     #[prost(uint64, tag = "2")]
     pub ttl: u64,
+    #[prost(map = "string, string", tag = "3")]
+    pub extensions: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ClearRequest {
     #[prost(string, tag = "1")]
     pub handle: ::prost::alloc::string::String,
+    #[prost(map = "string, string", tag = "2")]
+    pub extensions: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -112,18 +127,33 @@ pub struct ExtendRequest {
     pub handle: ::prost::alloc::string::String,
     #[prost(uint64, tag = "2")]
     pub ttl: u64,
+    #[prost(map = "string, string", tag = "3")]
+    pub extensions: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StatusRequest {
     #[prost(string, tag = "1")]
     pub handle: ::prost::alloc::string::String,
+    #[prost(map = "string, string", tag = "2")]
+    pub extensions: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AbortRequest {
     #[prost(string, tag = "1")]
     pub handle: ::prost::alloc::string::String,
+    #[prost(map = "string, string", tag = "2")]
+    pub extensions: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

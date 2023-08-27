@@ -61,8 +61,8 @@ impl TikvWriter {
         input: &ComputeInput,
     ) -> anyhow::Result<bool> {
         match input {
-            ComputeInput::Status { handle }
-            | ComputeInput::Abort { handle }
+            ComputeInput::Status { handle, .. }
+            | ComputeInput::Abort { handle, .. }
             | ComputeInput::Extend { handle, .. } => {
                 let input_trigger_handle =
                     util::generate_sticky_element_trigger_handle(handle.clone());

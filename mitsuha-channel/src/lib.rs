@@ -12,6 +12,7 @@ pub mod context;
 pub mod delegator;
 mod job_controller;
 pub mod labeled_storage;
+pub mod namespacer;
 pub mod qflow;
 pub mod system;
 mod util;

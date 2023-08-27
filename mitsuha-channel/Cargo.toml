@@ -22,14 +22,15 @@ wasmtime = { version = "12.0.0", features = ["async"] }
 log = "0.4.19"
 anyhow = "1.0.66"
 futures = "0.3.28"
+lazy_static = "1.4.0"
 
 
 [dev-dependencies]
 # Musubi dependencies
-musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
 musubi_wasmtime = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
 criterion = { version = "0.4", features = ["html_reports", "async_tokio"] }
 env_logger = "0.10.0"
+
 
 [[bench]]
 name = "wasmtime"

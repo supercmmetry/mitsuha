@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
 use musubi_api::{
-    types::{Data, Value},
+    types::{Data, HashableValue, Value},
     DataBuilder,
 };
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,57 @@ pub struct JobSpec {
     pub status_handle: String,
     pub ttl: u64,
     pub extensions: HashMap<String, String>,
+}
+
+impl JobSpec {
+    pub fn get_output_ttl(&self) -> types::Result<u64> {
+        let mut ttl = self.ttl;
+        if let Some(v) = self.extensions.get(&Constants::JobOutputTTL.to_string()) {
+            ttl = v
+                .parse::<u64>()
+                .map_err(|e| Error::Unknown { source: e.into() })?;
+        }
+
+        Ok(ttl)
+    }
+
+    pub fn get_kernel_bridge_metadata(&self) -> types::Result<Option<KernelBridgeMetadata>> {
+        let kernel_bridge_metadata_key = &Constants::JobKernelBridgeMetadata.to_string();
+
+        match self.extensions.get(kernel_bridge_metadata_key) {
+            Some(value) => {
+                let obj: KernelBridgeMetadata = serde_json::from_str(value.as_str())
+                    .map_err(|e| Error::Unknown { source: e.into() })?;
+                Ok(Some(obj))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub fn make_kernel_bridge_metadata(&self) -> types::Result<KernelBridgeMetadata> {
+        let existing_metadata = self.get_kernel_bridge_metadata()?;
+
+        let mut new_metadata = KernelBridgeMetadata {
+            job_ttl: self.ttl,
+            job_output_ttl: self.get_output_ttl()?,
+            job_start_time: Utc::now(),
+            extensions: Default::default(),
+        };
+
+        if let Some(metadata) = existing_metadata {
+            new_metadata.extensions = metadata.extensions;
+        }
+
+        Ok(new_metadata)
+    }
+
+    pub fn load_kernel_bridge_metadata(&mut self, metadata: &KernelBridgeMetadata) {
+        self.ttl = metadata.job_ttl;
+        self.extensions.insert(
+            Constants::JobOutputTTL.to_string(),
+            metadata.job_output_ttl.to_string(),
+        );
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -60,19 +111,45 @@ impl StorageSpec {
 pub trait Kernel: Send + Sync {
     async fn run_job(&self, spec: JobSpec) -> types::Result<()>;
 
-    async fn extend_job(&self, handle: String, ttl: u64) -> types::Result<()>;
+    async fn extend_job(
+        &self,
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()>;
 
-    async fn abort_job(&self, handle: String) -> types::Result<()>;
+    async fn abort_job(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()>;
 
-    async fn get_job_status(&self, handle: String) -> types::Result<JobStatus>;
+    async fn get_job_status(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<JobStatus>;
 
     async fn store_data(&self, spec: StorageSpec) -> types::Result<()>;
 
-    async fn load_data(&self, handle: String) -> types::Result<Vec<u8>>;
+    async fn load_data(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<u8>>;
 
-    async fn persist_data(&self, handle: String, ttl: u64) -> types::Result<()>;
+    async fn persist_data(
+        &self,
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()>;
 
-    async fn clear_data(&self, handle: String) -> types::Result<()>;
+    async fn clear_data(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()>;
 }
 
 #[async_trait]
@@ -80,8 +157,26 @@ pub trait KernelBinding: Send + Sync {
     async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>>;
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KernelBridgeMetadata {
+    #[serde(skip_deserializing)]
+    #[serde(default)]
+    pub job_ttl: u64,
+
+    #[serde(skip_deserializing)]
+    #[serde(default)]
+    pub job_output_ttl: u64,
+
+    #[serde(skip_deserializing)]
+    #[serde(default)]
+    pub job_start_time: DateTime<Utc>,
+
+    pub extensions: HashMap<String, String>,
+}
+
 pub struct KernelBridge {
     kernel: Arc<Box<dyn Kernel>>,
+    metadata: KernelBridgeMetadata,
 }
 
 const CORE_SYMBOL_RUN: &str = "run";
@@ -118,8 +213,8 @@ impl KernelBinding for KernelBridge {
 }
 
 impl KernelBridge {
-    pub fn new(kernel: Arc<Box<dyn Kernel>>) -> Self {
-        Self { kernel }
+    pub fn new(kernel: Arc<Box<dyn Kernel>>, metadata: KernelBridgeMetadata) -> Self {
+        Self { kernel, metadata }
     }
 
     fn is_core_symbol(&self, symbol: &Symbol) -> bool {
@@ -139,7 +234,7 @@ impl KernelBridge {
                 if data.values().len() != 1 {
                     return Err(Error::InvalidOperation {
                         message: format!(
-                            "attempted kernel call: {}, expected 1 value found {}",
+                            "attempted kernel call: {}, expected 1 value, found {}",
                             CORE_SYMBOL_RUN,
                             data.values().len()
                         ),
@@ -155,10 +250,10 @@ impl KernelBridge {
                 data_builder = data_builder.add(Value::Null);
             }
             CORE_SYMBOL_EXTEND => {
-                if data.values().len() != 2 {
+                if data.values().len() != 3 {
                     return Err(Error::InvalidOperation {
                         message: format!(
-                            "attempted kernel call: {}, expected 2 values found {}",
+                            "attempted kernel call: {}, expected 3 values, found {}",
                             CORE_SYMBOL_EXTEND,
                             data.values().len()
                         ),
@@ -167,6 +262,7 @@ impl KernelBridge {
 
                 let handle: String;
                 let ttl: u64;
+                let mut extensions: HashMap<String, String> = Default::default();
 
                 if let Value::String(x) = data.values().get(0).unwrap() {
                     handle = x.clone();
@@ -190,15 +286,40 @@ impl KernelBridge {
                     });
                 }
 
-                self.kernel.extend_job(handle, ttl).await?;
+                if let Value::Map(x) = data.values().get(2).unwrap() {
+                    for (key, value) in x.iter() {
+                        match (key, value) {
+                            (HashableValue::String(key), Value::String(value)) => {
+                                extensions.insert(key.clone(), value.clone());
+                            }
+                            _ => {
+                                return Err(Error::InvalidOperation {
+                                    message: format!(
+                                        "attempted kernel call: {}, expected third value to be a extension map",
+                                        CORE_SYMBOL_EXTEND
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    return Err(Error::InvalidOperation {
+                        message: format!(
+                            "attempted kernel call: {}, expected third value to be a map",
+                            CORE_SYMBOL_EXTEND
+                        ),
+                    });
+                }
+
+                self.kernel.extend_job(handle, ttl, extensions).await?;
 
                 data_builder = data_builder.add(Value::Null);
             }
             CORE_SYMBOL_ABORT => {
-                if data.values().len() != 1 {
+                if data.values().len() != 2 {
                     return Err(Error::InvalidOperation {
                         message: format!(
-                            "attempted kernel call: {}, expected 1 value found {}",
+                            "attempted kernel call: {}, expected 2 values, found {}",
                             CORE_SYMBOL_ABORT,
                             data.values().len()
                         ),
@@ -206,6 +327,7 @@ impl KernelBridge {
                 }
 
                 let handle: String;
+                let mut extensions: HashMap<String, String> = Default::default();
 
                 if let Value::String(x) = data.values().get(0).unwrap() {
                     handle = x.clone();
@@ -218,15 +340,40 @@ impl KernelBridge {
                     });
                 }
 
-                self.kernel.abort_job(handle).await?;
+                if let Value::Map(x) = data.values().get(1).unwrap() {
+                    for (key, value) in x.iter() {
+                        match (key, value) {
+                            (HashableValue::String(key), Value::String(value)) => {
+                                extensions.insert(key.clone(), value.clone());
+                            }
+                            _ => {
+                                return Err(Error::InvalidOperation {
+                                    message: format!(
+                                        "attempted kernel call: {}, expected second value to be a extension map",
+                                        CORE_SYMBOL_ABORT
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    return Err(Error::InvalidOperation {
+                        message: format!(
+                            "attempted kernel call: {}, expected second value to be a map",
+                            CORE_SYMBOL_ABORT
+                        ),
+                    });
+                }
+
+                self.kernel.abort_job(handle, extensions).await?;
 
                 data_builder = data_builder.add(Value::Null);
             }
             CORE_SYMBOL_STATUS => {
-                if data.values().len() != 1 {
+                if data.values().len() != 2 {
                     return Err(Error::InvalidOperation {
                         message: format!(
-                            "attempted kernel call: {}, expected 1 value found {}",
+                            "attempted kernel call: {}, expected 2 values, found {}",
                             CORE_SYMBOL_STATUS,
                             data.values().len()
                         ),
@@ -234,6 +381,7 @@ impl KernelBridge {
                 }
 
                 let handle: String;
+                let mut extensions: HashMap<String, String> = Default::default();
 
                 if let Value::String(x) = data.values().get(0).unwrap() {
                     handle = x.clone();
@@ -246,7 +394,32 @@ impl KernelBridge {
                     });
                 }
 
-                let status = self.kernel.get_job_status(handle).await?;
+                if let Value::Map(x) = data.values().get(1).unwrap() {
+                    for (key, value) in x.iter() {
+                        match (key, value) {
+                            (HashableValue::String(key), Value::String(value)) => {
+                                extensions.insert(key.clone(), value.clone());
+                            }
+                            _ => {
+                                return Err(Error::InvalidOperation {
+                                    message: format!(
+                                        "attempted kernel call: {}, expected second value to be a extension map",
+                                        CORE_SYMBOL_STATUS
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    return Err(Error::InvalidOperation {
+                        message: format!(
+                            "attempted kernel call: {}, expected second value to be a map",
+                            CORE_SYMBOL_STATUS
+                        ),
+                    });
+                }
+
+                let status = self.kernel.get_job_status(handle, extensions).await?;
 
                 data_builder = data_builder.add(
                     musubi_api::types::to_value(status)
@@ -257,7 +430,7 @@ impl KernelBridge {
                 if data.values().len() != 1 {
                     return Err(Error::InvalidOperation {
                         message: format!(
-                            "attempted kernel call: {}, expected 1 value found {}",
+                            "attempted kernel call: {}, expected 2 values, found {}",
                             CORE_SYMBOL_STORE,
                             data.values().len()
                         ),
@@ -273,10 +446,10 @@ impl KernelBridge {
                 data_builder = data_builder.add(Value::Null);
             }
             CORE_SYMBOL_LOAD => {
-                if data.values().len() != 1 {
+                if data.values().len() != 2 {
                     return Err(Error::InvalidOperation {
                         message: format!(
-                            "attempted kernel call: {}, expected 1 value found {}",
+                            "attempted kernel call: {}, expected 2 values, found {}",
                             CORE_SYMBOL_LOAD,
                             data.values().len()
                         ),
@@ -284,6 +457,7 @@ impl KernelBridge {
                 }
 
                 let handle: String;
+                let mut extensions: HashMap<String, String> = Default::default();
 
                 if let Value::String(x) = data.values().get(0).unwrap() {
                     handle = x.clone();
@@ -296,15 +470,40 @@ impl KernelBridge {
                     });
                 }
 
-                let data = self.kernel.load_data(handle).await?;
+                if let Value::Map(x) = data.values().get(1).unwrap() {
+                    for (key, value) in x.iter() {
+                        match (key, value) {
+                            (HashableValue::String(key), Value::String(value)) => {
+                                extensions.insert(key.clone(), value.clone());
+                            }
+                            _ => {
+                                return Err(Error::InvalidOperation {
+                                    message: format!(
+                                        "attempted kernel call: {}, expected second value to be a extension map",
+                                        CORE_SYMBOL_LOAD
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    return Err(Error::InvalidOperation {
+                        message: format!(
+                            "attempted kernel call: {}, expected second value to be a map",
+                            CORE_SYMBOL_LOAD
+                        ),
+                    });
+                }
+
+                let data = self.kernel.load_data(handle, extensions).await?;
 
                 data_builder = data_builder.add(Value::Bytes(data));
             }
             CORE_SYMBOL_PERSIST => {
-                if data.values().len() != 2 {
+                if data.values().len() != 3 {
                     return Err(Error::InvalidOperation {
                         message: format!(
-                            "attempted kernel call: {}, expected 2 values found {}",
+                            "attempted kernel call: {}, expected 3 values, found {}",
                             CORE_SYMBOL_PERSIST,
                             data.values().len()
                         ),
@@ -313,6 +512,7 @@ impl KernelBridge {
 
                 let handle: String;
                 let ttl: u64;
+                let mut extensions: HashMap<String, String> = Default::default();
 
                 if let Value::String(x) = data.values().get(0).unwrap() {
                     handle = x.clone();
@@ -336,15 +536,40 @@ impl KernelBridge {
                     });
                 }
 
-                self.kernel.persist_data(handle, ttl).await?;
+                if let Value::Map(x) = data.values().get(2).unwrap() {
+                    for (key, value) in x.iter() {
+                        match (key, value) {
+                            (HashableValue::String(key), Value::String(value)) => {
+                                extensions.insert(key.clone(), value.clone());
+                            }
+                            _ => {
+                                return Err(Error::InvalidOperation {
+                                    message: format!(
+                                        "attempted kernel call: {}, expected third value to be a extension map",
+                                        CORE_SYMBOL_PERSIST
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    return Err(Error::InvalidOperation {
+                        message: format!(
+                            "attempted kernel call: {}, expected third value to be a map",
+                            CORE_SYMBOL_PERSIST
+                        ),
+                    });
+                }
+
+                self.kernel.persist_data(handle, ttl, extensions).await?;
 
                 data_builder = data_builder.add(Value::Null);
             }
             CORE_SYMBOL_CLEAR => {
-                if data.values().len() != 1 {
+                if data.values().len() != 2 {
                     return Err(Error::InvalidOperation {
                         message: format!(
-                            "attempted kernel call: {}, expected 1 value found {}",
+                            "attempted kernel call: {}, expected 2 values, found {}",
                             CORE_SYMBOL_CLEAR,
                             data.values().len()
                         ),
@@ -352,6 +577,7 @@ impl KernelBridge {
                 }
 
                 let handle: String;
+                let mut extensions: HashMap<String, String> = Default::default();
 
                 if let Value::String(x) = data.values().get(0).unwrap() {
                     handle = x.clone();
@@ -364,7 +590,32 @@ impl KernelBridge {
                     });
                 }
 
-                self.kernel.clear_data(handle).await?;
+                if let Value::Map(x) = data.values().get(1).unwrap() {
+                    for (key, value) in x.iter() {
+                        match (key, value) {
+                            (HashableValue::String(key), Value::String(value)) => {
+                                extensions.insert(key.clone(), value.clone());
+                            }
+                            _ => {
+                                return Err(Error::InvalidOperation {
+                                    message: format!(
+                                        "attempted kernel call: {}, expected second value to be a extension map",
+                                        CORE_SYMBOL_CLEAR
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    return Err(Error::InvalidOperation {
+                        message: format!(
+                            "attempted kernel call: {}, expected second value to be a map",
+                            CORE_SYMBOL_CLEAR
+                        ),
+                    });
+                }
+
+                self.kernel.clear_data(handle, extensions).await?;
 
                 data_builder = data_builder.add(Value::Null);
             }
@@ -375,39 +626,43 @@ impl KernelBridge {
             .map_err(|e| Error::Unknown { source: e.into() })?)
     }
 
+    // Deprecated as this can be handled in client side by musubi with kernel calls
+    #[deprecated]
     async fn dispatch_job(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
         let input_handle = Uuid::new_v4().to_string();
         let output_handle = Uuid::new_v4().to_string();
         let status_handle = Uuid::new_v4().to_string();
 
-        // TODO: Set sane ttls here
-
         let input_spec = StorageSpec {
             handle: input_handle.clone(),
             data: input,
-            ttl: 86400,
+            ttl: self.metadata.job_output_ttl,
             extensions: Default::default(),
         };
 
         self.kernel.store_data(input_spec).await?;
 
-        let job_spec = JobSpec {
+        let mut job_spec = JobSpec {
             handle: Uuid::new_v4().to_string(),
             symbol: symbol.clone(),
             input_handle,
             output_handle: output_handle.clone(),
             status_handle,
-            ttl: 86400,
+            ttl: 0,
             extensions: [
-                (Constants::JobOutputTTL.to_string(), "120".to_string()),
+                (Constants::JobOutputTTL.to_string(), "0".to_string()),
                 (Constants::JobChannelAwait.to_string(), "true".to_string()),
             ]
             .into_iter()
             .collect(),
         };
 
+        job_spec.load_kernel_bridge_metadata(&self.metadata);
+
         self.kernel.run_job(job_spec).await?;
 
-        self.kernel.load_data(output_handle).await
+        self.kernel
+            .load_data(output_handle, Default::default())
+            .await
     }
 }

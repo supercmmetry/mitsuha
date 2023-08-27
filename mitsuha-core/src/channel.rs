@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -11,15 +11,54 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ComputeInput {
-    Store { spec: StorageSpec },
-    Load { handle: String },
-    Persist { handle: String, ttl: u64 },
-    Clear { handle: String },
+    Store {
+        spec: StorageSpec,
+    },
+    Load {
+        handle: String,
+        extensions: HashMap<String, String>,
+    },
+    Persist {
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    },
+    Clear {
+        handle: String,
+        extensions: HashMap<String, String>,
+    },
 
-    Run { spec: JobSpec },
-    Extend { handle: String, ttl: u64 },
-    Status { handle: String },
-    Abort { handle: String },
+    Run {
+        spec: JobSpec,
+    },
+    Extend {
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    },
+    Status {
+        handle: String,
+        extensions: HashMap<String, String>,
+    },
+    Abort {
+        handle: String,
+        extensions: HashMap<String, String>,
+    },
+}
+
+impl ComputeInput {
+    pub fn get_extensions(&self) -> Option<&HashMap<String, String>> {
+        match self {
+            ComputeInput::Store { spec } => Some(&spec.extensions),
+            ComputeInput::Load { extensions, .. } => Some(extensions),
+            ComputeInput::Persist { extensions, .. } => Some(extensions),
+            ComputeInput::Clear { extensions, .. } => Some(extensions),
+            ComputeInput::Run { spec } => Some(&spec.extensions),
+            ComputeInput::Extend { extensions, .. } => Some(extensions),
+            ComputeInput::Status { extensions, .. } => Some(extensions),
+            ComputeInput::Abort { extensions, .. } => Some(extensions),
+        }
+    }
 }
 
 pub enum ComputeOutput {
@@ -57,24 +96,50 @@ where
         Ok(())
     }
 
-    async fn extend_job(&self, handle: String, ttl: u64) -> types::Result<()> {
+    async fn extend_job(
+        &self,
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         self.channel
-            .compute(Context::default(), ComputeInput::Extend { handle, ttl })
+            .compute(
+                Context::default(),
+                ComputeInput::Extend {
+                    handle,
+                    ttl,
+                    extensions,
+                },
+            )
             .await?;
         Ok(())
     }
 
-    async fn abort_job(&self, handle: String) -> types::Result<()> {
+    async fn abort_job(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         self.channel
-            .compute(Context::default(), ComputeInput::Abort { handle })
+            .compute(
+                Context::default(),
+                ComputeInput::Abort { handle, extensions },
+            )
             .await?;
         Ok(())
     }
 
-    async fn get_job_status(&self, handle: String) -> types::Result<JobStatus> {
+    async fn get_job_status(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<JobStatus> {
         let output = self
             .channel
-            .compute(Context::default(), ComputeInput::Status { handle })
+            .compute(
+                Context::default(),
+                ComputeInput::Status { handle, extensions },
+            )
             .await?;
         match output {
             ComputeOutput::Status { status } => Ok(status),
@@ -91,10 +156,17 @@ where
         Ok(())
     }
 
-    async fn load_data(&self, handle: String) -> types::Result<Vec<u8>> {
+    async fn load_data(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<u8>> {
         let output = self
             .channel
-            .compute(Context::default(), ComputeInput::Load { handle })
+            .compute(
+                Context::default(),
+                ComputeInput::Load { handle, extensions },
+            )
             .await?;
         match output {
             ComputeOutput::Loaded { data } => Ok(data),
@@ -104,16 +176,35 @@ where
         }
     }
 
-    async fn persist_data(&self, handle: String, ttl: u64) -> types::Result<()> {
+    async fn persist_data(
+        &self,
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         self.channel
-            .compute(Context::default(), ComputeInput::Persist { handle, ttl })
+            .compute(
+                Context::default(),
+                ComputeInput::Persist {
+                    handle,
+                    ttl,
+                    extensions,
+                },
+            )
             .await?;
         Ok(())
     }
 
-    async fn clear_data(&self, handle: String) -> types::Result<()> {
+    async fn clear_data(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         self.channel
-            .compute(Context::default(), ComputeInput::Clear { handle })
+            .compute(
+                Context::default(),
+                ComputeInput::Clear { handle, extensions },
+            )
             .await?;
         Ok(())
     }

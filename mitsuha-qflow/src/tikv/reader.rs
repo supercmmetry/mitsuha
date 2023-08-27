@@ -132,7 +132,7 @@ impl Reader for TikvReader {
                 sticky_tx.commit().await?;
                 return Ok(input);
             }
-            Err(e) => {
+            Err(_e) => {
                 // log error
                 sticky_tx.rollback().await?;
             }

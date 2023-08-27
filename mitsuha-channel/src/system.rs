@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     errors::Error,
-    module::ModuleInfo,
     types,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -94,15 +93,15 @@ impl ComputeChannel for SystemChannel {
         mut elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
         match &mut elem {
-            ComputeInput::Extend { handle, ttl } => {
+            ComputeInput::Extend { handle, ttl, .. } => {
                 ctx.extend_job(handle, *ttl).await?;
                 return Ok(ComputeOutput::Completed);
             }
-            ComputeInput::Abort { handle } => {
+            ComputeInput::Abort { handle, .. } => {
                 ctx.abort_job(handle).await?;
                 return Ok(ComputeOutput::Completed);
             }
-            ComputeInput::Status { handle } => {
+            ComputeInput::Status { handle, .. } => {
                 let status = ctx.get_job_status(handle).await?;
                 return Ok(ComputeOutput::Status { status });
             }

@@ -1,6 +1,4 @@
-use mitsuha_core::errors::Error;
 use mitsuha_core::{
-    constants::Constants,
     kernel::{JobSpec, StorageSpec},
     types,
 };
@@ -15,15 +13,7 @@ pub fn generate_random_id() -> String {
 }
 
 pub fn make_output_storage_spec(job_spec: JobSpec, data: Vec<u8>) -> types::Result<StorageSpec> {
-    let mut ttl = job_spec.ttl;
-    if let Some(v) = job_spec
-        .extensions
-        .get(&Constants::JobOutputTTL.to_string())
-    {
-        ttl = v
-            .parse::<u64>()
-            .map_err(|e| Error::Unknown { source: e.into() })?;
-    }
+    let ttl = job_spec.get_output_ttl()?;
 
     let storage_spec = StorageSpec {
         handle: job_spec.output_handle,

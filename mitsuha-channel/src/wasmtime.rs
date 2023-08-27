@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
-use futures::stream::{Abortable, AbortHandle};
+use futures::stream::{AbortHandle, Abortable};
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeInput, ComputeOutput},
     constants::Constants,
@@ -10,20 +10,17 @@ use mitsuha_core::{
     kernel::{JobSpec, Kernel, KernelBinding, KernelBridge},
     linker::{Linker, LinkerContext},
     module::{ModuleInfo, ModuleType},
-    resolver::Resolver,
+    resolver::{blob::BlobResolver, Resolver},
     types,
 };
-use mitsuha_wasm_runtime::{
-    resolver::wasmtime::WasmtimeModuleResolver,
-    wasmtime::{WasmtimeLinker, WasmtimeModule},
-};
+use mitsuha_wasm_runtime::wasmtime::WasmtimeLinker;
 use tokio::{sync::RwLock, task::JoinHandle};
 
 use crate::{
     context::ChannelContext,
     job_controller::{JobController, JobState},
     system::JobContext,
-    util::{self, make_output_storage_spec},
+    util::make_output_storage_spec,
     WrappedComputeChannel,
 };
 
@@ -32,7 +29,6 @@ pub struct WasmtimeChannel {
     next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
     linker: Arc<WasmtimeLinker>,
     kernel: Arc<Box<dyn Kernel>>,
-    stub: Arc<Box<dyn KernelBinding>>,
 }
 
 #[async_trait]
@@ -52,8 +48,19 @@ impl ComputeChannel for WasmtimeChannel {
             ComputeInput::Run { spec } if spec.symbol.module_info.modtype == ModuleType::WASM => {
                 let handle = spec.handle.clone();
 
+                let raw_module_resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>> =
+                    Arc::new(Box::new(BlobResolver::new(ctx.get_channel_start().ok_or(
+                        Error::UnknownWithMsgOnly {
+                            message: "failed to setup module resolver".to_string(),
+                        },
+                    )?)));
+
                 let linker = self.linker.clone();
-                let stub = self.stub.clone();
+
+                let kernel_binding: Arc<Box<dyn KernelBinding>> = Arc::new(Box::new(
+                    KernelBridge::new(self.kernel.clone(), spec.make_kernel_bridge_metadata()?),
+                ));
+
                 let kernel = self.kernel.clone();
 
                 let (updater, updation_target) = tokio::sync::mpsc::channel::<JobState>(16);
@@ -70,21 +77,36 @@ impl ComputeChannel for WasmtimeChannel {
                 ctx.register_job_context(handle.clone(), job_context);
 
                 let job_task_spec = spec.clone();
-                
+
                 let (abort_handle, abort_registration) = AbortHandle::new_pair();
 
                 let job_task: JoinHandle<types::Result<()>> = tokio::task::spawn(async move {
-                    let abortable_future = Abortable::new(async move {
-                        Self::run(linker, stub, kernel, job_task_spec).await?;
-                        Ok(())
-                    }, abort_registration);
+                    let abortable_future = Abortable::new(
+                        async move {
+                            Self::run(
+                                linker,
+                                kernel_binding,
+                                kernel,
+                                raw_module_resolver,
+                                job_task_spec,
+                            )
+                            .await?;
+                            Ok(())
+                        },
+                        abort_registration,
+                    );
 
-                    abortable_future.await.map_err(|e| Error::UnknownWithMsgOnly { message: e.to_string() })??;
+                    abortable_future
+                        .await
+                        .map_err(|e| Error::UnknownWithMsgOnly {
+                            message: e.to_string(),
+                        })??;
 
                     Ok(())
                 });
 
-                let job_ctrl = JobController::new(spec.clone(), job_task, abort_handle, ctx.clone());
+                let job_ctrl =
+                    JobController::new(spec.clone(), job_task, abort_handle, ctx.clone());
 
                 let consolidated_task = tokio::task::spawn(async move {
                     let result = job_ctrl
@@ -132,10 +154,7 @@ impl WasmtimeChannel {
         "mitsuha/channel/wasmtime"
     }
 
-    pub fn new(
-        kernel: Arc<Box<dyn Kernel>>,
-        resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>>,
-    ) -> WrappedComputeChannel<Self> {
+    pub fn new(kernel: Arc<Box<dyn Kernel>>) -> WrappedComputeChannel<Self> {
         // TODO: Make this configurable
 
         let mut config = wasmtime::Config::default();
@@ -143,40 +162,38 @@ impl WasmtimeChannel {
         config.epoch_interruption(true);
 
         let engine = wasmtime::Engine::new(&config).unwrap();
-        let module_resolver: Arc<Box<dyn Resolver<ModuleInfo, WasmtimeModule>>> = Arc::new(
-            Box::new(WasmtimeModuleResolver::new(engine.clone(), resolver)),
-        );
 
-        let linker = Arc::new(WasmtimeLinker::new(module_resolver, engine).unwrap());
-
-        let stub: Arc<Box<dyn KernelBinding>> =
-            Arc::new(Box::new(KernelBridge::new(kernel.clone())));
+        let linker = Arc::new(WasmtimeLinker::new(engine).unwrap());
 
         WrappedComputeChannel::new(Self {
             id: Self::get_identifier_type().to_string(),
             next: Arc::new(RwLock::new(None)),
             linker,
             kernel,
-            stub,
         })
     }
 
     async fn run(
         linker: Arc<WasmtimeLinker>,
-        stub: Arc<Box<dyn KernelBinding>>,
+        kernel_binding: Arc<Box<dyn KernelBinding>>,
         kernel: Arc<Box<dyn Kernel>>,
+        resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>>,
         spec: JobSpec,
     ) -> types::Result<()> {
         let symbol = spec.symbol.clone();
         let module_info = symbol.module_info.clone();
 
-        let mut linker_ctx = LinkerContext::new(stub);
+        let mut linker_ctx = LinkerContext::new(kernel_binding, resolver);
+
+        linker_ctx.load_extensions_from_job(&spec);
 
         linker.load(&mut linker_ctx, &module_info).await?;
 
         let exec_ctx = Arc::new(linker.link(&mut linker_ctx, &module_info).await?);
 
-        let input = kernel.load_data(spec.input_handle.clone()).await?;
+        let input = kernel
+            .load_data(spec.input_handle.clone(), spec.extensions.clone())
+            .await?;
 
         let output = exec_ctx.call(&symbol, input).await?;
 

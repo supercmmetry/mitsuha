@@ -32,16 +32,23 @@ impl TryInto<ComputeInput> for proto::channel::ComputeRequest {
                 })
             }
             proto::channel::compute_request::ComputeRequestOneOf::Load(x) => {
-                Ok(ComputeInput::Load { handle: x.handle })
+                Ok(ComputeInput::Load {
+                    handle: x.handle,
+                    extensions: x.extensions,
+                })
             }
             proto::channel::compute_request::ComputeRequestOneOf::Persist(x) => {
                 Ok(ComputeInput::Persist {
                     handle: x.handle,
                     ttl: x.ttl,
+                    extensions: x.extensions,
                 })
             }
             proto::channel::compute_request::ComputeRequestOneOf::Clear(x) => {
-                Ok(ComputeInput::Clear { handle: x.handle })
+                Ok(ComputeInput::Clear {
+                    handle: x.handle,
+                    extensions: x.extensions,
+                })
             }
             proto::channel::compute_request::ComputeRequestOneOf::Run(x) => Ok(ComputeInput::Run {
                 spec: x.spec.ok_or(anyhow!("cannot find spec"))?.try_into()?,
@@ -50,13 +57,20 @@ impl TryInto<ComputeInput> for proto::channel::ComputeRequest {
                 Ok(ComputeInput::Extend {
                     handle: x.handle,
                     ttl: x.ttl,
+                    extensions: x.extensions,
                 })
             }
             proto::channel::compute_request::ComputeRequestOneOf::Status(x) => {
-                Ok(ComputeInput::Status { handle: x.handle })
+                Ok(ComputeInput::Status {
+                    handle: x.handle,
+                    extensions: x.extensions,
+                })
             }
             proto::channel::compute_request::ComputeRequestOneOf::Abort(x) => {
-                Ok(ComputeInput::Abort { handle: x.handle })
+                Ok(ComputeInput::Abort {
+                    handle: x.handle,
+                    extensions: x.extensions,
+                })
             }
         }
     }
@@ -75,19 +89,27 @@ impl TryFrom<ComputeInput> for proto::channel::ComputeRequest {
                         },
                     ))
                 }
-                ComputeInput::Load { handle } => {
+                ComputeInput::Load { handle, extensions } => {
                     Ok(proto::channel::compute_request::ComputeRequestOneOf::Load(
-                        proto::channel::LoadRequest { handle },
+                        proto::channel::LoadRequest { handle, extensions },
                     ))
                 }
-                ComputeInput::Persist { handle, ttl } => Ok(
+                ComputeInput::Persist {
+                    handle,
+                    ttl,
+                    extensions,
+                } => Ok(
                     proto::channel::compute_request::ComputeRequestOneOf::Persist(
-                        proto::channel::PersistRequest { handle, ttl },
+                        proto::channel::PersistRequest {
+                            handle,
+                            ttl,
+                            extensions,
+                        },
                     ),
                 ),
-                ComputeInput::Clear { handle } => {
+                ComputeInput::Clear { handle, extensions } => {
                     Ok(proto::channel::compute_request::ComputeRequestOneOf::Clear(
-                        proto::channel::ClearRequest { handle },
+                        proto::channel::ClearRequest { handle, extensions },
                     ))
                 }
                 ComputeInput::Run { spec } => {
@@ -97,19 +119,27 @@ impl TryFrom<ComputeInput> for proto::channel::ComputeRequest {
                         },
                     ))
                 }
-                ComputeInput::Extend { handle, ttl } => Ok(
+                ComputeInput::Extend {
+                    handle,
+                    ttl,
+                    extensions,
+                } => Ok(
                     proto::channel::compute_request::ComputeRequestOneOf::Extend(
-                        proto::channel::ExtendRequest { handle, ttl },
+                        proto::channel::ExtendRequest {
+                            handle,
+                            ttl,
+                            extensions,
+                        },
                     ),
                 ),
-                ComputeInput::Status { handle } => Ok(
+                ComputeInput::Status { handle, extensions } => Ok(
                     proto::channel::compute_request::ComputeRequestOneOf::Status(
-                        proto::channel::StatusRequest { handle },
+                        proto::channel::StatusRequest { handle, extensions },
                     ),
                 ),
-                ComputeInput::Abort { handle } => {
+                ComputeInput::Abort { handle, extensions } => {
                     Ok(proto::channel::compute_request::ComputeRequestOneOf::Abort(
-                        proto::channel::AbortRequest { handle },
+                        proto::channel::AbortRequest { handle, extensions },
                     ))
                 }
             };

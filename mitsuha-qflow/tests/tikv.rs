@@ -7,7 +7,7 @@ use mitsuha_qflow::{
 
 mod common;
 
-async fn writer_fn(index: u64, len: u64) -> Arc<Box<dyn Writer>> {
+async fn writer_fn(_index: u64, _len: u64) -> Arc<Box<dyn Writer>> {
     let extensions: HashMap<String, String> = [
         ("desired_queue_count".to_string(), "1000".to_string()),
         (
@@ -23,7 +23,7 @@ async fn writer_fn(index: u64, len: u64) -> Arc<Box<dyn Writer>> {
     writer
 }
 
-async fn reader_fn(index: u64, len: u64) -> Arc<Box<dyn Reader>> {
+async fn reader_fn(_index: u64, _len: u64) -> Arc<Box<dyn Reader>> {
     let extensions: HashMap<String, String> = [
         ("desired_queue_count".to_string(), "1000".to_string()),
         (
