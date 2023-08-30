@@ -7,6 +7,10 @@ service Channel {
     rpc Compute (ComputeRequest) returns (ComputeResponse);
 }
 
+service Interceptor {
+    rpc Intercept (ComputeRequest) returns (ComputeRequest);
+}
+
 message ComputeRequest {
     oneof ComputeRequestOneOf {
         StoreRequest store = 1;

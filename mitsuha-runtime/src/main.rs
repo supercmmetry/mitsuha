@@ -7,8 +7,6 @@ use service::channel::ChannelService;
 
 use mitsuha_channel::context::ChannelContext;
 use tracing::Level;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::Registry;
 
 use std::sync::Once;
 

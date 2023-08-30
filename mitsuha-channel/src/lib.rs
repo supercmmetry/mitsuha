@@ -10,6 +10,7 @@ use mitsuha_core::{
 
 pub mod context;
 pub mod delegator;
+pub mod interceptor;
 mod job_controller;
 pub mod labeled_storage;
 pub mod namespacer;

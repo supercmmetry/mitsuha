@@ -9,6 +9,8 @@ use mitsuha_core::{
 use self::{
     common::{EofPlugin, SystemPlugin},
     delegator::DelegatorPlugin,
+    interceptor::InterceptorPlugin,
+    namespacer::NamespacerPlugin,
     one_storage::OneStoragePlugin,
     qflow::QFlowPlugin,
     wasmtime::WasmtimePlugin,
@@ -16,6 +18,7 @@ use self::{
 
 pub mod common;
 pub mod delegator;
+pub mod interceptor;
 pub mod namespacer;
 pub mod one_storage;
 pub mod qflow;
@@ -69,6 +72,8 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
         Box::new(WasmtimePlugin),
         Box::new(DelegatorPlugin),
         Box::new(QFlowPlugin),
+        Box::new(NamespacerPlugin),
+        Box::new(InterceptorPlugin),
     ];
 
     let plugin_map: HashMap<&'static str, Box<dyn Plugin>> = plugin_list

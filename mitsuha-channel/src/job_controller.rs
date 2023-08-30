@@ -125,7 +125,8 @@ impl JobController {
             result.map_err(|e| Error::Unknown { source: e.into() })?
         };
 
-        let observable_task: JoinHandle<types::Result<()>> = tokio::task::spawn(observable_task_future.instrument(tracing::Span::current()));
+        let observable_task: JoinHandle<types::Result<()>> =
+            tokio::task::spawn(observable_task_future.instrument(tracing::Span::current()));
 
         let mut max_expiry = Utc::now();
 
