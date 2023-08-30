@@ -42,15 +42,8 @@ impl LinkerContext {
     }
 
     pub fn load_extensions_from_job(&mut self, spec: &JobSpec) {
-        if let Some(resolver_prefix) = spec
-            .extensions
-            .get(&Constants::ModuleResolverPrefix.to_string())
-        {
-            self.extensions.insert(
-                Constants::ModuleResolverPrefix.to_string(),
-                resolver_prefix.clone(),
-            );
-        }
+        self.extensions
+            .insert(Constants::JobHandle.to_string(), spec.handle.clone());
     }
 }
 

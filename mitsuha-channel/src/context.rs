@@ -80,7 +80,7 @@ impl ChannelContext {
                         Ok(())
                     }
                     x => {
-                        log::warn!("cannot abort job as JobState='{:?}'", x);
+                        tracing::warn!("cannot abort job as JobState='{:?}'", x);
 
                         Err(Error::JobNotFound {
                             handle: handle.clone(),
@@ -95,13 +95,13 @@ impl ChannelContext {
     }
 
     pub fn register_job_context(&self, handle: String, ctx: JobContext) {
-        log::info!("registering job context for handle '{}'", handle);
+        tracing::info!("registering job context for handle '{}'", handle);
 
         self.job_context_map.insert(handle, ctx);
     }
 
     pub fn deregister_job_context(&self, handle: &String) {
-        log::info!("deregistering job context for handle '{}'", handle);
+        tracing::info!("deregistering job context for handle '{}'", handle);
 
         self.job_context_map.remove(handle);
     }

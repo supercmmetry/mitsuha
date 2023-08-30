@@ -214,6 +214,7 @@ mod test {
                         .clone(),
                     NamespacerChannel::get_namespaced_handle(&NAMESPACE, &String::new())
                 );
+
                 assert_eq!(
                     spec.handle,
                     NamespacerChannel::get_namespaced_handle(&NAMESPACE, &"job/sample".to_string())

@@ -27,4 +27,4 @@ strum_macros = "0.24.3"
 strum = "0.24"
 futures = "0.3"
 moka = { version = "0.11", features = ["future"] }
-log = "0.4.19"
+tracing = "0.1.37"

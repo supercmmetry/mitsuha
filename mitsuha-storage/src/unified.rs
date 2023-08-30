@@ -268,10 +268,10 @@ impl UnifiedStorage {
     fn start_gc(collectable: Arc<Box<dyn Storage>>) {
         tokio::task::spawn(async move {
             loop {
-                log::debug!("running gc cycle");
+                tracing::debug!("running gc cycle");
 
                 if let Err(e) = collectable.garbage_collect().await {
-                    log::debug!("failed to run gc cycle. error: {}", e);
+                    tracing::debug!("failed to run gc cycle. error: {}", e);
                 }
 
                 tokio::time::sleep(Duration::from_secs(1)).await;

@@ -32,7 +32,7 @@ where
     }
 
     pub fn new_with_id(inner: T, id: String) -> Self {
-        log::info!("initialized channel with id: '{}'", id);
+        tracing::info!("initialized channel with id: '{}'", id);
         Self {
             inner,
             id: Some(id),
@@ -59,12 +59,12 @@ where
         ctx: Self::Context,
         elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
-        log::debug!("performing compute on channel: '{}'", self.id());
+        tracing::debug!("performing compute on channel: '{}'", self.id());
         self.inner.compute(ctx, elem).await
     }
 
     async fn connect(&self, next: Arc<Box<dyn ComputeChannel<Context = Self::Context>>>) {
-        log::info!("connecting channel '{}' to '{}'", self.id(), next.id());
+        tracing::info!("connecting channel '{}' to '{}'", self.id(), next.id());
         self.inner.connect(next).await
     }
 }
@@ -74,7 +74,7 @@ where
     T: ComputeChannel<Context = ChannelContext>,
 {
     pub fn with_id(mut self, id: String) -> Self {
-        log::info!("initialized channel with id: '{}'", id);
+        tracing::info!("initialized channel with id: '{}'", id);
         self.id = Some(id);
         self
     }

@@ -15,6 +15,7 @@ use mitsuha_core::{
 };
 use mitsuha_wasm_runtime::wasmtime::WasmtimeLinker;
 use tokio::{sync::RwLock, task::JoinHandle};
+use tracing::{info_span, Instrument};
 
 use crate::{
     context::ChannelContext,
@@ -46,14 +47,20 @@ impl ComputeChannel for WasmtimeChannel {
     ) -> types::Result<ComputeOutput> {
         match elem {
             ComputeInput::Run { spec } if spec.symbol.module_info.modtype == ModuleType::WASM => {
+                let job_handle_span = info_span!("run", job_handle = spec.handle);
+                let job_handle_span_entered = job_handle_span.enter();
+
                 let handle = spec.handle.clone();
 
                 let raw_module_resolver: Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>> =
-                    Arc::new(Box::new(BlobResolver::new(ctx.get_channel_start().ok_or(
-                        Error::UnknownWithMsgOnly {
-                            message: "failed to setup module resolver".to_string(),
-                        },
-                    )?)));
+                    Arc::new(Box::new(
+                        BlobResolver::new(ctx.get_channel_start().ok_or(
+                            Error::UnknownWithMsgOnly {
+                                message: "failed to setup module resolver".to_string(),
+                            },
+                        )?)
+                        .with_extensions(spec.extensions.clone()),
+                    ));
 
                 let linker = self.linker.clone();
 
@@ -80,7 +87,7 @@ impl ComputeChannel for WasmtimeChannel {
 
                 let (abort_handle, abort_registration) = AbortHandle::new_pair();
 
-                let job_task: JoinHandle<types::Result<()>> = tokio::task::spawn(async move {
+                let job_task_future = async move {
                     let abortable_future = Abortable::new(
                         async move {
                             Self::run(
@@ -103,18 +110,21 @@ impl ComputeChannel for WasmtimeChannel {
                         })??;
 
                     Ok(())
-                });
+                };
+
+                let job_task: JoinHandle<types::Result<()>> =
+                    tokio::task::spawn(job_task_future.instrument(tracing::Span::current()));
 
                 let job_ctrl =
                     JobController::new(spec.clone(), job_task, abort_handle, ctx.clone());
 
-                let consolidated_task = tokio::task::spawn(async move {
+                let consolidated_task_future = async move {
                     let result = job_ctrl
                         .run(handle.clone(), updater, updation_target, status_updater)
                         .await;
 
                     if result.is_err() {
-                        log::error!(
+                        tracing::error!(
                             "job execution failed with error: {:?}",
                             result.as_ref().err().unwrap()
                         );
@@ -123,7 +133,11 @@ impl ComputeChannel for WasmtimeChannel {
                     ctx.deregister_job_context(&handle);
 
                     result
-                });
+                };
+
+                let consolidated_task = tokio::task::spawn(
+                    consolidated_task_future.instrument(tracing::Span::current()),
+                );
 
                 if let Some("true") = spec
                     .extensions

@@ -12,6 +12,9 @@ pub enum Constants {
     #[strum(serialize = "mitsuha.storage")]
     StorageLabel,
 
+    #[strum(serialize = "mitsuha.core.job.handle")]
+    JobHandle,
+
     #[strum(serialize = "mitsuha.job.output.ttl")]
     JobOutputTTL,
 

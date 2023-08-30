@@ -12,6 +12,7 @@ use tokio::{
     sync::mpsc::{Receiver, Sender},
     task::JoinHandle,
 };
+use tracing::Instrument;
 
 use crate::context::ChannelContext;
 
@@ -52,7 +53,7 @@ impl JobController {
         status_type: JobStatusType,
         current_time: DateTime<Utc>,
     ) -> types::Result<()> {
-        log::debug!(
+        tracing::debug!(
             "updating status for job '{}' to '{:?}'",
             spec.handle,
             status_type
@@ -106,14 +107,14 @@ impl JobController {
         let completion_notifier = updater.clone();
         let job_handle = self.spec.handle.clone();
 
-        let observable_task: JoinHandle<types::Result<()>> = tokio::task::spawn(async move {
+        let observable_task_future = async move {
             let result = self.task.await;
             match completion_notifier.send(JobState::Completed).await {
                 Ok(_) => {
-                    log::debug!("completion_notifier triggered for job '{}'!", job_handle);
+                    tracing::debug!("completion_notifier triggered for job '{}'!", job_handle);
                 }
                 Err(e) => {
-                    log::debug!(
+                    tracing::debug!(
                         "failed to trigger completion_notifier for job '{}'. error: {}",
                         job_handle,
                         e
@@ -122,7 +123,9 @@ impl JobController {
             }
 
             result.map_err(|e| Error::Unknown { source: e.into() })?
-        });
+        };
+
+        let observable_task: JoinHandle<types::Result<()>> = tokio::task::spawn(observable_task_future.instrument(tracing::Span::current()));
 
         let mut max_expiry = Utc::now();
 
@@ -145,7 +148,7 @@ impl JobController {
                         )
                         .await?;
 
-                        log::info!(
+                        tracing::info!(
                             "job with handle '{}' expired at '{}'",
                             &handle,
                             x.to_string()
@@ -169,7 +172,7 @@ impl JobController {
                         )
                         .await?;
 
-                        log::info!("job with handle '{}' was aborted", &handle);
+                        tracing::info!("job with handle '{}' was aborted", &handle);
 
                         return Err(Error::JobAborted { handle });
                     }
@@ -177,13 +180,13 @@ impl JobController {
                         let result = observable_task.await;
                         match status_updater.send(JobState::Completed).await {
                             Ok(_) => {
-                                log::debug!(
+                                tracing::debug!(
                                     "status_updater triggered for job '{}'!",
                                     &self.spec.handle
                                 );
                             }
                             Err(e) => {
-                                log::debug!(
+                                tracing::debug!(
                                     "failed to trigger status_updater for job '{}'. error: {}",
                                     &self.spec.handle,
                                     e
@@ -201,7 +204,7 @@ impl JobController {
                         )
                         .await?;
 
-                        log::info!("job with handle '{}' was completed", &handle);
+                        tracing::info!("job with handle '{}' was completed", &handle);
 
                         return Ok(ComputeOutput::Completed);
                     }

@@ -1651,7 +1651,6 @@ dependencies = [
  "env_logger",
  "futures",
  "lazy_static",
- "log",
  "mitsuha-core",
  "mitsuha-qflow",
  "mitsuha-storage",
@@ -1660,6 +1659,7 @@ dependencies = [
  "musubi_wasmtime",
  "rand 0.8.5",
  "tokio",
+ "tracing",
  "wasmtime",
 ]
 
@@ -1674,7 +1674,6 @@ dependencies = [
  "dashmap",
  "futures",
  "lazy_static",
- "log",
  "log4rs",
  "musubi_api",
  "redis",
@@ -1685,6 +1684,7 @@ dependencies = [
  "strum_macros",
  "thiserror",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -1722,7 +1722,6 @@ dependencies = [
  "dotenv",
  "env_logger",
  "lazy_static",
- "log",
  "mitsuha-channel",
  "mitsuha-core",
  "mitsuha-qflow",
@@ -1739,6 +1738,9 @@ dependencies = [
  "tonic-build",
  "tonic-health",
  "tonic-reflection",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -1750,7 +1752,6 @@ dependencies = [
  "chrono",
  "env_logger",
  "lazy_static",
- "log",
  "mitsuha-core",
  "prost",
  "prost-types",
@@ -1761,6 +1762,7 @@ dependencies = [
  "tonic-build",
  "tonic-health",
  "tonic-reflection",
+ "tracing",
 ]
 
 [[package]]
@@ -1775,7 +1777,6 @@ dependencies = [
  "env_logger",
  "hex",
  "lazy_static",
- "log",
  "mitsuha-core",
  "moka",
  "rand 0.8.5",
@@ -1786,6 +1787,7 @@ dependencies = [
  "strum_macros",
  "tokio",
  "tokio-stream",
+ "tracing",
 ]
 
 [[package]]
@@ -1796,7 +1798,6 @@ dependencies = [
  "async-trait",
  "futures",
  "lazy_static",
- "log",
  "mitsuha-core",
  "mitsuha-storage",
  "moka",
@@ -1809,6 +1810,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tokio",
+ "tracing",
  "wasmparser 0.96.0",
  "wasmtime",
 ]
@@ -1898,6 +1900,16 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "nu-ansi-term"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
+dependencies = [
+ "overload",
+ "winapi",
 ]
 
 [[package]]
@@ -2031,6 +2043,12 @@ name = "os_str_bytes"
 version = "6.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d5d9eb14b174ee9aa2ef96dc2b94637a2d4b6e7cb873c7e171f0c20c6cf3eac"
+
+[[package]]
+name = "overload"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
 name = "parking"
@@ -2961,6 +2979,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sharded-slab"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "900fba806f70c630b0a382d0d825e17a0f19fcd059a2ade1ff237bcddf446b31"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3159,6 +3186,16 @@ dependencies = [
  "libc",
  "redox_syscall 0.2.16",
  "winapi",
+]
+
+[[package]]
+name = "thread_local"
+version = "1.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fdd6f064ccff2d6567adcb3873ca630700f00b5ad3f060c25b5dcfd9a4ce152"
+dependencies = [
+ "cfg-if",
+ "once_cell",
 ]
 
 [[package]]
@@ -3465,6 +3502,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0955b8137a1df6f1a2e9a37d8a6656291ff0297c1a97c24e0d8425fe2312f79a"
 dependencies = [
  "once_cell",
+ "valuable",
+]
+
+[[package]]
+name = "tracing-log"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78ddad33d2d10b1ed7eb9d1f518a5674713876e97e5bb9b7345a7984fbb4f922"
+dependencies = [
+ "lazy_static",
+ "log",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.3.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30a651bc37f915e81f087d86e62a18eec5f79550c7faff886f7090b4ea757c77"
+dependencies = [
+ "nu-ansi-term",
+ "sharded-slab",
+ "smallvec",
+ "thread_local",
+ "tracing-core",
+ "tracing-log",
 ]
 
 [[package]]
@@ -3582,6 +3645,12 @@ checksum = "79daa5ed5740825c40b389c5e50312b9c86df53fccd33f281df655642b43869d"
 dependencies = [
  "getrandom 0.2.10",
 ]
+
+[[package]]
+name = "valuable"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vcpkg"

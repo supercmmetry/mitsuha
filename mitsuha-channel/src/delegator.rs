@@ -86,7 +86,7 @@ impl DelegatorChannel {
     ) -> types::Result<ComputeOutput> {
         match self.next.read().await.clone() {
             Some(chan) => {
-                log::debug!("forwarding compute to channel '{}'", chan.id());
+                tracing::debug!("forwarding compute to channel '{}'", chan.id());
                 chan.compute(ctx, elem).await
             }
             None => Err(Error::ComputeChannelEOF),
@@ -98,7 +98,7 @@ impl DelegatorChannel {
         ctx: ChannelContext,
         elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
-        log::debug!("delegating compute to slave: '{}'", self.slave_id);
+        tracing::debug!("delegating compute to slave: '{}'", self.slave_id);
 
         self.slave
             .read()
@@ -119,7 +119,7 @@ impl DelegatorChannel {
         let handles = self.job_handles.read().await.clone();
 
         for handle in handles {
-            log::debug!("running gc for job with handle: '{}'", handle.clone());
+            tracing::debug!("running gc for job with handle: '{}'", handle.clone());
 
             match ctx.get_job_status(&handle).await {
                 Ok(JobStatus { status, .. }) => {
@@ -127,7 +127,7 @@ impl DelegatorChannel {
                         if let Ok(mut v) = self.job_handles.try_write() {
                             v.remove(&handle);
                         } else {
-                            log::error!("failed to attain lock on job_handles!");
+                            tracing::error!("failed to attain lock on job_handles!");
                         }
                     }
                 }

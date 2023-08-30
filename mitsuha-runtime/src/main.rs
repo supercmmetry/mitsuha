@@ -6,6 +6,9 @@ use plugin::{load_plugins, PluginContext};
 use service::channel::ChannelService;
 
 use mitsuha_channel::context::ChannelContext;
+use tracing::Level;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::Registry;
 
 use std::sync::Once;
 
@@ -18,7 +21,7 @@ pub fn init_basic_logging() {
 }
 
 pub async fn make_channel_context(config: &Config) -> ChannelContext {
-    init_basic_logging();
+    // init_basic_logging();
 
     let mut plugin_ctx = PluginContext::new(config.clone(), Default::default());
 
@@ -30,6 +33,16 @@ pub async fn make_channel_context(config: &Config) -> ChannelContext {
 #[tokio::main]
 async fn main() {
     let _ = dotenv::dotenv();
+
+    tracing_log::LogTracer::init().expect("Unable to setup log tracer!");
+
+    let subscriber = tracing_subscriber::fmt()
+        // filter spans/events with level TRACE or higher.
+        .with_max_level(Level::DEBUG)
+        // build but do not install the subscriber.
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let config = Config::new().unwrap();
 
@@ -43,7 +56,7 @@ async fn main() {
 
     rpc_server = channel_service.register_rpc(rpc_server);
 
-    log::info!("Starting RPC server on port: {}", config.api.port);
+    tracing::info!("Starting RPC server on port: {}", config.api.port);
 
     rpc_server
         .serve(

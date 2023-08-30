@@ -23,7 +23,7 @@ moka = { version = "0.11", features = ["future"] }
 sha2 = "0.10.7"
 hex = "0.4.3"
 lazy_static = "1.4.0"
-log = "0.4.19"
+tracing = "0.1.37"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports", "async_tokio"] }

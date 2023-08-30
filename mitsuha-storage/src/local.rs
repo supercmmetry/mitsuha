@@ -150,7 +150,7 @@ impl Storage for LocalStorage {
     }
 
     async fn clear(&self, handle: String) -> types::Result<()> {
-        log::debug!("clearing handle: '{}'", handle);
+        tracing::debug!("clearing handle: '{}'", handle);
 
         match self.load_data(handle.clone()).await {
             Ok(data) => {
@@ -344,7 +344,7 @@ impl LocalStorage {
 
                     let metadata_json = tokio::fs::read_to_string(full_path.unwrap()).await;
                     if metadata_json.is_err() {
-                        log::warn!(
+                        tracing::warn!(
                             "failed to read metadata for file: '{}', error: {}",
                             full_path.unwrap(),
                             metadata_json.err().unwrap()
@@ -356,7 +356,7 @@ impl LocalStorage {
                         serde_json::from_str(&metadata_json.unwrap());
 
                     if metadata.is_err() {
-                        log::warn!(
+                        tracing::warn!(
                             "failed to read metadata for file: '{}', error: {}",
                             full_path.unwrap(),
                             metadata.err().unwrap()
@@ -366,13 +366,13 @@ impl LocalStorage {
 
                     let metadata = metadata.unwrap();
 
-                    log::debug!("checking expiry for handle: '{}'", metadata.handle);
+                    tracing::debug!("checking expiry for handle: '{}'", metadata.handle);
 
                     if metadata.expiry <= Utc::now() {
                         // TODO: Fail silently here to avoid failing the global GC
 
                         if let Err(e) = self.clear(metadata.handle.clone()).await {
-                            log::error!(
+                            tracing::error!(
                                 "failed to perform gc operation on handle: '{}', error: {}",
                                 metadata.handle,
                                 e

@@ -7,6 +7,7 @@ use mitsuha_core::{
     types,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::Instrument;
 
 use crate::{context::ChannelContext, job_controller::JobState, WrappedComputeChannel};
 
@@ -40,7 +41,7 @@ impl JobContext {
         self.desired = desired;
 
         if self.desired != self.actual {
-            log::info!(
+            tracing::info!(
                 "updating job context from {:?} to {:?} for handle: '{}'",
                 self.actual,
                 self.desired,
@@ -59,7 +60,7 @@ impl JobContext {
     pub fn get_state(&mut self) -> types::Result<JobState> {
         match self.reader.try_recv() {
             Ok(x) => {
-                log::info!(
+                tracing::info!(
                     "received new job state {:?} for handle: '{}'",
                     x,
                     self.handle

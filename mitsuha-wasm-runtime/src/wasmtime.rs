@@ -188,7 +188,7 @@ impl WasmtimeLinker {
         let engine = self.engine.clone();
 
         self.ticker_handle = Some(tokio::task::spawn_blocking(move || loop {
-            log::debug!("incrementing wasmtime engine epoch");
+            tracing::debug!("incrementing wasmtime engine epoch");
             engine.increment_epoch();
             std::thread::sleep(Duration::from_millis(1000));
         }));
@@ -204,6 +204,7 @@ impl WasmtimeLinker {
             .get(&mitsuha_core::constants::Constants::ModuleResolverPrefix.to_string())
             .cloned()
             .unwrap_or(module_info.get_identifier());
+
         let cache_key = (resolver_prefix, module_info.clone());
         if let Some(v) = self.module_cache.get(&cache_key) {
             return Ok(v);
@@ -248,7 +249,7 @@ impl WasmtimeLinker {
         .await;
 
         if result.is_err() {
-            log::error!(
+            tracing::error!(
                 "failed to emit error back to wasm runtime. error: {}",
                 result.err().unwrap()
             );
@@ -482,6 +483,8 @@ impl Linker for WasmtimeLinker {
                 },
             );
 
+            tracing::debug!("importing symbol {:?}", symbol.clone());
+
             linker
                 .define(&store, module_name.as_str(), import.name(), imported_func)
                 .map_err(|e| Error::LinkerLinkFailed {
@@ -517,7 +520,7 @@ impl Linker for WasmtimeLinker {
 
             // Ignore export if spoofing was detected.
             if module_name != module_info.name {
-                log::warn!(
+                tracing::warn!(
                     "detected module spoofing! exported symbol: '{}', expected module name: '{}'",
                     export.name(),
                     module_info.name
@@ -536,6 +539,8 @@ impl Linker for WasmtimeLinker {
                 target: module_info.clone(),
                 source: e,
             })?;
+
+            tracing::debug!("exporting symbol: {:?}", symbol.clone());
 
             let exported_store = shared_store.clone();
             let exported_context = wasmtime_context.clone();

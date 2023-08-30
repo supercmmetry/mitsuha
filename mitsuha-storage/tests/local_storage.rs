@@ -25,7 +25,7 @@ fn get_root_dir() -> String {
 fn setup_root_dir() {
     let root_dir = get_root_dir();
 
-    log::info!("test root dir set to '{}'", root_dir);
+    tracing::info!("test root dir set to '{}'", root_dir);
 
     LOCAL_ROOT_DIR_SETUP_ONCE.call_once(|| {
         _ = std::fs::remove_dir_all(root_dir.clone());
