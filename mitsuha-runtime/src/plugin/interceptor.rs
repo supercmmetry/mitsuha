@@ -20,7 +20,7 @@ impl Plugin for InterceptorPlugin {
         let conn = tonic::transport::Endpoint::new(target_address.clone())
             .map_err(|e| Error::Unknown { source: e.into() })?
             .connect_lazy();
-        
+
         let client = InterceptorClient::new(conn);
 
         let raw_channel = InterceptorChannel::new(client);

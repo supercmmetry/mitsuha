@@ -6,5 +6,6 @@ members = [
     "mitsuha-wasm-runtime",
     "mitsuha-storage",
     "mitsuha-channel",
-    "mitsuha-qflow"
+    "mitsuha-qflow",
+    "mitsuha-policy-engine"
 ]
