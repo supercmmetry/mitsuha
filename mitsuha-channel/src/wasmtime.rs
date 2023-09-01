@@ -48,7 +48,7 @@ impl ComputeChannel for WasmtimeChannel {
         match elem {
             ComputeInput::Run { spec } if spec.symbol.module_info.modtype == ModuleType::WASM => {
                 let job_handle_span = info_span!("run", job_handle = spec.handle);
-                let job_handle_span_entered = job_handle_span.enter();
+                let _job_handle_span_entered = job_handle_span.enter();
 
                 let handle = spec.handle.clone();
 

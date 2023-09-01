@@ -7,7 +7,6 @@ use mitsuha_core::{
     types,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
-use tracing::Instrument;
 
 use crate::{context::ChannelContext, job_controller::JobState, WrappedComputeChannel};
 

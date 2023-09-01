@@ -13,6 +13,7 @@ mitsuha-storage = { path = "../mitsuha-storage" }
 mitsuha-wasm-runtime = { path = "../mitsuha-wasm-runtime" }
 mitsuha-qflow = { path = "../mitsuha-qflow" }
 mitsuha-runtime-rpc = { path = "../mitsuha-runtime-rpc" }
+mitsuha-policy-engine = { path = "../mitsuha-policy-engine" }
 
 dashmap = "5.4.0"
 tokio = { version = "1.24.1", features = ["full"] }

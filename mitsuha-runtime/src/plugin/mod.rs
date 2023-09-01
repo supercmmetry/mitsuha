@@ -13,7 +13,7 @@ use self::{
     namespacer::NamespacerPlugin,
     one_storage::OneStoragePlugin,
     qflow::QFlowPlugin,
-    wasmtime::WasmtimePlugin,
+    wasmtime::WasmtimePlugin, enforcer::EnforcerPlugin,
 };
 
 pub mod common;
@@ -23,6 +23,7 @@ pub mod namespacer;
 pub mod one_storage;
 pub mod qflow;
 pub mod wasmtime;
+pub mod enforcer;
 
 #[derive(Clone)]
 pub struct PluginContext {
@@ -74,6 +75,7 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
         Box::new(QFlowPlugin),
         Box::new(NamespacerPlugin),
         Box::new(InterceptorPlugin),
+        Box::new(EnforcerPlugin),
     ];
 
     let plugin_map: HashMap<&'static str, Box<dyn Plugin>> = plugin_list

@@ -18,6 +18,7 @@ pub mod qflow;
 pub mod system;
 mod util;
 pub mod wasmtime;
+pub mod enforcer;
 
 pub struct WrappedComputeChannel<T: ComputeChannel> {
     inner: T,

@@ -30,7 +30,7 @@ pub enum Subject {
 }
 
 #[async_trait]
-pub trait PolicyEngine {
+pub trait PolicyEngine: Send + Sync {
     async fn evaluate(&self, input: &ComputeInput, policies: &Vec<Policy>) -> types::Result<bool>;
 
     async fn contains(&self, parent: &Vec<Policy>, child: &Vec<Policy>) -> types::Result<bool>;
