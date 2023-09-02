@@ -59,6 +59,19 @@ impl ComputeInput {
             ComputeInput::Abort { extensions, .. } => Some(extensions),
         }
     }
+
+    pub fn get_extensions_mut(&mut self) -> Option<&mut HashMap<String, String>> {
+        match self {
+            ComputeInput::Store { spec } => Some(&mut spec.extensions),
+            ComputeInput::Load { extensions, .. } => Some(extensions),
+            ComputeInput::Persist { extensions, .. } => Some(extensions),
+            ComputeInput::Clear { extensions, .. } => Some(extensions),
+            ComputeInput::Run { spec } => Some(&mut spec.extensions),
+            ComputeInput::Extend { extensions, .. } => Some(extensions),
+            ComputeInput::Status { extensions, .. } => Some(extensions),
+            ComputeInput::Abort { extensions, .. } => Some(extensions),
+        }
+    }
 }
 
 pub enum ComputeOutput {
