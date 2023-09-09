@@ -1,0 +1,47 @@
+name: Continuous Integration
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Cache build
+        uses: actions/cache@v2
+        env:
+          cache-name: build-cache
+        with:
+          path: |
+            ~/.cache/mitsuha
+
+          key: ${{ runner.os }}-${{ env.cache-name }}-${{ secrets.CACHE_VERSION }}-${{ github.ref }}
+          restore-keys: |
+            ${{ runner.os }}-${{ env.cache-name }}-${{ secrets.CACHE_VERSION }}-master
+      
+      - name: Load cache for all targets
+        run: make CACHE_DIR=~/.cache load-cache
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update; \
+          sudo apt install -y protobuf-compiler; \
+          rustup target add wasm32-unknown-unknown;
+
+      - name: Build all targets
+        run: make build
+
+      - name: Cache all targets
+        run: make CACHE_DIR=~/.cache cache
+
+      - name: Run lightweight tests
+        run: make test-light

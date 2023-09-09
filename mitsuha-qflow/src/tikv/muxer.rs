@@ -224,7 +224,7 @@ mod tests {
         let muxer = TikvQueueMuxer::new(client.clone(), 1).await.unwrap();
 
         for _i in 0..10 {
-            let mut tx = client.begin_pessimistic().await.unwrap();
+            let mut tx = client.begin_optimistic().await.unwrap();
 
             assert_eq!(0, muxer.get_producer_queue_index(&mut tx).await.unwrap());
 
@@ -243,7 +243,7 @@ mod tests {
         let mut visited = vec![false; 10];
 
         for _ in 0..10 {
-            let mut tx = client.begin_pessimistic().await.unwrap();
+            let mut tx = client.begin_optimistic().await.unwrap();
 
             let index = muxer.get_producer_queue_index(&mut tx).await.unwrap();
             visited[index as usize] = true;

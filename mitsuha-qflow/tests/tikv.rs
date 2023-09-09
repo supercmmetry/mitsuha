@@ -62,7 +62,7 @@ async fn test_spmc_processing() {
         100,
         |x, y| Box::pin(reader_fn(x, y)),
         100,
-        100,
+        1000,
         false,
     )
     .await;
