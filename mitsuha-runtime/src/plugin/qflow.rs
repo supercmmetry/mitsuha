@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use mitsuha_channel::qflow::QFlowWriterChannel;
-use mitsuha_core::{errors::Error, types};
+use mitsuha_core::{errors::Error, types, config::Config};
 
 use super::{initialize_channel, Plugin, PluginContext};
 
@@ -16,6 +16,8 @@ impl Plugin for QFlowPlugin {
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
+        let channel_id = ctx.extensions.get("channel_id").unwrap().clone();
+
         let client_id = ctx
             .extensions
             .get("client_id")
@@ -31,7 +33,7 @@ impl Plugin for QFlowPlugin {
             .await
             .map_err(|e| Error::Unknown { source: e })?;
 
-        let raw_channel = QFlowWriterChannel::new(writer);
+        let raw_channel = QFlowWriterChannel::new(writer.clone());
 
         let channel = initialize_channel(&ctx, raw_channel)?;
 
@@ -40,6 +42,23 @@ impl Plugin for QFlowPlugin {
 
         let channel_start = ctx.channel_start.clone();
         let channel_context = ctx.channel_context.clone();
+
+        let cloned_reader = reader.clone();
+
+        tokio::task::spawn(async move {
+            loop {
+                if let Ok(config) = Config::global().await {
+                    for plugin in config.plugins.iter() {
+                        if plugin.extensions.get("channel_id").unwrap().clone() == channel_id {
+                            _ = writer.update_configuration(plugin.extensions.clone()).await;
+                            _ = cloned_reader.update_configuration(plugin.extensions.clone()).await;
+                        }
+                    }
+                }
+
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        });
 
         tokio::task::spawn(async move {
             loop {

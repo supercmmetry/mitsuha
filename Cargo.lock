@@ -1720,11 +1720,14 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "strum",
+ "strum_macros",
  "tikv-client",
  "tokio",
  "tonic",
  "tonic-health",
  "tonic-reflection",
+ "tracing",
  "uuid",
 ]
 

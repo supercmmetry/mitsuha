@@ -85,7 +85,7 @@ impl JobController {
                 })?
                 .parse::<u64>()
                 .map_err(|e| Error::Unknown { source: e.into() })?,
-            extensions: Default::default(),
+            extensions: spec.extensions.clone(),
         };
 
         channel_context

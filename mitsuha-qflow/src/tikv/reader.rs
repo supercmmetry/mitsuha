@@ -1,12 +1,12 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashMap};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use mitsuha_core::channel::ComputeInput;
 
-use crate::{util, Reader};
+use crate::{util, Reader, System};
 
-use super::muxer::TikvQueueMuxer;
+use super::{muxer::TikvQueueMuxer, constants::Constants};
 
 pub struct TikvReader {
     client: Arc<tikv_client::TransactionClient>,
@@ -113,6 +113,23 @@ impl TikvReader {
         let value = musubi_api::types::Value::try_from(data.unwrap())?;
 
         Ok(musubi_api::types::from_value(value)?)
+    }
+}
+
+#[async_trait]
+impl System for TikvReader {
+    async fn update_configuration(&self, patch: HashMap<String, String>) -> anyhow::Result<()> {
+        for (key, value) in patch {
+            match key {
+                k if k == Constants::DesiredQueueCount.to_string() => {
+                    let desired_queue_count: u64 = value.parse()?;
+                    self.muxer.update_desired_queue_count(desired_queue_count).await?;
+                },
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
 }
 

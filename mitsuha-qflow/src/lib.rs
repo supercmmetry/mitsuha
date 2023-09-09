@@ -11,12 +11,17 @@ pub mod tikv;
 pub mod util;
 
 #[async_trait]
-pub trait Reader: Send + Sync {
+pub trait System {
+    async fn update_configuration(&self, patch: HashMap<String, String>) -> anyhow::Result<()>;
+}
+
+#[async_trait]
+pub trait Reader: System + Send + Sync {
     async fn read_compute_input(&self, client_id: String) -> anyhow::Result<ComputeInput>;
 }
 
 #[async_trait]
-pub trait Writer: Send + Sync {
+pub trait Writer: System + Send + Sync {
     async fn write_compute_input(&self, input: ComputeInput) -> anyhow::Result<()>;
 }
 

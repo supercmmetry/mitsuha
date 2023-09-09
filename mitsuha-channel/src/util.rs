@@ -19,7 +19,7 @@ pub fn make_output_storage_spec(job_spec: JobSpec, data: Vec<u8>) -> types::Resu
         handle: job_spec.output_handle,
         data,
         ttl,
-        extensions: Default::default(),
+        extensions: job_spec.extensions,
     };
 
     Ok(storage_spec)

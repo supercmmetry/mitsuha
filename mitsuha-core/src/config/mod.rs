@@ -2,8 +2,11 @@ pub mod api;
 pub mod plugin;
 pub mod storage;
 
+use anyhow::anyhow;
+use lazy_static::lazy_static;
 use serde::Deserialize;
-use std::{env, path::Path};
+use tokio::sync::RwLock;
+use std::{env, path::Path, sync::{Arc, Once}, time::Duration};
 
 use self::{api::Api, plugin::Plugin, storage::Storage};
 
@@ -12,6 +15,12 @@ pub struct Config {
     pub api: Api,
     pub storage: Storage,
     pub plugins: Vec<Plugin>,
+}
+
+lazy_static! {
+    static ref GLOBAL_CONFIG: Arc<RwLock<Option<Config>>> = Arc::new(RwLock::new(Config::new().ok()));
+
+    static ref GLOBAL_CONFIG_TRACKER_ONCE: Once = Once::new();
 }
 
 impl Config {
@@ -75,5 +84,22 @@ impl Config {
         let run_mode =
             env::var("MITSUHA_RUNTIME_RUN_MODE").unwrap_or_else(|_| "development".into());
         Self::custom_run_mode(run_mode)
+    }
+
+    pub async fn global() -> anyhow::Result<Self> {
+        let config = GLOBAL_CONFIG.read().await.clone();
+
+        config.ok_or(anyhow!("failed to load configuration"))
+    }
+
+    pub fn start_global_tracker() {
+        GLOBAL_CONFIG_TRACKER_ONCE.call_once(|| {
+            let config = GLOBAL_CONFIG.clone();
+
+            tokio::task::spawn(async move {
+                *config.write().await = Config::new().ok();
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            });
+        });
     }
 }

@@ -1,5 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use mitsuha_core::{kernel::JobSpec, symbol::Symbol, module::ModuleInfo, channel::ComputeInput};
 use mitsuha_qflow::{
     tikv::{make_tikv_reader, make_tikv_writer},
     Reader, Writer,
@@ -47,7 +48,7 @@ async fn test_spsc_processing() {
         1,
         |x, y| Box::pin(reader_fn(x, y)),
         1,
-        1,
+        10000,
         false,
     )
     .await;

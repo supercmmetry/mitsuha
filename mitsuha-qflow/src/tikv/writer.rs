@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashMap};
 
 use async_trait::async_trait;
 use mitsuha_core::channel::ComputeInput;
 
-use crate::{util, Writer};
+use crate::{util, Writer, System};
 
-use super::muxer::TikvQueueMuxer;
+use super::{muxer::TikvQueueMuxer, constants::Constants};
 
 pub struct TikvWriter {
     client: Arc<tikv_client::TransactionClient>,
@@ -102,6 +102,24 @@ impl TikvWriter {
         }
 
         Ok(true)
+    }
+}
+
+#[async_trait]
+impl System for TikvWriter {
+    async fn update_configuration(&self, patch: HashMap<String, String>) -> anyhow::Result<()> {
+        for (key, value) in patch {
+            match key {
+                k if k == Constants::DesiredQueueCount.to_string() => {
+                    let desired_queue_count: u64 = value.parse()?;
+
+                    self.muxer.update_desired_queue_count(desired_queue_count).await?;
+                },
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
 }
 
