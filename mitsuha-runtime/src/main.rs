@@ -1,12 +1,15 @@
 mod plugin;
 mod service;
+mod telemetry;
 
 use mitsuha_core::config::Config;
+use opentelemetry::trace::TracerProvider;
 use plugin::{load_plugins, PluginContext};
 use service::channel::ChannelService;
 
 use mitsuha_channel::context::ChannelContext;
 use tracing::Level;
+use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry};
 
 use std::sync::Once;
 
@@ -32,17 +35,9 @@ pub async fn make_channel_context(config: &Config) -> ChannelContext {
 async fn main() {
     let _ = dotenv::dotenv();
 
-    tracing_log::LogTracer::init().expect("Unable to setup log tracer!");
-
-    let subscriber = tracing_subscriber::fmt()
-        // filter spans/events with level TRACE or higher.
-        .with_max_level(Level::DEBUG)
-        // build but do not install the subscriber.
-        .finish();
-
-    tracing::subscriber::set_global_default(subscriber).unwrap();
-
     let config = Config::new().unwrap();
+
+    telemetry::setup(&config).unwrap();
 
     let channel_context = make_channel_context(&config).await;
 

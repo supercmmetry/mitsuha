@@ -1,6 +1,7 @@
 pub mod api;
 pub mod plugin;
 pub mod storage;
+pub mod telemetry;
 
 use anyhow::anyhow;
 use lazy_static::lazy_static;
@@ -8,13 +9,14 @@ use serde::Deserialize;
 use tokio::sync::RwLock;
 use std::{env, path::Path, sync::{Arc, Once}, time::Duration};
 
-use self::{api::Api, plugin::Plugin, storage::Storage};
+use self::{api::Api, plugin::Plugin, storage::Storage, telemetry::Telemetry};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub api: Api,
     pub storage: Storage,
     pub plugins: Vec<Plugin>,
+    pub telemetry: Telemetry,
 }
 
 lazy_static! {

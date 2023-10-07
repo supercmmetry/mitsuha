@@ -9,21 +9,22 @@ use mitsuha_core::{
 use self::{
     common::{EofPlugin, SystemPlugin},
     delegator::DelegatorPlugin,
+    enforcer::EnforcerPlugin,
     interceptor::InterceptorPlugin,
     namespacer::NamespacerPlugin,
     one_storage::OneStoragePlugin,
     qflow::QFlowPlugin,
-    wasmtime::WasmtimePlugin, enforcer::EnforcerPlugin,
+    wasmtime::WasmtimePlugin,
 };
 
 pub mod common;
 pub mod delegator;
+pub mod enforcer;
 pub mod interceptor;
 pub mod namespacer;
 pub mod one_storage;
 pub mod qflow;
 pub mod wasmtime;
-pub mod enforcer;
 
 #[derive(Clone)]
 pub struct PluginContext {
@@ -89,7 +90,7 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
     for plugin_config in plugin_configs {
         let plugin = plugin_map.get(plugin_config.name.as_str()).unwrap();
 
-        ctx.extensions = plugin_config.extensions;
+        ctx.extensions = plugin_config.properties;
 
         let new_ctx = plugin.run(ctx.clone()).await.unwrap();
 

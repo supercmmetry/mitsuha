@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use mitsuha_channel::qflow::QFlowWriterChannel;
-use mitsuha_core::{errors::Error, types, config::Config};
+use mitsuha_core::{config::Config, errors::Error, types};
 
 use super::{initialize_channel, Plugin, PluginContext};
 
@@ -49,9 +49,11 @@ impl Plugin for QFlowPlugin {
             loop {
                 if let Ok(config) = Config::global().await {
                     for plugin in config.plugins.iter() {
-                        if plugin.extensions.get("channel_id").unwrap().clone() == channel_id {
-                            _ = writer.update_configuration(plugin.extensions.clone()).await;
-                            _ = cloned_reader.update_configuration(plugin.extensions.clone()).await;
+                        if plugin.properties.get("channel_id").unwrap().clone() == channel_id {
+                            _ = writer.update_configuration(plugin.properties.clone()).await;
+                            _ = cloned_reader
+                                .update_configuration(plugin.properties.clone())
+                                .await;
                         }
                     }
                 }
