@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use mitsuha_core::{module::ModuleInfo, resolver::Resolver, types};
+use mitsuha_core::{resolver::Resolver, types};
+use mitsuha_core_types::module::ModuleInfo;
 
 use crate::wasmtime::WasmtimeModule;
 

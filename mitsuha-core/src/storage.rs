@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use mitsuha_core_types::kernel::StorageSpec;
 use serde::{Deserialize, Serialize};
 
-use crate::{errors::Error, kernel::StorageSpec, selector::Label, types};
+use crate::{errors::Error, selector::Label, types};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "snake_case")]

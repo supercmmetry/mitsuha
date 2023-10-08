@@ -2,10 +2,10 @@ use std::{path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
+use mitsuha_core_types::kernel::StorageSpec;
 use mitsuha_core::{
     constants::Constants,
     errors::Error,
-    kernel::StorageSpec,
     storage::{GarbageCollectable, Storage, StorageClass},
     types,
 };

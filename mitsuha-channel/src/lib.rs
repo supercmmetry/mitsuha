@@ -3,10 +3,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use context::ChannelContext;
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    channel::ComputeChannel,
     errors::Error,
     types,
 };
+use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 
 pub mod context;
 pub mod delegator;

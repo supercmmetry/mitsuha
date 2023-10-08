@@ -2,12 +2,11 @@ use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use futures::stream::AbortHandle;
 use mitsuha_core::{
-    channel::{ComputeInput, ComputeOutput},
     constants::Constants,
     errors::Error,
-    kernel::{JobSpec, JobStatus, JobStatusType, StorageSpec},
     types,
 };
+use mitsuha_core_types::{kernel::{JobSpec, JobStatusType, JobStatus, StorageSpec}, channel::{ComputeInput, ComputeOutput}};
 use tokio::{
     sync::mpsc::{Receiver, Sender},
     task::JoinHandle,

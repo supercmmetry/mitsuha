@@ -2,11 +2,11 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use dashmap::DashMap;
+use mitsuha_core_types::kernel::StorageSpec;
 use mitsuha_core::{
     config,
     constants::Constants,
     errors::Error,
-    kernel::StorageSpec,
     selector::Label,
     storage::{GarbageCollectable, Storage, StorageClass, StorageKind, StorageLocality},
     types,

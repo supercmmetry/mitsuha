@@ -1,9 +1,9 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use mitsuha_core_types::kernel::StorageSpec;
 use mitsuha_core::{
     config,
     constants::Constants,
-    kernel::StorageSpec,
     selector::Label,
     storage::{Storage, StorageClass, StorageLocality},
 };

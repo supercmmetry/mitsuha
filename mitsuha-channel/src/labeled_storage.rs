@@ -2,12 +2,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    channel::ComputeChannel,
     errors::Error,
     selector::Label,
     storage::Storage,
-    types,
+    types, kernel::StorageSpecExt,
 };
+use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use tokio::sync::RwLock;
 
 use crate::WrappedComputeChannel;

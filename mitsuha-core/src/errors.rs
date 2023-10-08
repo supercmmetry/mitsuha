@@ -1,4 +1,6 @@
-use crate::{module::ModuleInfo, symbol::Symbol};
+use mitsuha_core_types::{module::ModuleInfo, symbol::Symbol};
+
+
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

@@ -4,9 +4,9 @@ use chrono::{Duration, Utc};
 use dashmap::DashMap;
 use mitsuha_core::{
     channel::ComputeChannel,
-    kernel::{JobStatus, JobStatusType},
     types,
 };
+use mitsuha_core_types::kernel::{JobStatusType, JobStatus};
 
 use crate::{job_controller::JobState, system::JobContext};
 use mitsuha_core::errors::Error;

@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    channel::{ComputeChannel, ComputeInputExt},
     constants::Constants,
     errors::Error,
     types,
 };
+use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 
 use crate::{context::ChannelContext, WrappedComputeChannel};
 
@@ -106,13 +107,11 @@ mod test {
     use async_trait::async_trait;
     use lazy_static::lazy_static;
     use mitsuha_core::{
-        channel::{ComputeChannel, ComputeInput, ComputeOutput},
+        channel::ComputeChannel,
         constants::Constants,
-        kernel::{JobSpec, StorageSpec},
-        module::ModuleInfo,
-        symbol::Symbol,
         types,
     };
+    use mitsuha_core_types::{channel::{ComputeInput, ComputeOutput}, symbol::Symbol, kernel::{JobSpec, StorageSpec}, module::ModuleInfo};
     use tokio::sync::RwLock;
 
     use crate::context::ChannelContext;
@@ -188,7 +187,7 @@ mod test {
                             module_info: ModuleInfo {
                                 name: "mitsuha.test".to_string(),
                                 version: "0.1.0".to_string(),
-                                modtype: mitsuha_core::module::ModuleType::WASM,
+                                modtype: mitsuha_core_types::module::ModuleType::WASM,
                             },
                             name: "run".to_string(),
                         },

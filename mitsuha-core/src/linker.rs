@@ -1,12 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use mitsuha_core_types::{module::ModuleInfo, kernel::JobSpec};
 
 use crate::{
     constants::Constants,
     executor::ExecutorContext,
-    kernel::{JobSpec, KernelBinding},
-    module::ModuleInfo,
+    kernel::KernelBinding,
     resolver::Resolver,
     types,
 };

@@ -7,11 +7,11 @@ use mitsuha_core::{
     executor::ExecutorContext,
     kernel::KernelBinding,
     linker::{Linker, LinkerContext},
-    module::{Module, ModuleInfo, ModuleType},
+    module::Module,
     resolver::Resolver,
-    symbol::Symbol,
-    types::{self, SharedAsyncMany},
+    types::{self, SharedAsyncMany}, symbol::SymbolExt,
 };
+use mitsuha_core_types::{module::{ModuleInfo, ModuleType}, symbol::Symbol};
 use num_traits::cast::FromPrimitive;
 
 use crate::{constants::Constants, resolver::wasmtime::WasmtimeModuleResolver};

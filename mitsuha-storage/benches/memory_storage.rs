@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use mitsuha_core::kernel::StorageSpec;
+use mitsuha_core_types::kernel::StorageSpec;
 use mitsuha_core::{
     config,
     constants::Constants,

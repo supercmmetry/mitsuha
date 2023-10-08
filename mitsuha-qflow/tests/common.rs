@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use mitsuha_core::{channel::ComputeInput, kernel::JobSpec, module::ModuleInfo, symbol::Symbol};
+use mitsuha_core_types::{channel::ComputeInput, kernel::JobSpec, module::ModuleInfo, symbol::Symbol};
 use mitsuha_qflow::{Reader, Writer};
 use tokio::sync::RwLock;
 
@@ -32,7 +32,7 @@ pub async fn test_rw_processing(
                 module_info: ModuleInfo {
                     name: "sample".to_string(),
                     version: "0.1.0".to_string(),
-                    modtype: mitsuha_core::module::ModuleType::WASM,
+                    modtype: mitsuha_core_types::module::ModuleType::WASM,
                 },
                 name: "run".to_string(),
             },

@@ -3,7 +3,8 @@ use std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
-use mitsuha_core::{constants::Constants, errors::Error, kernel::StorageSpec, types};
+use mitsuha_core_types::kernel::StorageSpec;
+use mitsuha_core::{constants::Constants, errors::Error, types};
 
 use mitsuha_core::storage::{GarbageCollectable, Storage};
 

@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+mitsuha_core_types = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+
 mitsuha-core = { path = "../mitsuha-core" }
 
 serde = "1.0.148"

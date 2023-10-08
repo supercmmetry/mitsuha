@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    channel::ComputeChannel,
     errors::Error,
     types,
 };
+use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{context::ChannelContext, job_controller::JobState, WrappedComputeChannel};

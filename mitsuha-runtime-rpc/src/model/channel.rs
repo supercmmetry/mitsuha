@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use mitsuha_core::{
+use mitsuha_core_types::{
     channel::{ComputeInput, ComputeOutput},
     kernel::{JobSpec, JobStatus, JobStatusType, StorageSpec},
     module::{ModuleInfo, ModuleType},

@@ -4,15 +4,15 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use futures::stream::{AbortHandle, Abortable};
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    channel::ComputeChannel,
     constants::Constants,
     errors::Error,
-    kernel::{JobSpec, Kernel, KernelBinding, KernelBridge},
+    kernel::{Kernel, KernelBinding, KernelBridge, JobSpecExt},
     linker::{Linker, LinkerContext},
-    module::{ModuleInfo, ModuleType},
     resolver::{blob::BlobResolver, Resolver},
     types,
 };
+use mitsuha_core_types::{channel::{ComputeInput, ComputeOutput}, module::{ModuleType, ModuleInfo}, kernel::JobSpec};
 use mitsuha_wasm_runtime::wasmtime::WasmtimeLinker;
 use tokio::{sync::RwLock, task::JoinHandle};
 use tracing::{info_span, Instrument};

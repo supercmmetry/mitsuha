@@ -8,11 +8,11 @@ use mitsuha_core::{
     channel::{ComputeChannel, ComputeKernel},
     config,
     kernel::Kernel,
-    module::ModuleInfo,
     resolver::{blob::BlobResolver, Resolver},
     selector::Label,
     storage::{Storage, StorageClass, StorageLocality},
 };
+use mitsuha_core_types::module::ModuleInfo;
 use mitsuha_storage::UnifiedStorage;
 use std::sync::Once;
 

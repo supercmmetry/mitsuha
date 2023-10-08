@@ -2,11 +2,11 @@ use std::{collections::HashSet, sync::Arc};
 
 use async_trait::async_trait;
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    channel::ComputeChannel,
     errors::Error,
-    kernel::{JobStatus, JobStatusType},
     types,
 };
+use mitsuha_core_types::{channel::{ComputeInput, ComputeOutput}, kernel::{JobStatus, JobStatusType}};
 use tokio::sync::RwLock;
 
 use crate::{context::ChannelContext, WrappedComputeChannel};

@@ -62,7 +62,7 @@ pub async fn make_tikv_reader(
 mod test {
     use std::{sync::Arc, time::Duration, collections::HashMap};
 
-    use mitsuha_core::channel::ComputeInput;
+    use mitsuha_core_types::channel::ComputeInput;
 
     use crate::{tikv::{muxer::TikvQueueMuxer, writer::TikvWriter, reader::TikvReader}, Writer, Reader, System};
 

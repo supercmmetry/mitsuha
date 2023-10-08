@@ -1,19 +1,27 @@
 use futures::future::BoxFuture;
-use serde::{Deserialize, Serialize};
+use mitsuha_core_types::{module::{ModuleInfo, ModuleType}, symbol::Symbol};
 
-use crate::{
-    module::{ModuleInfo, ModuleType},
-    types::SharedAsyncMany,
-};
+use crate::types::SharedAsyncMany;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Symbol {
-    pub module_info: ModuleInfo,
-    pub name: String,
+pub trait SymbolExt {
+    fn to_exported_function_symbol(&self) -> String;
+    fn to_imported_function_symbol(&self) -> String;
+    fn parse_musubi_function_symbol(symbol: &str) -> anyhow::Result<(String, String)>;
+    fn from_imported_function_symbol(
+        symbol: &str,
+        modtype: ModuleType,
+        version: &str,
+    ) -> anyhow::Result<Self> where Self: Sized;
+
+    fn from_exported_function_symbol(
+        symbol: &str,
+        modtype: ModuleType,
+        version: &str,
+    ) -> anyhow::Result<Self> where Self: Sized;
 }
 
-impl Symbol {
-    pub fn to_exported_function_symbol(&self) -> String {
+impl SymbolExt for Symbol {
+    fn to_exported_function_symbol(&self) -> String {
         format!(
             "__musubi_exported_function__mod__{}__fun__{}",
             musubi_api::utils::sanitize_module_name(self.module_info.name.as_str()),
@@ -21,7 +29,7 @@ impl Symbol {
         )
     }
 
-    pub fn to_imported_function_symbol(&self) -> String {
+    fn to_imported_function_symbol(&self) -> String {
         format!(
             "__musubi_imported_function__mod__{}__fun__{}",
             musubi_api::utils::sanitize_module_name(self.module_info.name.as_str()),
@@ -29,7 +37,7 @@ impl Symbol {
         )
     }
 
-    pub fn parse_musubi_function_symbol(symbol: &str) -> anyhow::Result<(String, String)> {
+    fn parse_musubi_function_symbol(symbol: &str) -> anyhow::Result<(String, String)> {
         let split_1: Vec<&str> = symbol.split("__mod__").into_iter().collect();
         if split_1.len() != 2 {
             return Err(anyhow::anyhow!(
@@ -62,7 +70,7 @@ impl Symbol {
         Ok((unsanitized_module_name, function_name.to_string()))
     }
 
-    pub fn from_imported_function_symbol(
+    fn from_imported_function_symbol(
         symbol: &str,
         modtype: ModuleType,
         version: &str,
@@ -85,7 +93,7 @@ impl Symbol {
         })
     }
 
-    pub fn from_exported_function_symbol(
+    fn from_exported_function_symbol(
         symbol: &str,
         modtype: ModuleType,
         version: &str,

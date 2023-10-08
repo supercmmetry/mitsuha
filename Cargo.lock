@@ -1657,6 +1657,7 @@ dependencies = [
  "mitsuha-runtime-rpc",
  "mitsuha-storage",
  "mitsuha-wasm-runtime",
+ "mitsuha_core_types",
  "musubi_api",
  "musubi_wasmtime",
  "rand 0.8.5",
@@ -1680,6 +1681,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "log4rs",
+ "mitsuha_core_types",
  "musubi_api",
  "redis",
  "reqwest",
@@ -1699,6 +1701,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "mitsuha-core",
+ "mitsuha_core_types",
  "serde",
  "serde_json",
  "tokio",
@@ -1714,6 +1717,7 @@ dependencies = [
  "env_logger",
  "lazy_static",
  "mitsuha-core",
+ "mitsuha_core_types",
  "musubi_api",
  "prost",
  "prost-types",
@@ -1776,7 +1780,7 @@ dependencies = [
  "chrono",
  "env_logger",
  "lazy_static",
- "mitsuha-core",
+ "mitsuha_core_types",
  "prost",
  "prost-types",
  "serde",
@@ -1802,6 +1806,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "mitsuha-core",
+ "mitsuha_core_types",
  "moka",
  "rand 0.8.5",
  "serde",
@@ -1824,6 +1829,7 @@ dependencies = [
  "lazy_static",
  "mitsuha-core",
  "mitsuha-storage",
+ "mitsuha_core_types",
  "moka",
  "musubi_api",
  "musubi_wasmtime",
@@ -1837,6 +1843,19 @@ dependencies = [
  "tracing",
  "wasmparser 0.96.0",
  "wasmtime",
+]
+
+[[package]]
+name = "mitsuha_core_types"
+version = "0.1.0"
+source = "git+https://github.com/supercmmetry/musubi?branch=master#cdf2f9ecd31da57323ab8f4cfdc649cd3980fc1b"
+dependencies = [
+ "chrono",
+ "musubi_api",
+ "serde",
+ "serde_json",
+ "strum",
+ "strum_macros",
 ]
 
 [[package]]
@@ -1873,7 +1892,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 [[package]]
 name = "musubi_api"
 version = "0.1.0"
-source = "git+https://github.com/supercmmetry/musubi?branch=master#dc29ff54bc0fc7cd4b80bfaa71188e39a1e42631"
+source = "git+https://github.com/supercmmetry/musubi?branch=master#cdf2f9ecd31da57323ab8f4cfdc649cd3980fc1b"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -1891,7 +1910,7 @@ dependencies = [
 [[package]]
 name = "musubi_wasmtime"
 version = "0.1.0"
-source = "git+https://github.com/supercmmetry/musubi?branch=master#dc29ff54bc0fc7cd4b80bfaa71188e39a1e42631"
+source = "git+https://github.com/supercmmetry/musubi?branch=master#cdf2f9ecd31da57323ab8f4cfdc649cd3980fc1b"
 dependencies = [
  "anyhow",
  "musubi_api",

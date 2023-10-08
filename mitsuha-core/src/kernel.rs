@@ -1,8 +1,9 @@
-use crate::{constants::Constants, errors::Error, selector::Label, symbol::Symbol, types};
+use crate::{constants::Constants, errors::Error, selector::Label, types};
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
+use mitsuha_core_types::{symbol::Symbol, kernel::{JobSpec, StorageSpec, JobStatus}};
 use musubi_api::{
     types::{Data, HashableValue, Value},
     DataBuilder,
@@ -12,19 +13,18 @@ use serde::{Deserialize, Serialize};
 use async_trait::async_trait;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JobSpec {
-    pub handle: String,
-    pub symbol: Symbol,
-    pub input_handle: String,
-    pub output_handle: String,
-    pub status_handle: String,
-    pub ttl: u64,
-    pub extensions: HashMap<String, String>,
+pub trait JobSpecExt {
+    fn get_output_ttl(&self) -> types::Result<u64>;
+
+    fn get_kernel_bridge_metadata(&self) -> types::Result<Option<KernelBridgeMetadata>>;
+
+    fn make_kernel_bridge_metadata(&self) -> types::Result<KernelBridgeMetadata>;
+
+    fn load_kernel_bridge_metadata(&mut self, metadata: &KernelBridgeMetadata);
 }
 
-impl JobSpec {
-    pub fn get_output_ttl(&self) -> types::Result<u64> {
+impl JobSpecExt for JobSpec {
+    fn get_output_ttl(&self) -> types::Result<u64> {
         let mut ttl = self.ttl;
         if let Some(v) = self.extensions.get(&Constants::JobOutputTTL.to_string()) {
             ttl = v
@@ -35,7 +35,7 @@ impl JobSpec {
         Ok(ttl)
     }
 
-    pub fn get_kernel_bridge_metadata(&self) -> types::Result<Option<KernelBridgeMetadata>> {
+    fn get_kernel_bridge_metadata(&self) -> types::Result<Option<KernelBridgeMetadata>> {
         let kernel_bridge_metadata_key = &Constants::JobKernelBridgeMetadata.to_string();
 
         match self.extensions.get(kernel_bridge_metadata_key) {
@@ -48,7 +48,7 @@ impl JobSpec {
         }
     }
 
-    pub fn make_kernel_bridge_metadata(&self) -> types::Result<KernelBridgeMetadata> {
+    fn make_kernel_bridge_metadata(&self) -> types::Result<KernelBridgeMetadata> {
         let existing_metadata = self.get_kernel_bridge_metadata()?;
 
         let mut new_metadata = KernelBridgeMetadata {
@@ -65,7 +65,7 @@ impl JobSpec {
         Ok(new_metadata)
     }
 
-    pub fn load_kernel_bridge_metadata(&mut self, metadata: &KernelBridgeMetadata) {
+    fn load_kernel_bridge_metadata(&mut self, metadata: &KernelBridgeMetadata) {
         self.ttl = metadata.job_ttl;
         self.extensions.insert(
             Constants::JobOutputTTL.to_string(),
@@ -74,30 +74,12 @@ impl JobSpec {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum JobStatusType {
-    Running,
-    Completed,
-    Aborted,
-    ExpiredAt { datetime: DateTime<Utc> },
+pub trait StorageSpecExt {
+    fn with_selector(self, label: &Label) -> Self;
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct JobStatus {
-    pub status: JobStatusType,
-    pub extensions: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StorageSpec {
-    pub handle: String,
-    pub data: Vec<u8>,
-    pub ttl: u64,
-    pub extensions: HashMap<String, String>,
-}
-
-impl StorageSpec {
-    pub fn with_selector(mut self, label: &Label) -> Self {
+impl StorageSpecExt for StorageSpec {
+    fn with_selector(mut self, label: &Label) -> Self {
         self.extensions.insert(
             Constants::StorageSelectorQuery.to_string(),
             serde_json::to_string(label).unwrap(),

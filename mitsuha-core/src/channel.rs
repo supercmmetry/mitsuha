@@ -1,53 +1,22 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use mitsuha_core_types::{kernel::{StorageSpec, JobSpec, JobStatus}, channel::{ComputeInput, ComputeOutput}};
 
 use crate::{
     errors::Error,
-    kernel::{JobSpec, JobStatus, Kernel, StorageSpec},
+    kernel::Kernel,
     types,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ComputeInput {
-    Store {
-        spec: StorageSpec,
-    },
-    Load {
-        handle: String,
-        extensions: HashMap<String, String>,
-    },
-    Persist {
-        handle: String,
-        ttl: u64,
-        extensions: HashMap<String, String>,
-    },
-    Clear {
-        handle: String,
-        extensions: HashMap<String, String>,
-    },
+pub trait ComputeInputExt {
+    fn get_extensions(&self) -> Option<&HashMap<String, String>>;
 
-    Run {
-        spec: JobSpec,
-    },
-    Extend {
-        handle: String,
-        ttl: u64,
-        extensions: HashMap<String, String>,
-    },
-    Status {
-        handle: String,
-        extensions: HashMap<String, String>,
-    },
-    Abort {
-        handle: String,
-        extensions: HashMap<String, String>,
-    },
+    fn get_extensions_mut(&mut self) -> Option<&mut HashMap<String, String>>;
 }
 
-impl ComputeInput {
-    pub fn get_extensions(&self) -> Option<&HashMap<String, String>> {
+impl ComputeInputExt for ComputeInput {
+    fn get_extensions(&self) -> Option<&HashMap<String, String>> {
         match self {
             ComputeInput::Store { spec } => Some(&spec.extensions),
             ComputeInput::Load { extensions, .. } => Some(extensions),
@@ -60,7 +29,7 @@ impl ComputeInput {
         }
     }
 
-    pub fn get_extensions_mut(&mut self) -> Option<&mut HashMap<String, String>> {
+    fn get_extensions_mut(&mut self) -> Option<&mut HashMap<String, String>> {
         match self {
             ComputeInput::Store { spec } => Some(&mut spec.extensions),
             ComputeInput::Load { extensions, .. } => Some(extensions),
@@ -72,13 +41,6 @@ impl ComputeInput {
             ComputeInput::Abort { extensions, .. } => Some(extensions),
         }
     }
-}
-
-pub enum ComputeOutput {
-    Status { status: JobStatus },
-    Loaded { data: Vec<u8> },
-    Completed,
-    Submitted,
 }
 
 #[async_trait]

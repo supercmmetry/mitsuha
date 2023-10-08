@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use mitsuha_core::{channel::ComputeInput, errors::Error, types};
+use mitsuha_core_types::channel::ComputeInput;
+use mitsuha_core::{errors::Error, types};
 
 use crate::{Policy, PolicyEngine, Action, Permission};
 
@@ -390,7 +391,7 @@ impl StandardPolicyEngine {
 
 #[cfg(test)]
 mod test {
-    use mitsuha_core::channel::ComputeInput;
+    use mitsuha_core_types::channel::ComputeInput;
 
     use crate::{Policy, Permission, Action, PolicyEngine};
 

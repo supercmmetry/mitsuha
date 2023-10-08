@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use mitsuha_core::{channel::ComputeInput, types};
+use mitsuha_core::types;
+use mitsuha_core_types::channel::ComputeInput;
 use serde::{Deserialize, Serialize};
 
 pub mod engine;

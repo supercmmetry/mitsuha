@@ -2,7 +2,7 @@ use std::{sync::Arc, collections::HashMap};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use mitsuha_core::channel::ComputeInput;
+use mitsuha_core_types::channel::ComputeInput;
 
 use crate::{util, Reader, System};
 

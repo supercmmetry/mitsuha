@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
+use mitsuha_core_types::symbol::Symbol;
+
 use crate::{
     errors::Error,
-    symbol::{Symbol, SymbolFunc},
+    symbol::SymbolFunc,
     types,
 };
 

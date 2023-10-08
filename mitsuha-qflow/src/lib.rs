@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use mitsuha_core::channel::ComputeInput;
+use mitsuha_core_types::channel::ComputeInput;
 use tikv::make_tikv_reader;
 
 use tikv::make_tikv_writer;

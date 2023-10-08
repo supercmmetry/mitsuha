@@ -1,7 +1,6 @@
-use mitsuha_core::{
-    kernel::{JobSpec, StorageSpec},
-    types,
-};
+use mitsuha_core_types::kernel::{JobSpec, StorageSpec};
+
+use mitsuha_core::{types, kernel::JobSpecExt};
 use rand::{distributions::Alphanumeric, Rng};
 
 pub fn generate_random_id() -> String {

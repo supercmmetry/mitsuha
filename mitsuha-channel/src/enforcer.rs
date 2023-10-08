@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use mitsuha_core::{
-    channel::{ComputeChannel, ComputeInput, ComputeOutput},
+    channel::{ComputeChannel, ComputeInputExt},
     errors::Error,
     types,
 };
+use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use mitsuha_policy_engine::{PolicyEngine, engine::StandardPolicyEngine, Policy};
 
 use crate::{context::ChannelContext, WrappedComputeChannel};
