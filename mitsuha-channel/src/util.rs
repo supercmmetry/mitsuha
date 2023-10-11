@@ -23,3 +23,7 @@ pub fn make_output_storage_spec(job_spec: JobSpec, data: Vec<u8>) -> types::Resu
 
     Ok(storage_spec)
 }
+
+pub fn make_job_span(handle: &String, executor: &str) -> tracing::span::Span {
+    tracing::info_span!("job_run", job_executor=executor, job_handle=handle)
+}

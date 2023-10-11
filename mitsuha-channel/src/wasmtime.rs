@@ -15,13 +15,13 @@ use mitsuha_core::{
 use mitsuha_core_types::{channel::{ComputeInput, ComputeOutput}, module::{ModuleType, ModuleInfo}, kernel::JobSpec};
 use mitsuha_wasm_runtime::wasmtime::WasmtimeLinker;
 use tokio::{sync::RwLock, task::JoinHandle};
-use tracing::{info_span, Instrument};
+use tracing::Instrument;
 
 use crate::{
     context::ChannelContext,
     job_controller::{JobController, JobState},
     system::JobContext,
-    util::make_output_storage_spec,
+    util::{make_output_storage_spec, self},
     WrappedComputeChannel,
 };
 
@@ -47,7 +47,7 @@ impl ComputeChannel for WasmtimeChannel {
     ) -> types::Result<ComputeOutput> {
         match elem {
             ComputeInput::Run { spec } if spec.symbol.module_info.modtype == ModuleType::WASM => {
-                let job_handle_span = info_span!("run", job_handle = spec.handle);
+                let job_handle_span = util::make_job_span(&spec.handle, "wasmtime");
                 let _job_handle_span_entered = job_handle_span.enter();
 
                 let handle = spec.handle.clone();

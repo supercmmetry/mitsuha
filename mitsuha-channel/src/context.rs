@@ -4,7 +4,7 @@ use chrono::{Duration, Utc};
 use dashmap::DashMap;
 use mitsuha_core::{
     channel::ComputeChannel,
-    types,
+    types, constants::Constants,
 };
 use mitsuha_core_types::{kernel::{JobStatusType, JobStatus, JobSpec}, channel::{ComputeInput, ComputeOutput}};
 
@@ -22,6 +22,7 @@ impl ChannelContext {
     pub async fn get_local_job_status(&self, handle: &String) -> types::Result<JobStatus> {
         match self.job_context_map.get_mut(handle) {
             Some(mut ctx) => {
+                // Get the observed state of the job
                 let obj = ctx.get_state().unwrap();
 
                 let job_status_type = match obj {
@@ -35,7 +36,10 @@ impl ChannelContext {
 
                 Ok(JobStatus {
                     status: job_status_type,
-                    extensions: Default::default(),
+                    extensions: [(
+                        Constants::JobStatusLastUpdated.to_string(),
+                        Utc::now().to_rfc3339(),
+                    )].into_iter().collect()
                 })
             }
             None => Err(Error::JobNotFound {
