@@ -74,7 +74,7 @@ impl JobController {
             .map_err(|e| Error::Unknown { source: e })?;
 
         let spec = StorageSpec {
-            handle: spec.status_handle.clone(),
+            handle: spec.get_status_handle(),
             data: status_data,
             ttl: spec
                 .extensions

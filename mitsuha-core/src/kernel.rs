@@ -412,7 +412,7 @@ impl KernelBridge {
                 if data.values().len() != 1 {
                     return Err(Error::InvalidOperation {
                         message: format!(
-                            "attempted kernel call: {}, expected 2 values, found {}",
+                            "attempted kernel call: {}, expected 1 value, found {}",
                             CORE_SYMBOL_STORE,
                             data.values().len()
                         ),
@@ -613,7 +613,6 @@ impl KernelBridge {
     async fn dispatch_job(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
         let input_handle = Uuid::new_v4().to_string();
         let output_handle = Uuid::new_v4().to_string();
-        let status_handle = Uuid::new_v4().to_string();
 
         let input_spec = StorageSpec {
             handle: input_handle.clone(),
@@ -629,7 +628,6 @@ impl KernelBridge {
             symbol: symbol.clone(),
             input_handle,
             output_handle: output_handle.clone(),
-            status_handle,
             ttl: 0,
             extensions: [
                 (Constants::JobOutputTTL.to_string(), "0".to_string()),

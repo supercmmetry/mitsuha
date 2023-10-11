@@ -38,7 +38,6 @@ pub async fn test_rw_processing(
             },
             input_handle: uuid::Uuid::new_v4().to_string(),
             output_handle: uuid::Uuid::new_v4().to_string(),
-            status_handle: uuid::Uuid::new_v4().to_string(),
             ttl: 86400,
             extensions: Default::default(),
         });

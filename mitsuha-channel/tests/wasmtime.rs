@@ -132,7 +132,6 @@ async fn internal_run_hello_world() {
 
     let job_handle = "run_hello_world_job_1".to_string();
     let input_handle = "run_hello_world_input_1".to_string();
-    let status_handle = "run_hello_world_status_1".to_string();
     let output_handle = "run_hello_world_output_1".to_string();
 
     let input_spec = StorageSpec {
@@ -155,7 +154,6 @@ async fn internal_run_hello_world() {
         ttl: 120,
         input_handle,
         output_handle: output_handle.clone(),
-        status_handle,
         extensions: [
             (Constants::JobOutputTTL.to_string(), "120".to_string()),
             (Constants::JobChannelAwait.to_string(), "true".to_string()),
@@ -211,7 +209,6 @@ async fn internal_run_mugen_loop() {
 
     let job_handle = "run_mugen_loop_job_1".to_string();
     let input_handle = "run_mugen_loop_input_1".to_string();
-    let status_handle = "run_mugen_loop_status_1".to_string();
     let output_handle = "run_mugen_loop_output_1".to_string();
 
     let input_spec = StorageSpec {
@@ -234,7 +231,6 @@ async fn internal_run_mugen_loop() {
         ttl: 1,
         input_handle,
         output_handle: output_handle.clone(),
-        status_handle,
         extensions: [
             (Constants::JobOutputTTL.to_string(), "120".to_string()),
             (Constants::JobChannelAwait.to_string(), "true".to_string()),
@@ -269,7 +265,6 @@ async fn internal_run_and_abort_mugen_loop() {
 
     let job_handle = "run_and_abort_mugen_loop_job_1".to_string();
     let input_handle = "run_and_abort_mugen_loop_input_1".to_string();
-    let status_handle = "run_and_abort_mugen_loop_status_1".to_string();
     let output_handle = "run_and_abort_mugen_loop_output_1".to_string();
 
     let input_spec = StorageSpec {
@@ -292,7 +287,6 @@ async fn internal_run_and_abort_mugen_loop() {
         ttl: 86400,
         input_handle,
         output_handle: output_handle.clone(),
-        status_handle,
         extensions: [
             (Constants::JobOutputTTL.to_string(), "120".to_string()),
             (Constants::JobChannelAwait.to_string(), "true".to_string()),
@@ -347,7 +341,6 @@ async fn internal_run_wasm_with_deps() {
 
     let job_handle = "run_wasm_with_deps_job_1".to_string();
     let input_handle = "run_wasm_with_deps_input_1".to_string();
-    let status_handle = "run_wasm_with_deps_status_1".to_string();
     let output_handle = "run_wasm_with_deps_output_1".to_string();
 
     let input_spec = StorageSpec {
@@ -370,7 +363,6 @@ async fn internal_run_wasm_with_deps() {
         ttl: 120,
         input_handle,
         output_handle: output_handle.clone(),
-        status_handle,
         extensions: [
             (Constants::JobOutputTTL.to_string(), "120".to_string()),
             (Constants::JobChannelAwait.to_string(), "true".to_string()),

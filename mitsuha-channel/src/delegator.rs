@@ -121,7 +121,7 @@ impl DelegatorChannel {
         for handle in handles {
             tracing::debug!("running gc for job with handle: '{}'", handle.clone());
 
-            match ctx.get_job_status(&handle).await {
+            match ctx.get_local_job_status(&handle).await {
                 Ok(JobStatus { status, .. }) => {
                     if status != JobStatusType::Running {
                         if let Ok(mut v) = self.job_handles.try_write() {

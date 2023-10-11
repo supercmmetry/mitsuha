@@ -96,10 +96,9 @@ message JobSpec {
     string handle = 1;
     string input_handle = 2;
     string output_handle = 3;
-    string status_handle = 4;
-    uint64 ttl = 5;
-    Symbol symbol = 6;
-    map<string, string> extensions = 7;
+    uint64 ttl = 4;
+    Symbol symbol = 5;
+    map<string, string> extensions = 6;
 }
 
 message Symbol {

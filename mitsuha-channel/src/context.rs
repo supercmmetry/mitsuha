@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashMap};
 
 use chrono::{Duration, Utc};
 use dashmap::DashMap;
@@ -6,7 +6,7 @@ use mitsuha_core::{
     channel::ComputeChannel,
     types,
 };
-use mitsuha_core_types::kernel::{JobStatusType, JobStatus};
+use mitsuha_core_types::{kernel::{JobStatusType, JobStatus, JobSpec}, channel::{ComputeInput, ComputeOutput}};
 
 use crate::{job_controller::JobState, system::JobContext};
 use mitsuha_core::errors::Error;
@@ -19,7 +19,7 @@ pub struct ChannelContext {
 }
 
 impl ChannelContext {
-    pub async fn get_job_status(&self, handle: &String) -> types::Result<JobStatus> {
+    pub async fn get_local_job_status(&self, handle: &String) -> types::Result<JobStatus> {
         match self.job_context_map.get_mut(handle) {
             Some(mut ctx) => {
                 let obj = ctx.get_state().unwrap();
@@ -39,8 +39,40 @@ impl ChannelContext {
                 })
             }
             None => Err(Error::JobNotFound {
-                handle: handle.clone(),
-            }),
+                    handle: handle.clone(),
+                }),
+        }
+    }
+
+    pub async fn get_job_status(&self, handle: &String, extensions: HashMap<String, String>) -> types::Result<JobStatus> {
+        match self.get_local_job_status(handle).await {
+            Ok(status) => Ok(status),
+            Err(_) => {
+                // Could not find job_status in local context. Fetch it from FS.
+
+                if let Some(channel) = self.channel_start.clone() {
+                    let output = channel.compute(self.clone(), ComputeInput::Load { handle: JobSpec::to_status_handle(&handle), extensions}).await;
+
+                    match output {
+                        Ok(ComputeOutput::Loaded { data }) => {
+                            let raw_value: musubi_api::types::Value = data.try_into().map_err(|e| Error::Unknown { source: e })?;
+
+                            let job_status: JobStatus = musubi_api::types::from_value(raw_value).map_err(|e| Error::Unknown { source: e.into() })?;
+
+                            return Ok(job_status);
+                        },
+                        Err(e) => {
+                            tracing::error!("failed to get job status from storage. error: {}", e);
+                        },
+                        _ => {}
+                    }
+                }
+
+
+                Err(Error::JobNotFound {
+                    handle: handle.clone(),
+                })
+            },
         }
     }
 

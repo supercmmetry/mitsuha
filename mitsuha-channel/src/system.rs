@@ -102,8 +102,8 @@ impl ComputeChannel for SystemChannel {
                 ctx.abort_job(handle).await?;
                 return Ok(ComputeOutput::Completed);
             }
-            ComputeInput::Status { handle, .. } => {
-                let status = ctx.get_job_status(handle).await?;
+            ComputeInput::Status { handle, extensions } => {
+                let status = ctx.get_job_status(handle, extensions.clone()).await?;
                 return Ok(ComputeOutput::Status { status });
             }
             _ => {}

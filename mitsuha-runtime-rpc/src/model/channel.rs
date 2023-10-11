@@ -281,7 +281,6 @@ impl TryInto<JobSpec> for proto::channel::JobSpec {
                 .try_into()?,
             input_handle: self.input_handle,
             output_handle: self.output_handle,
-            status_handle: self.status_handle,
             ttl: self.ttl,
             extensions: self.extensions,
         })
@@ -296,7 +295,6 @@ impl TryFrom<JobSpec> for proto::channel::JobSpec {
             handle: value.handle,
             input_handle: value.input_handle,
             output_handle: value.output_handle,
-            status_handle: value.status_handle,
             ttl: value.ttl,
             symbol: Some(value.symbol.try_into()?),
             extensions: value.extensions,

@@ -179,13 +179,11 @@ pub struct JobSpec {
     pub input_handle: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub output_handle: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub status_handle: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "5")]
+    #[prost(uint64, tag = "4")]
     pub ttl: u64,
-    #[prost(message, optional, tag = "6")]
+    #[prost(message, optional, tag = "5")]
     pub symbol: ::core::option::Option<Symbol>,
-    #[prost(map = "string, string", tag = "7")]
+    #[prost(map = "string, string", tag = "6")]
     pub extensions: ::std::collections::HashMap<
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,

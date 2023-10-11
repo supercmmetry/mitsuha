@@ -159,7 +159,6 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let job_handle = "job_1".to_string();
     let input_handle = "input_1".to_string();
-    let status_handle = "status_1".to_string();
     let output_handle = "output_1".to_string();
 
     let input_spec = StorageSpec {
@@ -186,7 +185,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         ttl: 120,
         input_handle: input_handle.clone(),
         output_handle: output_handle.clone(),
-        status_handle: status_handle.clone(),
         extensions: Default::default(),
     };
 
@@ -203,7 +201,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         ttl: 120,
         input_handle,
         output_handle: output_handle.clone(),
-        status_handle,
         extensions: Default::default(),
     };
 

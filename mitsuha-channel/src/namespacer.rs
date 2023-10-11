@@ -193,7 +193,6 @@ mod test {
                         },
                         input_handle: "job/sample/input-1".to_string(),
                         output_handle: "job/sample/output-1".to_string(),
-                        status_handle: "job/sample/status-1".to_string(),
                         ttl: 10,
                         extensions: EXTENSIONS.clone(),
                     },
@@ -224,7 +223,6 @@ mod test {
 
                 assert_eq!(spec.input_handle, "job/sample/input-1".to_string());
                 assert_eq!(spec.output_handle, "job/sample/output-1".to_string());
-                assert_eq!(spec.status_handle, "job/sample/status-1".to_string());
             }
             _ => panic!("invalid compute input"),
         }
