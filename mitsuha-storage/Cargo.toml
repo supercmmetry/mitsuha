@@ -6,9 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mitsuha_core_types = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
-mitsuha-core = { path = "../mitsuha-core" }
 
+musubi_api = "0.1.*"
+mitsuha_filesystem = "0.1.*"
+mitsuha_core_types = "0.1.*"
+
+mitsuha-core = { path = "../mitsuha-core" }
 
 async-trait = "0.1.59"
 strum_macros = "0.24.3"
@@ -18,18 +21,21 @@ chrono = "0.4.23"
 serde = "1.0.148"
 serde_json = "1.0.89"
 dashmap = "5.4.0"
-tokio = { version = "1.24.1", features = ["full"] }
+tokio = { version = "1.24.1", features = ["full", "tracing"] }
 tokio-stream = { version = "0.1.14", features = ["full"] }
 moka = { version = "0.11", features = ["future"] }
 sha2 = "0.10.7"
 hex = "0.4.3"
 lazy_static = "1.4.0"
 tracing = "0.1.37"
+parking_lot = {  version = "0.12.1", features = ["deadlock_detection"] }
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports", "async_tokio"] }
 rand = "0.8.5"
 env_logger = "0.10.0"
+serial_test = "2.0.0"
+console-subscriber = "0.2.0"
 
 
 [[bench]]

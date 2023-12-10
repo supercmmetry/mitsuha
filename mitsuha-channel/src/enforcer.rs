@@ -6,7 +6,7 @@ use mitsuha_core::{
     types,
 };
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
-use mitsuha_policy_engine::{PolicyEngine, engine::StandardPolicyEngine, Policy};
+use mitsuha_policy_engine::{engine::StandardPolicyEngine, Policy, PolicyEngine};
 
 use crate::{context::ChannelContext, WrappedComputeChannel};
 
@@ -32,34 +32,60 @@ impl ComputeChannel for EnforcerChannel {
         ctx: ChannelContext,
         elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
-        if elem.get_extensions().is_none() || elem.get_extensions().is_some_and(|x| !x.contains_key(&self.policy_blob_key)) {
-            tracing::warn!("could not find policy blob key: '{}', bypassing enforcer", self.policy_blob_key);
-            
+        if elem.get_extensions().is_none()
+            || elem
+                .get_extensions()
+                .is_some_and(|x| !x.contains_key(&self.policy_blob_key))
+        {
+            tracing::warn!(
+                "could not find policy blob key: '{}', bypassing enforcer",
+                self.policy_blob_key
+            );
+
             return self.forward_next(ctx, elem).await;
         }
 
-        let policy_blob_handle = elem.get_extensions().unwrap().get(&self.policy_blob_key).unwrap();
+        let policy_blob_handle = elem
+            .get_extensions()
+            .unwrap()
+            .get(&self.policy_blob_key)
+            .unwrap();
         let policies: Vec<Policy>;
 
-        let policy_blob_input = ComputeInput::Load { handle: policy_blob_handle.clone(), extensions: elem.get_extensions().unwrap().clone() };
+        let policy_blob_input = ComputeInput::Load {
+            handle: policy_blob_handle.clone(),
+            extensions: elem.get_extensions().unwrap().clone(),
+        };
 
         let policy_blob_output = self.forward_next(ctx.clone(), policy_blob_input).await?;
 
         if let ComputeOutput::Loaded { data } = policy_blob_output {
-            let value = musubi_api::types::Value::try_from(data).map_err(|e| Error::Unknown { source: e })?;
+            let value = musubi_api::types::Value::try_from(data)
+                .map_err(|e| Error::Unknown { source: e })?;
 
-            policies = musubi_api::types::from_value(value).map_err(|e| Error::Unknown { source: e.into() })?;
+            policies = musubi_api::types::from_value(&value)
+                .map_err(|e| Error::Unknown { source: e.into() })?;
         } else {
-            return Err(Error::UnknownWithMsgOnly { message: format!("expected to find data in policy blob compute output") });
+            return Err(Error::UnknownWithMsgOnly {
+                message: format!("expected to find data in policy blob compute output"),
+            });
         }
 
         let policy_eval = self.policy_engine.evaluate(&elem, &policies).await?;
 
         if !policy_eval {
-            return Err(Error::InvalidOperation { message: format!("policies defined in blob '{}' forbids the compute operation", policy_blob_handle) });
+            return Err(Error::InvalidOperation {
+                message: format!(
+                    "policies defined in blob '{}' forbids the compute operation",
+                    policy_blob_handle
+                ),
+            });
         }
 
-        tracing::info!("policies defined in blob '{}' allows the compute operation", policy_blob_handle);
+        tracing::info!(
+            "policies defined in blob '{}' allows the compute operation",
+            policy_blob_handle
+        );
 
         self.forward_next(ctx, elem).await
     }
@@ -70,7 +96,11 @@ impl ComputeChannel for EnforcerChannel {
 }
 
 impl EnforcerChannel {
-    async fn forward_next(&self, ctx: ChannelContext, elem: ComputeInput) -> types::Result<ComputeOutput> {
+    async fn forward_next(
+        &self,
+        ctx: ChannelContext,
+        elem: ComputeInput,
+    ) -> types::Result<ComputeOutput> {
         match self.next.read().await.clone() {
             Some(chan) => chan.compute(ctx, elem).await,
             None => Err(Error::ComputeChannelEOF),

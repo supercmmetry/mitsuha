@@ -3,13 +3,10 @@ mod service;
 mod telemetry;
 
 use mitsuha_core::config::Config;
-use opentelemetry::trace::TracerProvider;
 use plugin::{load_plugins, PluginContext};
 use service::channel::ChannelService;
 
 use mitsuha_channel::context::ChannelContext;
-use tracing::Level;
-use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry};
 
 use std::sync::Once;
 

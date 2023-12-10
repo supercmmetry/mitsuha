@@ -2,11 +2,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use mitsuha_core::{
-    channel::ComputeChannel,
-    errors::Error,
-    selector::Label,
-    storage::Storage,
-    types, kernel::StorageSpecExt,
+    channel::ComputeChannel, errors::Error, kernel::LabelExtensionExt, selector::Label,
+    storage::Storage, types,
 };
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use tokio::sync::RwLock;
@@ -35,8 +32,9 @@ where
         let storage = self.storage.clone();
 
         match elem {
-            ComputeInput::Store { spec } => {
-                let spec = spec.with_selector(&self.storage_selector);
+            ComputeInput::Store { mut spec } => {
+                spec.extensions.add_selector(&self.storage_selector);
+
                 let result = storage.store(spec).await;
 
                 match result {
@@ -44,24 +42,40 @@ where
                     Err(e) => Err(e),
                 }
             }
-            ComputeInput::Load { handle, .. } => {
-                let result = storage.load(handle).await;
+            ComputeInput::Load {
+                handle,
+                mut extensions,
+            } => {
+                extensions.add_selector(&self.storage_selector);
+
+                let result = storage.load(handle, extensions).await;
 
                 match result {
                     Ok(data) => Ok(ComputeOutput::Loaded { data }),
                     Err(e) => Err(e),
                 }
             }
-            ComputeInput::Persist { handle, ttl, .. } => {
-                let result = storage.persist(handle, ttl).await;
+            ComputeInput::Persist {
+                handle,
+                ttl,
+                mut extensions,
+            } => {
+                extensions.add_selector(&self.storage_selector);
+
+                let result = storage.persist(handle, ttl, extensions).await;
 
                 match result {
                     Ok(_) => Ok(ComputeOutput::Completed),
                     Err(e) => Err(e),
                 }
             }
-            ComputeInput::Clear { handle, .. } => {
-                let result = storage.clear(handle).await;
+            ComputeInput::Clear {
+                handle,
+                mut extensions,
+            } => {
+                extensions.add_selector(&self.storage_selector);
+
+                let result = storage.clear(handle, extensions).await;
 
                 match result {
                     Ok(_) => Ok(ComputeOutput::Completed),

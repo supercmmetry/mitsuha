@@ -1,7 +1,5 @@
 use mitsuha_core_types::{module::ModuleInfo, symbol::Symbol};
 
-
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     // symbol errors
@@ -179,6 +177,9 @@ pub enum Error {
     #[error("reached compute channel EOF")]
     ComputeChannelEOF,
 
+    #[error("unsupported operation {op}")]
+    UnsupportedOperation { op: String },
+
     // unknown errors
     #[error("encountered unknown error, source: {source}")]
     Unknown {
@@ -188,4 +189,22 @@ pub enum Error {
 
     #[error("encountered unknown error, {message}")]
     UnknownWithMsgOnly { message: String },
+}
+
+#[macro_export]
+macro_rules! unknown_err {
+    ($msg: expr) => {
+        Error::UnknownWithMsgOnly {
+            message: $msg.to_string(),
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! unsupported_op {
+    ($msg: expr) => {
+        Error::UnsupportedOperation {
+            op: $msg.to_string(),
+        }
+    };
 }

@@ -1,6 +1,6 @@
 use mitsuha_core_types::kernel::{JobSpec, StorageSpec};
 
-use mitsuha_core::{types, kernel::JobSpecExt};
+use mitsuha_core::{kernel::JobSpecExt, types};
 use rand::{distributions::Alphanumeric, Rng};
 
 pub fn generate_random_id() -> String {
@@ -25,5 +25,5 @@ pub fn make_output_storage_spec(job_spec: JobSpec, data: Vec<u8>) -> types::Resu
 }
 
 pub fn make_job_span(handle: &String, executor: &str) -> tracing::span::Span {
-    tracing::info_span!("job_run", job_executor=executor, job_handle=handle)
+    tracing::info_span!("job_run", job_executor = executor, job_handle = handle)
 }

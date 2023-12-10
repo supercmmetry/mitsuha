@@ -1,5 +1,5 @@
 #[derive(strum_macros::Display)]
-pub enum Constants {
+pub enum StorageControlConstants {
     #[strum(serialize = "mitsuha.storage.request.timestamp")]
     StorageRequestTimestamp,
 
@@ -12,6 +12,12 @@ pub enum Constants {
     #[strum(serialize = "mitsuha.storage")]
     StorageLabel,
 
+    #[strum(serialize = "mitsuha.storage.capability.matrix")]
+    StorageCapabilityMatrix,
+}
+
+#[derive(strum_macros::Display)]
+pub enum Constants {
     #[strum(serialize = "mitsuha.core.job.handle")]
     JobHandle,
 

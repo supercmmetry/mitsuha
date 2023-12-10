@@ -2,13 +2,13 @@ use std::{collections::HashMap, sync::Arc};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use mitsuha_core_types::kernel::StorageSpec;
 use mitsuha_core::{
     config,
-    constants::Constants,
+    constants::StorageControlConstants,
     selector::Label,
     storage::{Storage, StorageClass, StorageLocality},
 };
+use mitsuha_core_types::kernel::StorageSpec;
 use mitsuha_storage::unified::UnifiedStorage;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -59,7 +59,7 @@ async fn store_and_load_light(storage: Arc<Box<dyn Storage>>) {
     };
 
     spec.extensions.insert(
-        Constants::StorageSelectorQuery.to_string(),
+        StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
             name: "storage".to_string(),
             value: "sample".to_string(),
@@ -69,7 +69,10 @@ async fn store_and_load_light(storage: Arc<Box<dyn Storage>>) {
 
     storage.store(spec.clone()).await.unwrap();
 
-    let data = storage.load(spec.handle.clone()).await.unwrap();
+    let data = storage
+        .load(spec.handle.clone(), Default::default())
+        .await
+        .unwrap();
 
     assert_eq!("Hello world!".to_string(), String::from_utf8(data).unwrap());
 }
@@ -89,7 +92,7 @@ async fn store_and_load_heavy(storage: Arc<Box<dyn Storage>>) {
     };
 
     spec.extensions.insert(
-        Constants::StorageSelectorQuery.to_string(),
+        StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
             name: "storage".to_string(),
             value: "sample".to_string(),
@@ -98,7 +101,10 @@ async fn store_and_load_heavy(storage: Arc<Box<dyn Storage>>) {
     );
 
     storage.store(spec.clone()).await.unwrap();
-    storage.load(spec.handle.clone()).await.unwrap();
+    storage
+        .load(spec.handle.clone(), Default::default())
+        .await
+        .unwrap();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

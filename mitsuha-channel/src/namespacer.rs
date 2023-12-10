@@ -106,12 +106,13 @@ mod test {
 
     use async_trait::async_trait;
     use lazy_static::lazy_static;
-    use mitsuha_core::{
-        channel::ComputeChannel,
-        constants::Constants,
-        types,
+    use mitsuha_core::{channel::ComputeChannel, constants::Constants, types};
+    use mitsuha_core_types::{
+        channel::{ComputeInput, ComputeOutput},
+        kernel::{JobSpec, StorageSpec},
+        module::ModuleInfo,
+        symbol::Symbol,
     };
-    use mitsuha_core_types::{channel::{ComputeInput, ComputeOutput}, symbol::Symbol, kernel::{JobSpec, StorageSpec}, module::ModuleInfo};
     use tokio::sync::RwLock;
 
     use crate::context::ChannelContext;

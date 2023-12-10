@@ -5,7 +5,9 @@ use std::{
     sync::Arc,
 };
 
-use mitsuha_core_types::{channel::ComputeInput, kernel::JobSpec, module::ModuleInfo, symbol::Symbol};
+use mitsuha_core_types::{
+    channel::ComputeInput, kernel::JobSpec, module::ModuleInfo, symbol::Symbol,
+};
 use mitsuha_qflow::{Reader, Writer};
 use tokio::sync::RwLock;
 

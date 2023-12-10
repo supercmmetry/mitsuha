@@ -2,15 +2,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use context::ChannelContext;
-use mitsuha_core::{
-    channel::ComputeChannel,
-    errors::Error,
-    types,
-};
+use mitsuha_core::{channel::ComputeChannel, errors::Error, types};
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 
 pub mod context;
 pub mod delegator;
+pub mod enforcer;
 pub mod interceptor;
 mod job_controller;
 pub mod labeled_storage;
@@ -19,7 +16,6 @@ pub mod qflow;
 pub mod system;
 mod util;
 pub mod wasmtime;
-pub mod enforcer;
 
 pub struct WrappedComputeChannel<T: ComputeChannel> {
     inner: T,

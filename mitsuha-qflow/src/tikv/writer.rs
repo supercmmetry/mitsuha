@@ -1,11 +1,11 @@
-use std::{sync::Arc, collections::HashMap};
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use mitsuha_core_types::channel::ComputeInput;
 
-use crate::{util, Writer, System};
+use crate::{util, System, Writer};
 
-use super::{muxer::TikvQueueMuxer, constants::Constants};
+use super::{constants::Constants, muxer::TikvQueueMuxer};
 
 pub struct TikvWriter {
     client: Arc<tikv_client::TransactionClient>,
@@ -44,7 +44,7 @@ impl TikvWriter {
         }
 
         let element_handle = util::generate_queue_element_handle(queue_index, length);
-        let data: Vec<u8> = musubi_api::types::to_value(input)?.try_into()?;
+        let data: Vec<u8> = musubi_api::types::to_value(&input)?.try_into()?;
 
         tx.put(element_handle, data).await?;
 
@@ -113,8 +113,10 @@ impl System for TikvWriter {
                 k if k == Constants::DesiredQueueCount.to_string() => {
                     let desired_queue_count: u64 = value.parse()?;
 
-                    self.muxer.update_desired_queue_count(desired_queue_count).await?;
-                },
+                    self.muxer
+                        .update_desired_queue_count(desired_queue_count)
+                        .await?;
+                }
                 _ => {}
             }
         }

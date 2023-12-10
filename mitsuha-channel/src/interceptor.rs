@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use mitsuha_core::{
-    channel::ComputeChannel,
-    errors::Error,
-    types,
-};
+use mitsuha_core::{channel::ComputeChannel, errors::Error, types};
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use mitsuha_runtime_rpc::proto::channel::{interceptor_client::InterceptorClient, ComputeRequest};
 

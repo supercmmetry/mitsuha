@@ -7,12 +7,16 @@ use mitsuha_core::{
     channel::ComputeChannel,
     constants::Constants,
     errors::Error,
-    kernel::{Kernel, KernelBinding, KernelBridge, JobSpecExt},
+    kernel::{JobSpecExt, Kernel, KernelBinding, KernelBridge},
     linker::{Linker, LinkerContext},
     resolver::{blob::BlobResolver, Resolver},
     types,
 };
-use mitsuha_core_types::{channel::{ComputeInput, ComputeOutput}, module::{ModuleType, ModuleInfo}, kernel::JobSpec};
+use mitsuha_core_types::{
+    channel::{ComputeInput, ComputeOutput},
+    kernel::JobSpec,
+    module::{ModuleInfo, ModuleType},
+};
 use mitsuha_wasm_runtime::wasmtime::WasmtimeLinker;
 use tokio::{sync::RwLock, task::JoinHandle};
 use tracing::Instrument;
@@ -21,7 +25,7 @@ use crate::{
     context::ChannelContext,
     job_controller::{JobController, JobState},
     system::JobContext,
-    util::{make_output_storage_spec, self},
+    util::{self, make_output_storage_spec},
     WrappedComputeChannel,
 };
 

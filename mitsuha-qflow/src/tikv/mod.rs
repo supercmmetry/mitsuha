@@ -9,10 +9,10 @@ use crate::{
 
 use self::reader::TikvReader;
 
+mod constants;
 mod muxer;
 mod reader;
 mod writer;
-mod constants;
 
 pub async fn make_tikv_writer(
     extensions: &HashMap<String, String>,
@@ -60,24 +60,38 @@ pub async fn make_tikv_reader(
 
 #[cfg(test)]
 mod test {
-    use std::{sync::Arc, time::Duration, collections::HashMap};
+    use std::{collections::HashMap, sync::Arc, time::Duration};
 
     use mitsuha_core_types::channel::ComputeInput;
 
-    use crate::{tikv::{muxer::TikvQueueMuxer, writer::TikvWriter, reader::TikvReader}, Writer, Reader, System};
-
+    use crate::{
+        tikv::{muxer::TikvQueueMuxer, reader::TikvReader, writer::TikvWriter},
+        Reader, System, Writer,
+    };
 
     #[tokio::test]
     async fn test_scale_down() {
-        let client = tikv_client::TransactionClient::new("127.0.0.1:2379,127.0.0.1:2382,127.0.0.1:2384".split(",").collect()).await.unwrap();
+        let client = tikv_client::TransactionClient::new(
+            "127.0.0.1:2379,127.0.0.1:2382,127.0.0.1:2384"
+                .split(",")
+                .collect(),
+        )
+        .await
+        .unwrap();
 
         let client = Arc::new(client);
 
         let writer_muxer = Arc::new(TikvQueueMuxer::new(client.clone(), 1000).await.unwrap());
         let reader_muxer = Arc::new(TikvQueueMuxer::new(client.clone(), 1000).await.unwrap());
 
-        let writer = Arc::new(Box::new(TikvWriter::new(client.clone(), writer_muxer.clone()).await.unwrap()));
-        let reader = Arc::new(Box::new(TikvReader::new(client, reader_muxer.clone()).await.unwrap()));
+        let writer = Arc::new(Box::new(
+            TikvWriter::new(client.clone(), writer_muxer.clone())
+                .await
+                .unwrap(),
+        ));
+        let reader = Arc::new(Box::new(
+            TikvReader::new(client, reader_muxer.clone()).await.unwrap(),
+        ));
 
         let cloned_writer = writer.clone();
         let cloned_reader = reader.clone();
@@ -85,22 +99,23 @@ mod test {
         let writer_handle = tokio::task::spawn(async move {
             for counter in 0..10000 {
                 let mut retries = 1000;
-        
+
                 while retries > 0 {
                     match writer
                         .write_compute_input(ComputeInput::Clear {
                             handle: format!("some-handle-{}", counter),
                             extensions: Default::default(),
                         })
-                        .await {
-                            Ok(_) => {
-                                println!("produced {} messages!", counter);
-                                break;
-                            },
-                            Err(_e) => {
-                                retries -= 1;
-                            }
+                        .await
+                    {
+                        Ok(_) => {
+                            println!("produced {} messages!", counter);
+                            break;
                         }
+                        Err(_e) => {
+                            retries -= 1;
+                        }
+                    }
                 }
             }
         });
@@ -108,19 +123,17 @@ mod test {
         let reader_handle = tokio::task::spawn(async move {
             for counter in 0..10000 {
                 let mut retries = 1000;
-        
+
                 while retries > 0 {
-                    match reader
-                        .read_compute_input("client-id-1".to_string())
-                        .await {
-                            Ok(_) => {
-                                println!("consumed {} messages!", counter);
-                                break;
-                            },
-                            Err(_e) => {
-                                retries -= 1;
-                            }
+                    match reader.read_compute_input("client-id-1".to_string()).await {
+                        Ok(_) => {
+                            println!("consumed {} messages!", counter);
+                            break;
                         }
+                        Err(_e) => {
+                            retries -= 1;
+                        }
+                    }
                 }
             }
         });
@@ -128,10 +141,19 @@ mod test {
         let scaler = tokio::task::spawn(async move {
             tokio::time::sleep(Duration::from_secs(4)).await;
 
-            let patch: HashMap<String, String> = [("desired_queue_count".to_string(), "100".to_string())].into_iter().collect();
+            let patch: HashMap<String, String> =
+                [("desired_queue_count".to_string(), "100".to_string())]
+                    .into_iter()
+                    .collect();
 
-            cloned_reader.update_configuration(patch.clone()).await.unwrap();
-            cloned_writer.update_configuration(patch.clone()).await.unwrap();
+            cloned_reader
+                .update_configuration(patch.clone())
+                .await
+                .unwrap();
+            cloned_writer
+                .update_configuration(patch.clone())
+                .await
+                .unwrap();
 
             let mut retries = 600;
 
@@ -162,20 +184,31 @@ mod test {
         writer_handle.await.unwrap();
         reader_handle.await.unwrap();
         scaler.await.unwrap();
-
     }
 
     #[tokio::test]
     async fn test_scale_up() {
-        let client = tikv_client::TransactionClient::new("127.0.0.1:2379,127.0.0.1:2382,127.0.0.1:2384".split(",").collect()).await.unwrap();
+        let client = tikv_client::TransactionClient::new(
+            "127.0.0.1:2379,127.0.0.1:2382,127.0.0.1:2384"
+                .split(",")
+                .collect(),
+        )
+        .await
+        .unwrap();
 
         let client = Arc::new(client);
 
         let writer_muxer = Arc::new(TikvQueueMuxer::new(client.clone(), 100).await.unwrap());
         let reader_muxer = Arc::new(TikvQueueMuxer::new(client.clone(), 100).await.unwrap());
 
-        let writer = Arc::new(Box::new(TikvWriter::new(client.clone(), writer_muxer.clone()).await.unwrap()));
-        let reader = Arc::new(Box::new(TikvReader::new(client, reader_muxer.clone()).await.unwrap()));
+        let writer = Arc::new(Box::new(
+            TikvWriter::new(client.clone(), writer_muxer.clone())
+                .await
+                .unwrap(),
+        ));
+        let reader = Arc::new(Box::new(
+            TikvReader::new(client, reader_muxer.clone()).await.unwrap(),
+        ));
 
         let cloned_writer = writer.clone();
         let cloned_reader = reader.clone();
@@ -183,22 +216,23 @@ mod test {
         let writer_handle = tokio::task::spawn(async move {
             for counter in 0..10000 {
                 let mut retries = 1000;
-        
+
                 while retries > 0 {
                     match writer
                         .write_compute_input(ComputeInput::Clear {
                             handle: format!("some-handle-{}", counter),
                             extensions: Default::default(),
                         })
-                        .await {
-                            Ok(_) => {
-                                println!("produced {} messages!", counter);
-                                break;
-                            },
-                            Err(_e) => {
-                                retries -= 1;
-                            }
+                        .await
+                    {
+                        Ok(_) => {
+                            println!("produced {} messages!", counter);
+                            break;
                         }
+                        Err(_e) => {
+                            retries -= 1;
+                        }
+                    }
                 }
             }
         });
@@ -206,19 +240,17 @@ mod test {
         let reader_handle = tokio::task::spawn(async move {
             for counter in 0..10000 {
                 let mut retries = 1000;
-        
+
                 while retries > 0 {
-                    match reader
-                        .read_compute_input("client-id-1".to_string())
-                        .await {
-                            Ok(_) => {
-                                println!("consumed {} messages!", counter);
-                                break;
-                            },
-                            Err(_e) => {
-                                retries -= 1;
-                            }
+                    match reader.read_compute_input("client-id-1".to_string()).await {
+                        Ok(_) => {
+                            println!("consumed {} messages!", counter);
+                            break;
                         }
+                        Err(_e) => {
+                            retries -= 1;
+                        }
+                    }
                 }
             }
         });
@@ -226,10 +258,19 @@ mod test {
         let scaler = tokio::task::spawn(async move {
             tokio::time::sleep(Duration::from_secs(4)).await;
 
-            let patch: HashMap<String, String> = [("desired_queue_count".to_string(), "1000".to_string())].into_iter().collect();
+            let patch: HashMap<String, String> =
+                [("desired_queue_count".to_string(), "1000".to_string())]
+                    .into_iter()
+                    .collect();
 
-            cloned_reader.update_configuration(patch.clone()).await.unwrap();
-            cloned_writer.update_configuration(patch.clone()).await.unwrap();
+            cloned_reader
+                .update_configuration(patch.clone())
+                .await
+                .unwrap();
+            cloned_writer
+                .update_configuration(patch.clone())
+                .await
+                .unwrap();
 
             let mut retries = 600;
 
@@ -260,8 +301,5 @@ mod test {
         writer_handle.await.unwrap();
         reader_handle.await.unwrap();
         scaler.await.unwrap();
-
     }
-
-    
 }

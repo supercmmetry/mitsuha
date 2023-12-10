@@ -4,7 +4,12 @@ mod setup;
 use criterion::{criterion_group, criterion_main, Criterion};
 use mitsuha_channel::context::ChannelContext;
 use mitsuha_core::channel::ComputeChannel;
-use mitsuha_core_types::{module::{ModuleInfo, ModuleType}, kernel::{StorageSpec, JobSpec}, channel::{ComputeInput, ComputeOutput}, symbol::Symbol};
+use mitsuha_core_types::{
+    channel::{ComputeInput, ComputeOutput},
+    kernel::{JobSpec, StorageSpec},
+    module::{ModuleInfo, ModuleType},
+    symbol::Symbol,
+};
 use musubi_api::{
     types::{Data, Value},
     DataBuilder,

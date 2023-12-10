@@ -16,22 +16,27 @@ use mitsuha_core_types::module::ModuleInfo;
 use mitsuha_storage::UnifiedStorage;
 use std::sync::Once;
 
+#[allow(dead_code)]
 static LOG_INIT_ONCE: Once = Once::new();
 
+#[allow(dead_code)]
 pub fn init_basic_logging() {
     LOG_INIT_ONCE.call_once(|| {
         env_logger::init();
     });
 }
 
+#[allow(dead_code)]
 pub fn make_init_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
     Arc::new(Box::new(InitChannel::new()))
 }
 
+#[allow(dead_code)]
 pub fn make_system_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
     Arc::new(Box::new(SystemChannel::new()))
 }
 
+#[allow(dead_code)]
 pub fn make_basic_config() -> config::storage::Storage {
     config::storage::Storage {
         classes: vec![
@@ -75,18 +80,21 @@ pub fn make_labeled_storage_channel() -> Arc<Box<dyn ComputeChannel<Context = Ch
     )))
 }
 
+#[allow(dead_code)]
 pub fn make_kernel(
     chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
 ) -> Arc<Box<dyn Kernel>> {
     Arc::new(Box::new(ComputeKernel::new(chan)))
 }
 
+#[allow(dead_code)]
 pub fn make_blob_resolver(
     chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
 ) -> Arc<Box<dyn Resolver<ModuleInfo, Vec<u8>>>> {
     Arc::new(Box::new(BlobResolver::new(chan)))
 }
 
+#[allow(dead_code)]
 pub fn make_wasmtime_channel(
     chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
 ) -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {

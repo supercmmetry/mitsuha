@@ -1,13 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use mitsuha_core_types::{kernel::{StorageSpec, JobSpec, JobStatus}, channel::{ComputeInput, ComputeOutput}};
-
-use crate::{
-    errors::Error,
-    kernel::Kernel,
-    types,
+use mitsuha_core_types::{
+    channel::{ComputeInput, ComputeOutput},
+    kernel::{JobSpec, JobStatus, StorageSpec},
 };
+
+use crate::{errors::Error, kernel::Kernel, types};
 
 pub trait ComputeInputExt {
     fn get_extensions(&self) -> Option<&HashMap<String, String>>;

@@ -1,8 +1,8 @@
 use async_trait::async_trait;
-use mitsuha_core_types::channel::ComputeInput;
 use mitsuha_core::{errors::Error, types};
+use mitsuha_core_types::channel::ComputeInput;
 
-use crate::{Policy, PolicyEngine, Action, Permission};
+use crate::{Action, Permission, Policy, PolicyEngine};
 
 /// A standard implementation of [PolicyEngine]
 pub struct StandardPolicyEngine;
@@ -37,18 +37,18 @@ impl PolicyEngine for StandardPolicyEngine {
                 return Ok(false);
             }
         }
-        
+
         Ok(true)
     }
 }
 
 impl StandardPolicyEngine {
     /// Check if the handle expression has a wildcard character
-    /// 
+    ///
     /// ### Arguments
-    /// 
+    ///
     /// * `handle_expr` - The handle expression
-    /// 
+    ///
     fn handle_has_wildcard(handle_expr: &String) -> types::Result<bool> {
         let indices: Vec<_> = handle_expr.match_indices("*").collect();
         if indices.len() > 1 {
@@ -63,12 +63,12 @@ impl StandardPolicyEngine {
     }
 
     /// Check if a handle expression covers a handle
-    /// 
+    ///
     /// ### Arguments
-    /// 
+    ///
     /// * `handle_expr` - The handle expression
     /// * `handle` - The handle
-    /// 
+    ///
     fn is_handle_match(handle_expr: &String, handle: &String) -> types::Result<bool> {
         if Self::handle_has_wildcard(handle_expr)? {
             return Ok(handle.starts_with(handle_expr.strip_suffix("*").unwrap()));
@@ -78,12 +78,12 @@ impl StandardPolicyEngine {
     }
 
     /// Evaluate a single policy against a [ComputeInput]
-    /// 
+    ///
     /// ### Arguments
-    /// 
+    ///
     /// * `input` - The [ComputeInput]
     /// * `policy` - The [Policy]
-    /// 
+    ///
     fn evaluate_policy(input: &ComputeInput, policy: &Policy) -> types::Result<(bool, bool)> {
         let mut allow: bool = false;
         let mut ignore: bool = true;
@@ -92,7 +92,11 @@ impl StandardPolicyEngine {
             (
                 ComputeInput::Run { spec },
                 Policy {
-                    action: Action::RunJob { handle: handle_expr, ttl },
+                    action:
+                        Action::RunJob {
+                            handle: handle_expr,
+                            ttl,
+                        },
                     ..
                 },
             ) => {
@@ -102,12 +106,15 @@ impl StandardPolicyEngine {
 
                 if ttl >= &spec.ttl {
                     allow = true;
-                }   
-            },
+                }
+            }
             (
                 ComputeInput::Status { handle, .. },
                 Policy {
-                    action: Action::GetJobStatus { handle: handle_expr},
+                    action:
+                        Action::GetJobStatus {
+                            handle: handle_expr,
+                        },
                     ..
                 },
             ) => {
@@ -116,11 +123,15 @@ impl StandardPolicyEngine {
                 }
 
                 allow = true;
-            },
+            }
             (
-                ComputeInput::Extend { handle, ttl , .. },
+                ComputeInput::Extend { handle, ttl, .. },
                 Policy {
-                    action: Action::ExtendJob { handle: handle_expr, ttl: ttl_expr},
+                    action:
+                        Action::ExtendJob {
+                            handle: handle_expr,
+                            ttl: ttl_expr,
+                        },
                     ..
                 },
             ) => {
@@ -130,12 +141,15 @@ impl StandardPolicyEngine {
 
                 if ttl_expr >= ttl {
                     allow = true;
-                }   
-            },
+                }
+            }
             (
                 ComputeInput::Abort { handle, .. },
                 Policy {
-                    action: Action::AbortJob { handle: handle_expr},
+                    action:
+                        Action::AbortJob {
+                            handle: handle_expr,
+                        },
                     ..
                 },
             ) => {
@@ -144,11 +158,15 @@ impl StandardPolicyEngine {
                 }
 
                 allow = true;
-            },
+            }
             (
                 ComputeInput::Store { spec },
                 Policy {
-                    action: Action::StoreBlob { handle: handle_expr, ttl },
+                    action:
+                        Action::StoreBlob {
+                            handle: handle_expr,
+                            ttl,
+                        },
                     ..
                 },
             ) => {
@@ -158,12 +176,15 @@ impl StandardPolicyEngine {
 
                 if ttl >= &spec.ttl {
                     allow = true;
-                }   
-            },
+                }
+            }
             (
                 ComputeInput::Load { handle, .. },
                 Policy {
-                    action: Action::LoadBlob { handle: handle_expr},
+                    action:
+                        Action::LoadBlob {
+                            handle: handle_expr,
+                        },
                     ..
                 },
             ) => {
@@ -172,11 +193,15 @@ impl StandardPolicyEngine {
                 }
 
                 allow = true;
-            },
+            }
             (
-                ComputeInput::Persist { handle, ttl , .. },
+                ComputeInput::Persist { handle, ttl, .. },
                 Policy {
-                    action: Action::PersistBlob { handle: handle_expr, ttl: ttl_expr},
+                    action:
+                        Action::PersistBlob {
+                            handle: handle_expr,
+                            ttl: ttl_expr,
+                        },
                     ..
                 },
             ) => {
@@ -186,12 +211,15 @@ impl StandardPolicyEngine {
 
                 if ttl_expr >= ttl {
                     allow = true;
-                }   
-            },
+                }
+            }
             (
                 ComputeInput::Clear { handle, .. },
                 Policy {
-                    action: Action::ClearBlob { handle: handle_expr},
+                    action:
+                        Action::ClearBlob {
+                            handle: handle_expr,
+                        },
                     ..
                 },
             ) => {
@@ -200,7 +228,7 @@ impl StandardPolicyEngine {
                 }
 
                 allow = true;
-            },
+            }
             _ => {}
         }
 
@@ -212,9 +240,9 @@ impl StandardPolicyEngine {
     }
 
     /// Check if a policy is a superset of another
-    /// 
+    ///
     /// ### Arguments
-    /// 
+    ///
     /// * `parent` - The potential superset [Policy]
     /// * `child` - The potential subset [Policy]
     fn contains_policy(parent: &Policy, child: &Policy) -> types::Result<(bool, bool)> {
@@ -232,7 +260,11 @@ impl StandardPolicyEngine {
                     ..
                 },
                 Policy {
-                    action: Action::RunJob { handle: handle_expr, ttl: ttl_expr },
+                    action:
+                        Action::RunJob {
+                            handle: handle_expr,
+                            ttl: ttl_expr,
+                        },
                     ..
                 },
             ) => {
@@ -244,15 +276,18 @@ impl StandardPolicyEngine {
 
                 if ttl_expr >= ttl {
                     allow = true;
-                }   
-            },
+                }
+            }
             (
                 Policy {
-                    action: Action::GetJobStatus { handle},
+                    action: Action::GetJobStatus { handle },
                     ..
                 },
                 Policy {
-                    action: Action::GetJobStatus { handle: handle_expr},
+                    action:
+                        Action::GetJobStatus {
+                            handle: handle_expr,
+                        },
                     ..
                 },
             ) => {
@@ -263,14 +298,18 @@ impl StandardPolicyEngine {
                 }
 
                 allow = true;
-            },
+            }
             (
                 Policy {
-                    action: Action::ExtendJob { handle, ttl},
+                    action: Action::ExtendJob { handle, ttl },
                     ..
                 },
                 Policy {
-                    action: Action::ExtendJob { handle: handle_expr, ttl: ttl_expr},
+                    action:
+                        Action::ExtendJob {
+                            handle: handle_expr,
+                            ttl: ttl_expr,
+                        },
                     ..
                 },
             ) => {
@@ -282,15 +321,18 @@ impl StandardPolicyEngine {
 
                 if ttl_expr >= ttl {
                     allow = true;
-                }   
-            },
+                }
+            }
             (
                 Policy {
-                    action: Action::AbortJob { handle},
+                    action: Action::AbortJob { handle },
                     ..
                 },
                 Policy {
-                    action: Action::AbortJob { handle: handle_expr},
+                    action:
+                        Action::AbortJob {
+                            handle: handle_expr,
+                        },
                     ..
                 },
             ) => {
@@ -301,14 +343,18 @@ impl StandardPolicyEngine {
                 }
 
                 allow = true;
-            },
+            }
             (
                 Policy {
                     action: Action::StoreBlob { handle, ttl },
                     ..
                 },
                 Policy {
-                    action: Action::StoreBlob { handle: handle_expr, ttl: ttl_expr },
+                    action:
+                        Action::StoreBlob {
+                            handle: handle_expr,
+                            ttl: ttl_expr,
+                        },
                     ..
                 },
             ) => {
@@ -320,33 +366,40 @@ impl StandardPolicyEngine {
 
                 if ttl_expr >= ttl {
                     allow = true;
-                }   
-            },
+                }
+            }
             (
                 Policy {
-                    action: Action::LoadBlob { handle},
+                    action: Action::LoadBlob { handle },
                     ..
                 },
                 Policy {
-                    action: Action::LoadBlob { handle: handle_expr},
+                    action:
+                        Action::LoadBlob {
+                            handle: handle_expr,
+                        },
                     ..
                 },
             ) => {
                 Self::handle_has_wildcard(handle)?;
-                
+
                 if Self::is_handle_match(handle_expr, handle)? {
                     ignore = false;
                 }
 
                 allow = true;
-            },
+            }
             (
                 Policy {
-                    action: Action::PersistBlob { handle, ttl},
+                    action: Action::PersistBlob { handle, ttl },
                     ..
                 },
                 Policy {
-                    action: Action::PersistBlob { handle: handle_expr, ttl: ttl_expr},
+                    action:
+                        Action::PersistBlob {
+                            handle: handle_expr,
+                            ttl: ttl_expr,
+                        },
                     ..
                 },
             ) => {
@@ -358,15 +411,18 @@ impl StandardPolicyEngine {
 
                 if ttl_expr >= ttl {
                     allow = true;
-                }   
-            },
+                }
+            }
             (
                 Policy {
-                    action: Action::ClearBlob { handle},
+                    action: Action::ClearBlob { handle },
                     ..
                 },
                 Policy {
-                    action: Action::ClearBlob { handle: handle_expr},
+                    action:
+                        Action::ClearBlob {
+                            handle: handle_expr,
+                        },
                     ..
                 },
             ) => {
@@ -377,7 +433,7 @@ impl StandardPolicyEngine {
                 }
 
                 allow = true;
-            },
+            }
             _ => {}
         }
 
@@ -393,7 +449,7 @@ impl StandardPolicyEngine {
 mod test {
     use mitsuha_core_types::channel::ComputeInput;
 
-    use crate::{Policy, Permission, Action, PolicyEngine};
+    use crate::{Action, Permission, Policy, PolicyEngine};
 
     use super::StandardPolicyEngine;
 
@@ -404,13 +460,23 @@ mod test {
     async fn test_more_than_one_wildcard_handle_error() {
         let policy = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/*/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/*/*".to_string(),
+            },
         };
 
         let policies = vec![policy];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Clear { handle: "job/myapp/x/y".to_string(), extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Clear {
+                    handle: "job/myapp/x/y".to_string(),
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_err());
     }
 
@@ -419,13 +485,23 @@ mod test {
     async fn test_wildcard_not_at_end_error() {
         let policy = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/*/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/*/y".to_string(),
+            },
         };
 
         let policies = vec![policy];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Clear { handle: "job/myapp/x/y".to_string(), extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Clear {
+                    handle: "job/myapp/x/y".to_string(),
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_err());
     }
 
@@ -434,13 +510,23 @@ mod test {
     async fn test_wildcard_at_end_only() {
         let policy = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let policies = vec![policy];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Clear { handle: "job/myapp/x/y".to_string(), extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Clear {
+                    handle: "job/myapp/x/y".to_string(),
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -450,13 +536,23 @@ mod test {
     async fn test_no_wildcard() {
         let policy = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policies = vec![policy];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Clear { handle: "job/myapp/x/y".to_string(), extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Clear {
+                    handle: "job/myapp/x/y".to_string(),
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -466,13 +562,23 @@ mod test {
     async fn test_deny() {
         let policy = Policy {
             permission: Permission::Deny,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policies = vec![policy];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Clear { handle: "job/myapp/x/y".to_string(), extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Clear {
+                    handle: "job/myapp/x/y".to_string(),
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }
@@ -482,18 +588,30 @@ mod test {
     async fn test_allow_then_deny() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Deny,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policies = vec![policy_1, policy_2];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Clear { handle: "job/myapp/x/y".to_string(), extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Clear {
+                    handle: "job/myapp/x/y".to_string(),
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }
@@ -503,18 +621,30 @@ mod test {
     async fn test_deny_then_allow() {
         let policy_1 = Policy {
             permission: Permission::Deny,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policies = vec![policy_1, policy_2];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Clear { handle: "job/myapp/x/y".to_string(), extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Clear {
+                    handle: "job/myapp/x/y".to_string(),
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -524,18 +654,30 @@ mod test {
     async fn test_deny_different_then_allow() {
         let policy_1 = Policy {
             permission: Permission::Deny,
-            action: Action::LoadBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::LoadBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policies = vec![policy_1, policy_2];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Clear { handle: "job/myapp/x/y".to_string(), extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Clear {
+                    handle: "job/myapp/x/y".to_string(),
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -545,18 +687,30 @@ mod test {
     async fn test_deny_multi_allow_one() {
         let policy_1 = Policy {
             permission: Permission::Deny,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policies = vec![policy_1, policy_2];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Clear { handle: "job/myapp/x/y".to_string(), extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Clear {
+                    handle: "job/myapp/x/y".to_string(),
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -566,13 +720,25 @@ mod test {
     async fn test_allow_persist_ttl_negative() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::PersistBlob { handle: "job/myapp/x/*".to_string(), ttl: 100 }
+            action: Action::PersistBlob {
+                handle: "job/myapp/x/*".to_string(),
+                ttl: 100,
+            },
         };
 
         let policies = vec![policy_1];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Persist { handle: "job/myapp/x/y".to_string(), ttl: 120, extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Persist {
+                    handle: "job/myapp/x/y".to_string(),
+                    ttl: 120,
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }
@@ -582,13 +748,25 @@ mod test {
     async fn test_allow_persist_ttl_positive() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::PersistBlob { handle: "job/myapp/x/*".to_string(), ttl: 100 }
+            action: Action::PersistBlob {
+                handle: "job/myapp/x/*".to_string(),
+                ttl: 100,
+            },
         };
 
         let policies = vec![policy_1];
 
-        let result = POLICY_ENGINE.evaluate(&ComputeInput::Persist { handle: "job/myapp/x/y".to_string(), ttl: 100, extensions: Default::default() }, &policies).await;
-        
+        let result = POLICY_ENGINE
+            .evaluate(
+                &ComputeInput::Persist {
+                    handle: "job/myapp/x/y".to_string(),
+                    ttl: 100,
+                    extensions: Default::default(),
+                },
+                &policies,
+            )
+            .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -598,20 +776,25 @@ mod test {
     async fn test_contains_allow_allow_negative() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let parent_policies = vec![policy_1];
         let child_policies = vec![policy_2];
 
+        let result = POLICY_ENGINE
+            .contains(&parent_policies, &child_policies)
+            .await;
 
-        let result = POLICY_ENGINE.contains(&parent_policies, &child_policies).await;
-        
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }
@@ -621,20 +804,25 @@ mod test {
     async fn test_contains_allow_allow_positive() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let parent_policies = vec![policy_1];
         let child_policies = vec![policy_2];
 
+        let result = POLICY_ENGINE
+            .contains(&parent_policies, &child_policies)
+            .await;
 
-        let result = POLICY_ENGINE.contains(&parent_policies, &child_policies).await;
-        
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -644,20 +832,25 @@ mod test {
     async fn test_contains_allow_deny() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Deny,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let parent_policies = vec![policy_1];
         let child_policies = vec![policy_2];
 
+        let result = POLICY_ENGINE
+            .contains(&parent_policies, &child_policies)
+            .await;
 
-        let result = POLICY_ENGINE.contains(&parent_policies, &child_policies).await;
-        
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -667,20 +860,25 @@ mod test {
     async fn test_contains_allow_deny_reverse() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Deny,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let parent_policies = vec![policy_1];
         let child_policies = vec![policy_2];
 
+        let result = POLICY_ENGINE
+            .contains(&parent_policies, &child_policies)
+            .await;
 
-        let result = POLICY_ENGINE.contains(&parent_policies, &child_policies).await;
-        
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -690,20 +888,25 @@ mod test {
     async fn test_contains_deny_allow() {
         let policy_1 = Policy {
             permission: Permission::Deny,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let parent_policies = vec![policy_1];
         let child_policies = vec![policy_2];
 
+        let result = POLICY_ENGINE
+            .contains(&parent_policies, &child_policies)
+            .await;
 
-        let result = POLICY_ENGINE.contains(&parent_policies, &child_policies).await;
-        
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }
@@ -713,25 +916,32 @@ mod test {
     async fn test_contains_allow_allow_one_many() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policy_3 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/z".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/z".to_string(),
+            },
         };
 
         let parent_policies = vec![policy_1];
         let child_policies = vec![policy_2, policy_3];
 
+        let result = POLICY_ENGINE
+            .contains(&parent_policies, &child_policies)
+            .await;
 
-        let result = POLICY_ENGINE.contains(&parent_policies, &child_policies).await;
-        
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -741,30 +951,39 @@ mod test {
     async fn test_contains_allow_allow_many_many() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/y/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/y/*".to_string(),
+            },
         };
 
         let policy_3 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policy_4 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/y/z".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/y/z".to_string(),
+            },
         };
 
         let parent_policies = vec![policy_1, policy_2];
         let child_policies = vec![policy_3, policy_4];
 
+        let result = POLICY_ENGINE
+            .contains(&parent_policies, &child_policies)
+            .await;
 
-        let result = POLICY_ENGINE.contains(&parent_policies, &child_policies).await;
-        
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -774,29 +993,39 @@ mod test {
     async fn test_contains_allow_allow_many_many_negative() {
         let policy_1 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/*".to_string(),
+            },
         };
 
         let policy_2 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/y/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/y/*".to_string(),
+            },
         };
 
         let policy_3 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/x/y".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/x/y".to_string(),
+            },
         };
 
         let policy_4 = Policy {
             permission: Permission::Allow,
-            action: Action::ClearBlob { handle: "job/myapp/*".to_string() }
+            action: Action::ClearBlob {
+                handle: "job/myapp/*".to_string(),
+            },
         };
 
         let parent_policies = vec![policy_1, policy_2];
         let child_policies = vec![policy_3, policy_4];
 
-        let result = POLICY_ENGINE.contains(&parent_policies, &child_policies).await;
-        
+        let result = POLICY_ENGINE
+            .contains(&parent_policies, &child_policies)
+            .await;
+
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }

@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 # Musubi dependencies
-musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master", features = ["package"] }
-musubi_bindings = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
-mitsuha_bindings = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+musubi_api = { version = "0.1.*", features = ["package"] }
+musubi_bindings = "0.1.*"
+mitsuha_bindings = "0.1.*"

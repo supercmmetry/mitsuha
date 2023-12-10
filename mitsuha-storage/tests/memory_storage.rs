@@ -1,13 +1,19 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+#![feature(async_iterator)]
 
-use mitsuha_core_types::kernel::StorageSpec;
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use serial_test::serial;
+
+use lazy_static::lazy_static;
 use mitsuha_core::{
     config,
-    constants::Constants,
+    constants::StorageControlConstants,
     selector::Label,
     storage::{Storage, StorageClass, StorageLocality},
 };
+use mitsuha_core_types::kernel::StorageSpec;
 use mitsuha_storage::unified::UnifiedStorage;
+
+mod fs;
 
 fn make_basic_config() -> config::storage::Storage {
     config::storage::Storage {
@@ -41,6 +47,7 @@ fn make_unified_storage() -> Arc<Box<dyn Storage>> {
 }
 
 #[tokio::test]
+#[serial]
 async fn store_and_load() -> anyhow::Result<()> {
     let storage = make_unified_storage();
 
@@ -52,7 +59,7 @@ async fn store_and_load() -> anyhow::Result<()> {
     };
 
     spec.extensions.insert(
-        Constants::StorageSelectorQuery.to_string(),
+        StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
             name: "storage".to_string(),
             value: "sample".to_string(),
@@ -61,7 +68,9 @@ async fn store_and_load() -> anyhow::Result<()> {
 
     storage.store(spec.clone()).await?;
 
-    let data = storage.load(spec.handle.clone()).await?;
+    let data = storage
+        .load(spec.handle.clone(), spec.extensions.clone())
+        .await?;
 
     assert_eq!("Hello world!".to_string(), String::from_utf8(data).unwrap());
 
@@ -69,6 +78,7 @@ async fn store_and_load() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[serial]
 async fn store_and_expire() -> anyhow::Result<()> {
     let storage = make_unified_storage();
 
@@ -80,7 +90,7 @@ async fn store_and_expire() -> anyhow::Result<()> {
     };
 
     spec.extensions.insert(
-        Constants::StorageSelectorQuery.to_string(),
+        StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
             name: "storage".to_string(),
             value: "sample".to_string(),
@@ -91,13 +101,16 @@ async fn store_and_expire() -> anyhow::Result<()> {
 
     tokio::time::sleep(Duration::from_secs(3)).await;
 
-    let result = storage.load(spec.handle.clone()).await;
+    let result = storage
+        .load(spec.handle.clone(), spec.extensions.clone())
+        .await;
 
     assert!(result.is_err());
     Ok(())
 }
 
 #[tokio::test]
+#[serial]
 async fn store_persist_expire() -> anyhow::Result<()> {
     let storage = make_unified_storage();
 
@@ -109,7 +122,7 @@ async fn store_persist_expire() -> anyhow::Result<()> {
     };
 
     spec.extensions.insert(
-        Constants::StorageSelectorQuery.to_string(),
+        StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
             name: "storage".to_string(),
             value: "sample".to_string(),
@@ -118,19 +131,31 @@ async fn store_persist_expire() -> anyhow::Result<()> {
 
     storage.store(spec.clone()).await?;
 
-    storage.persist(spec.handle.clone(), 2).await?;
+    storage
+        .persist(spec.handle.clone(), 2, spec.extensions.clone())
+        .await?;
 
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    let mut result = storage.load(spec.handle.clone()).await;
+    let mut result = storage
+        .load(spec.handle.clone(), spec.extensions.clone())
+        .await;
 
     assert!(result.is_ok());
 
     tokio::time::sleep(Duration::from_secs(3)).await;
 
-    assert_eq!(storage.exists(spec.handle.clone()).await.unwrap(), false);
+    assert_eq!(
+        storage
+            .exists(spec.handle.clone(), spec.extensions.clone())
+            .await
+            .unwrap(),
+        false
+    );
 
-    result = storage.load(spec.handle.clone()).await;
+    result = storage
+        .load(spec.handle.clone(), spec.extensions.clone())
+        .await;
 
     assert!(result.is_err());
 
@@ -138,6 +163,7 @@ async fn store_persist_expire() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[serial]
 async fn store_and_clear() -> anyhow::Result<()> {
     let storage = make_unified_storage();
 
@@ -149,7 +175,7 @@ async fn store_and_clear() -> anyhow::Result<()> {
     };
 
     spec.extensions.insert(
-        Constants::StorageSelectorQuery.to_string(),
+        StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
             name: "storage".to_string(),
             value: "sample".to_string(),
@@ -157,10 +183,54 @@ async fn store_and_clear() -> anyhow::Result<()> {
     );
 
     storage.store(spec.clone()).await?;
-    storage.clear(spec.handle.clone()).await?;
+    storage
+        .clear(spec.handle.clone(), spec.extensions.clone())
+        .await?;
 
-    let result = storage.load(spec.handle.clone()).await;
+    let result = storage
+        .load(spec.handle.clone(), spec.extensions.clone())
+        .await;
 
     assert!(result.is_err());
     Ok(())
 }
+
+// MNFS tests
+
+lazy_static! {
+    static ref CONFIG: config::storage::Storage = make_basic_config();
+    static ref EXTENSIONS: HashMap<String, String> = [(
+        StorageControlConstants::StorageSelectorQuery.to_string(),
+        serde_json::to_string(&Label {
+            name: "storage".to_string(),
+            value: "sample".to_string(),
+        })
+        .unwrap()
+    )]
+    .into_iter()
+    .collect();
+}
+
+fn reset_mnfs() {}
+
+mnfs_test!(test_rw_basic, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_rw_paged_uniform, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_rw_paged_non_uniform, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_rw_paged_one_byte, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_rw_paged_exact, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_rw_paged_large, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_list_paged_uniform, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_list_paged_non_uniform, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_list_paged_one_byte, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_list_paged_exact, &CONFIG, &EXTENSIONS);
+
+mnfs_test!(test_list_paged_large, &CONFIG, &EXTENSIONS);

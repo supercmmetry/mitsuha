@@ -47,7 +47,8 @@ impl TikvQueueMuxer {
         let data = tx.get(queue_count_handle.clone()).await.unwrap();
 
         if data.is_none() {
-            tx.put(queue_count_handle.clone(), queue_count.to_le_bytes()).await?;
+            tx.put(queue_count_handle.clone(), queue_count.to_le_bytes())
+                .await?;
         } else {
             queue_count = util::vec_to_u64(data.unwrap())?;
         }
@@ -57,7 +58,11 @@ impl TikvQueueMuxer {
         // gracefully decommision a queue and wait for the queue to become empty.
 
         if queue_count < desired_queue_count {
-            tx.put(queue_count_handle.clone(), desired_queue_count.to_le_bytes()).await?;
+            tx.put(
+                queue_count_handle.clone(),
+                desired_queue_count.to_le_bytes(),
+            )
+            .await?;
             queue_count = desired_queue_count;
         }
 
@@ -76,25 +81,26 @@ impl TikvQueueMuxer {
             match (offset_result, length_result) {
                 (Some(Ok(offset)), Some(Ok(length))) => {
                     tracing::debug!("scaling down queue {}", queue_index);
-    
+
                     if offset == length {
                         queue_count -= 1;
                         queue_count_changed = true;
                     } else {
                         break;
                     }
-                },
+                }
                 _ => {
                     tracing::debug!("scaling down queue {}", queue_index);
 
                     queue_count -= 1;
                     queue_count_changed = true;
-                },
+                }
             }
         }
 
         if queue_count_changed {
-            tx.put(queue_count_handle, queue_count.to_le_bytes()).await?;
+            tx.put(queue_count_handle, queue_count.to_le_bytes())
+                .await?;
         }
 
         tx.commit().await?;
@@ -183,7 +189,8 @@ impl TikvQueueMuxer {
         let join_handle = tokio::task::spawn(async move {
             while *observed_queue_count.read().await != *desired_queue_count.read().await {
                 let queue_count =
-                Self::reconcile_queue_count(client.clone(), *desired_queue_count.read().await).await;
+                    Self::reconcile_queue_count(client.clone(), *desired_queue_count.read().await)
+                        .await;
 
                 if let Ok(queue_count) = queue_count {
                     *observed_queue_count.write().await = queue_count;
@@ -200,10 +207,12 @@ impl TikvQueueMuxer {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn get_desired_queue_count(&self) -> u64 {
         *self.desired_queue_count.read().await
     }
 
+    #[allow(dead_code)]
     pub async fn get_observed_queue_count(&self) -> u64 {
         *self.observed_queue_count.read().await
     }

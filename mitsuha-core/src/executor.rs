@@ -2,11 +2,7 @@ use std::collections::HashMap;
 
 use mitsuha_core_types::symbol::Symbol;
 
-use crate::{
-    errors::Error,
-    symbol::SymbolFunc,
-    types,
-};
+use crate::{errors::Error, symbol::SymbolFunc, types};
 
 pub struct ExecutorContext {
     symbol_table: HashMap<Symbol, SymbolFunc>,

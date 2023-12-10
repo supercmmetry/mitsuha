@@ -1,6 +1,5 @@
 use mitsuha_core_types::module::ModuleInfo;
 
-
 pub trait Module<T> {
     fn get_info(&self) -> ModuleInfo;
 

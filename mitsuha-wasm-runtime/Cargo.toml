@@ -10,9 +10,9 @@ mitsuha-core = { path = "../mitsuha-core" }
 mitsuha-storage = { path = "../mitsuha-storage" }
 
 # Musubi dependencies
-mitsuha_core_types = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
-musubi_api = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
-musubi_wasmtime = { git = "https://github.com/supercmmetry/musubi", branch = "master" }
+mitsuha_core_types = "0.1.0"
+musubi_api = "0.1.0"
+musubi_wasmtime = "0.1.0"
 
 lazy_static = "1.4.0"
 reqwest = { version = "0.11.13", features = ["blocking"] }

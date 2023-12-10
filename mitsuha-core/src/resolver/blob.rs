@@ -1,12 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{
-    channel::ComputeChannel,
-    resolver::Resolver,
-    types,
-};
+use crate::{channel::ComputeChannel, resolver::Resolver, types};
 use async_trait::async_trait;
-use mitsuha_core_types::{module::ModuleInfo, kernel::StorageSpec, channel::{ComputeInput, ComputeOutput}};
+use mitsuha_core_types::{
+    channel::{ComputeInput, ComputeOutput},
+    kernel::StorageSpec,
+    module::ModuleInfo,
+};
 
 use crate::errors::Error;
 

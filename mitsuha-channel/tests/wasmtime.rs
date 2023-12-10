@@ -2,11 +2,13 @@ use std::{sync::Arc, time::Duration};
 
 mod setup;
 use mitsuha_channel::context::ChannelContext;
-use mitsuha_core::{
-    channel::ComputeChannel,
-    constants::Constants
+use mitsuha_core::{channel::ComputeChannel, constants::Constants};
+use mitsuha_core_types::{
+    channel::{ComputeInput, ComputeOutput},
+    kernel::{JobSpec, StorageSpec},
+    module::{ModuleInfo, ModuleType},
+    symbol::Symbol,
 };
-use mitsuha_core_types::{module::{ModuleType, ModuleInfo}, kernel::{StorageSpec, JobSpec}, channel::{ComputeInput, ComputeOutput}, symbol::Symbol};
 use musubi_api::{
     types::{Data, Value},
     DataBuilder,

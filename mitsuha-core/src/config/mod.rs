@@ -6,8 +6,13 @@ pub mod telemetry;
 use anyhow::anyhow;
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use std::{
+    env,
+    path::Path,
+    sync::{Arc, Once},
+    time::Duration,
+};
 use tokio::sync::RwLock;
-use std::{env, path::Path, sync::{Arc, Once}, time::Duration};
 
 use self::{api::Api, plugin::Plugin, storage::Storage, telemetry::Telemetry};
 
@@ -20,8 +25,8 @@ pub struct Config {
 }
 
 lazy_static! {
-    static ref GLOBAL_CONFIG: Arc<RwLock<Option<Config>>> = Arc::new(RwLock::new(Config::new().ok()));
-
+    static ref GLOBAL_CONFIG: Arc<RwLock<Option<Config>>> =
+        Arc::new(RwLock::new(Config::new().ok()));
     static ref GLOBAL_CONFIG_TRACKER_ONCE: Once = Once::new();
 }
 

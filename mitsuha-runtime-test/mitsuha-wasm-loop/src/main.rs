@@ -1,11 +1,12 @@
 musubi_bindings::musubi_info!("../musubi.json");
 
 use musubi_api::DataBuilder;
-use musubi_api::types::{Data, Value};
+use musubi_api::types::Data;
 use musubi_bindings::musubi_export;
 
+#[allow(unreachable_code)]
 #[musubi_export(module = "mitsuha.test.loop")]
-fn run(input: Data) -> Data {
+fn run(_input: Data) -> Data {
     loop {}
 
     DataBuilder::new()

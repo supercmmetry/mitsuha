@@ -1,12 +1,21 @@
+use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
-use mitsuha_core_types::kernel::StorageSpec;
-use mitsuha_core::{constants::Constants, errors::Error, types};
+use mitsuha_core::constants::StorageControlConstants;
 
-use mitsuha_core::storage::{GarbageCollectable, Storage};
+use mitsuha_core::unknown_err;
+use mitsuha_core::{errors::Error, types};
+use mitsuha_core_types::kernel::StorageSpec;
+
+use mitsuha_core::storage::{FileSystem, GarbageCollectable, Storage};
+use mitsuha_core_types::storage::StorageCapability;
+use mitsuha_filesystem::constant::NativeFileSystemConstants;
+use mitsuha_filesystem::NativeFileMetadata;
+use musubi_api::types::Value;
 
 pub struct MemoryStorage {
     store: DashMap<String, Vec<u8>>,
@@ -21,7 +30,7 @@ impl Storage for MemoryStorage {
 
         match spec
             .extensions
-            .get(&Constants::StorageExpiryTimestamp.to_string())
+            .get(&StorageControlConstants::StorageExpiryTimestamp.to_string())
         {
             Some(value) => {
                 let date_time =
@@ -65,7 +74,11 @@ impl Storage for MemoryStorage {
         Ok(())
     }
 
-    async fn load(&self, handle: String) -> types::Result<Vec<u8>> {
+    async fn load(
+        &self,
+        handle: String,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<u8>> {
         match self.expiry_map.get(&handle) {
             Some(date_time) => {
                 if *date_time <= Utc::now() {
@@ -95,11 +108,20 @@ impl Storage for MemoryStorage {
         }
     }
 
-    async fn exists(&self, handle: String) -> types::Result<bool> {
+    async fn exists(
+        &self,
+        handle: String,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<bool> {
         Ok(self.store.contains_key(&handle))
     }
 
-    async fn persist(&self, handle: String, time: u64) -> types::Result<()> {
+    async fn persist(
+        &self,
+        handle: String,
+        time: u64,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         let value = self.expiry_map.get(&handle).map(|x| (*x).clone());
 
         match value {
@@ -115,7 +137,11 @@ impl Storage for MemoryStorage {
         }
     }
 
-    async fn clear(&self, handle: String) -> types::Result<()> {
+    async fn clear(
+        &self,
+        handle: String,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         if let Some(data) = self.store.get(&handle) {
             *self.total_size.write().unwrap() -= data.len();
         }
@@ -128,6 +154,17 @@ impl Storage for MemoryStorage {
 
     async fn size(&self) -> types::Result<usize> {
         Ok(self.total_size.read().unwrap().clone())
+    }
+
+    async fn capabilities(
+        &self,
+        _handle: String,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<StorageCapability>> {
+        Ok(vec![
+            StorageCapability::StorageLocal,
+            StorageCapability::StorageAtomic,
+        ])
     }
 }
 
@@ -151,6 +188,355 @@ impl GarbageCollectable for MemoryStorage {
         }
 
         Ok(delete_handles)
+    }
+}
+
+#[async_trait]
+impl FileSystem for MemoryStorage {
+    async fn store_file_part(
+        &self,
+        handle: String,
+        part_index: u64,
+        part_size: u64,
+        ttl: u64,
+        data: Vec<u8>,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
+        let mut offset = (part_index * part_size) as usize;
+
+        let mut existing_data = self
+            .store
+            .get_mut(&handle)
+            .ok_or(unknown_err!("could not find store handle"))?;
+
+        if offset > existing_data.len() {
+            return Err(unknown_err!("offset is out of bounds"));
+        }
+
+        for byte in data.iter() {
+            if existing_data.len() == offset {
+                existing_data.push(*byte);
+            } else {
+                existing_data[offset] = *byte;
+            }
+
+            offset += 1;
+        }
+
+        let mut expiry = self
+            .expiry_map
+            .get_mut(&handle)
+            .ok_or(unknown_err!("could not find expiry_map handle"))?;
+
+        *expiry += Duration::seconds(ttl as i64);
+
+        Ok(())
+    }
+
+    async fn load_file_part(
+        &self,
+        handle: String,
+        part_index: u64,
+        part_size: u64,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<u8>> {
+        let offset = (part_index * part_size) as usize;
+
+        let data = self
+            .store
+            .get(&handle)
+            .ok_or(unknown_err!("could not find store handle"))?;
+
+        if offset >= data.len() {
+            return Ok(vec![]);
+        }
+
+        let end_offset = offset + part_size as usize;
+
+        if data.len() >= end_offset {
+            Ok(data[offset..end_offset].to_vec())
+        } else {
+            Ok(data[offset..].to_vec())
+        }
+    }
+
+    async fn get_file_part_count(
+        &self,
+        handle: String,
+        part_size: u64,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<u64> {
+        let data = self
+            .store
+            .get(&handle)
+            .ok_or(unknown_err!("could not find store handle"))?;
+
+        let data_len = data.len() as u64;
+        let part_count = data_len / part_size + (data_len % part_size > 0) as u64;
+
+        Ok(part_count)
+    }
+
+    async fn get_metadata(
+        &self,
+        handle: String,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<NativeFileMetadata> {
+        let metadata_handle = format!(
+            "{}/{}",
+            handle,
+            NativeFileSystemConstants::MetadataSuffix.to_string()
+        );
+
+        let data = self
+            .store
+            .get(&metadata_handle)
+            .ok_or(unknown_err!("could not find metadata handle"))?;
+
+        let value =
+            musubi_api::types::Value::try_from(data.clone()).map_err(|e| unknown_err!(e))?;
+        let metadata = musubi_api::types::from_value(&value).map_err(|e| unknown_err!(e))?;
+
+        Ok(metadata)
+    }
+
+    async fn set_metadata(
+        &self,
+        handle: String,
+        metadata: NativeFileMetadata,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
+        let metadata_handle = format!(
+            "{}/{}",
+            handle,
+            NativeFileSystemConstants::MetadataSuffix.to_string()
+        );
+
+        let value = musubi_api::types::to_value(&metadata).map_err(|e| unknown_err!(e))?;
+        let data: Vec<u8> = value
+            .try_into()
+            .map_err(|e: anyhow::Error| unknown_err!(e))?;
+
+        let spec = StorageSpec {
+            handle: metadata_handle,
+            data,
+            ttl,
+            extensions,
+        };
+
+        self.store(spec).await
+    }
+
+    async fn path_exists(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<bool> {
+        self.exists(handle, extensions).await
+    }
+
+    async fn list(
+        &self,
+        handle: String,
+        page_index: u64,
+        page_size: u64,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<String>> {
+        let list_handle = format!(
+            "{}/{}",
+            handle,
+            NativeFileSystemConstants::DirListSuffix.to_string()
+        );
+
+        let data = self.store.get(&list_handle);
+
+        if data.is_none() {
+            return Ok(vec![]);
+        }
+
+        let value = musubi_api::types::Value::try_from(data.unwrap().clone())
+            .map_err(|e| unknown_err!(e))?;
+        let list: Vec<String> =
+            musubi_api::types::from_value(&value).map_err(|e| unknown_err!(e))?;
+
+        let offset = (page_index * page_size) as usize;
+
+        if offset >= list.len() {
+            return Ok(vec![]);
+        }
+
+        let end_offset = offset + page_size as usize;
+
+        if end_offset <= list.len() {
+            Ok(list[offset..end_offset].to_vec())
+        } else {
+            Ok(list[offset..].to_vec())
+        }
+    }
+
+    async fn add_list_item(
+        &self,
+        handle: String,
+        item: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
+        let list_handle = format!(
+            "{}/{}",
+            handle,
+            NativeFileSystemConstants::DirListSuffix.to_string()
+        );
+
+        let data = self.store.get(&list_handle);
+
+        let mut value = musubi_api::types::Value::Array(vec![]);
+
+        if let Some(data) = data {
+            value = data
+                .clone()
+                .try_into()
+                .map_err(|e: anyhow::Error| unknown_err!(e))?;
+        }
+
+        match &mut value {
+            musubi_api::types::Value::Array(v) => {
+                v.push(musubi_api::types::Value::String(item));
+                v.sort_by(|x, y| match (&x, &y) {
+                    (&Value::String(x), &Value::String(y)) => x.cmp(y),
+                    _ => Ordering::Equal,
+                })
+            }
+            _ => {
+                return Err(unknown_err!(
+                    "unexpected error encountered while parsing list"
+                ));
+            }
+        }
+
+        let expiry = self
+            .expiry_map
+            .get(&handle)
+            .ok_or(unknown_err!("could not find expiry handle"))?;
+        let ttl_duration = expiry.clone() - Utc::now();
+
+        let mut ttl = ttl_duration.num_seconds();
+        if ttl < 0 {
+            ttl = 0;
+        }
+
+        let spec = StorageSpec {
+            handle: list_handle,
+            data: value
+                .try_into()
+                .map_err(|e: anyhow::Error| unknown_err!(e))?,
+            ttl: ttl as u64,
+            extensions,
+        };
+
+        self.store(spec).await
+    }
+
+    async fn remove_list_item(
+        &self,
+        handle: String,
+        item: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
+        let list_handle = format!(
+            "{}/{}",
+            handle,
+            NativeFileSystemConstants::DirListSuffix.to_string()
+        );
+
+        let data = self.store.get(&list_handle);
+
+        let mut value = musubi_api::types::Value::Array(vec![]);
+
+        if let Some(data) = data {
+            value = data
+                .clone()
+                .try_into()
+                .map_err(|e: anyhow::Error| unknown_err!(e))?;
+        }
+
+        match &mut value {
+            musubi_api::types::Value::Array(v) => {
+                v.retain(|x| {
+                    if let musubi_api::types::Value::String(s) = x {
+                        s != &item
+                    } else {
+                        true
+                    }
+                });
+            }
+            _ => {
+                return Err(unknown_err!(
+                    "unexpected error encountered while parsing list"
+                ));
+            }
+        }
+
+        let expiry = self
+            .expiry_map
+            .get(&handle)
+            .ok_or(unknown_err!("could not find expiry handle"))?;
+        let ttl_duration = expiry.clone() - Utc::now();
+
+        let mut ttl = ttl_duration.num_seconds();
+        if ttl < 0 {
+            ttl = 0;
+        }
+
+        let spec = StorageSpec {
+            handle: list_handle,
+            data: value
+                .try_into()
+                .map_err(|e: anyhow::Error| unknown_err!(e))?,
+            ttl: ttl as u64,
+            extensions,
+        };
+
+        self.store(spec).await
+    }
+
+    async fn truncate(
+        &self,
+        handle: String,
+        len: u64,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
+        let mut data = self
+            .store
+            .get_mut(&handle)
+            .ok_or(unknown_err!("failed to get handle"))?;
+
+        data.truncate(len as usize);
+
+        Ok(())
+    }
+
+    async fn delete_path(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
+        self.clear(handle, extensions).await
+    }
+
+    async fn get_capabilities(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<StorageCapability>> {
+        self.capabilities(handle, extensions).await
+    }
+
+    async fn get_storage_class(
+        &self,
+        _handle: String,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<String> {
+        unimplemented!()
     }
 }
 

@@ -39,3 +39,6 @@ load-cache-internal:
 load-cache:
 	@[ -a "$(CACHE_DIR)/mitsuha/target" ] && $(MAKE) load-cache-internal || \
 	echo "mitsuha: No cache was found for mitsuha"
+
+lint:
+	@cargo fmt

@@ -9,9 +9,13 @@ use mitsuha_core::{
     linker::{Linker, LinkerContext},
     module::Module,
     resolver::Resolver,
-    types::{self, SharedAsyncMany}, symbol::SymbolExt,
+    symbol::SymbolExt,
+    types::{self, SharedAsyncMany},
 };
-use mitsuha_core_types::{module::{ModuleInfo, ModuleType}, symbol::Symbol};
+use mitsuha_core_types::{
+    module::{ModuleInfo, ModuleType},
+    symbol::Symbol,
+};
 use num_traits::cast::FromPrimitive;
 
 use crate::{constants::Constants, resolver::wasmtime::WasmtimeModuleResolver};

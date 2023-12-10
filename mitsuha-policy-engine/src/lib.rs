@@ -50,26 +50,24 @@ pub enum Action {
     ClearBlob { handle: String },
 }
 
-
 /// The [PolicyEngine] is responsible for performing evaluating policies against operations
 #[async_trait]
 pub trait PolicyEngine: Send + Sync {
-
     /// Evaluates whether a [ComputeInput] can be authorized for execution given a set of policies
-    /// 
+    ///
     /// ### Arguments
-    /// 
+    ///
     /// * `input` - The [ComputeInput] that needs to be evaluated
     /// * `policies` - A list of policies which needs to be used for evaluation
-    /// 
+    ///
     async fn evaluate(&self, input: &ComputeInput, policies: &Vec<Policy>) -> types::Result<bool>;
 
     /// Checks whether a list of policies is a semantic superset of another list of policies
-    /// 
+    ///
     /// ### Arguments
-    /// 
+    ///
     /// * `parent` - The list of policies which is a potential superset of `child`
     /// * `child` - The list of policies which is a potential subset of `parent`
-    /// 
+    ///
     async fn contains(&self, parent: &Vec<Policy>, child: &Vec<Policy>) -> types::Result<bool>;
 }

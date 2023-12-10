@@ -1,9 +1,17 @@
-use crate::{constants::Constants, errors::Error, selector::Label, types};
+use crate::{
+    constants::{Constants, StorageControlConstants},
+    errors::Error,
+    selector::Label,
+    types,
+};
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
-use mitsuha_core_types::{symbol::Symbol, kernel::{JobSpec, StorageSpec, JobStatus}};
+use mitsuha_core_types::{
+    kernel::{JobSpec, JobStatus, StorageSpec},
+    symbol::Symbol,
+};
 use musubi_api::{
     types::{Data, HashableValue, Value},
     DataBuilder,
@@ -74,18 +82,24 @@ impl JobSpecExt for JobSpec {
     }
 }
 
-pub trait StorageSpecExt {
-    fn with_selector(self, label: &Label) -> Self;
+pub trait LabelExtensionExt {
+    fn with_selector(mut self, label: &Label) -> Self
+    where
+        Self: Sized,
+    {
+        self.add_selector(label);
+        self
+    }
+
+    fn add_selector(&mut self, label: &Label);
 }
 
-impl StorageSpecExt for StorageSpec {
-    fn with_selector(mut self, label: &Label) -> Self {
-        self.extensions.insert(
-            Constants::StorageSelectorQuery.to_string(),
+impl LabelExtensionExt for HashMap<String, String> {
+    fn add_selector(&mut self, label: &Label) {
+        self.insert(
+            StorageControlConstants::StorageSelectorQuery.to_string(),
             serde_json::to_string(label).unwrap(),
         );
-
-        self
     }
 }
 
@@ -224,7 +238,7 @@ impl KernelBridge {
                 }
 
                 let spec: JobSpec =
-                    musubi_api::types::from_value(data.values().get(0).unwrap().clone())
+                    musubi_api::types::from_value(&data.values().get(0).unwrap().clone())
                         .map_err(|e| Error::Unknown { source: e.into() })?;
 
                 self.kernel.run_job(spec).await?;
@@ -404,7 +418,7 @@ impl KernelBridge {
                 let status = self.kernel.get_job_status(handle, extensions).await?;
 
                 data_builder = data_builder.add(
-                    musubi_api::types::to_value(status)
+                    musubi_api::types::to_value(&status)
                         .map_err(|e| Error::Unknown { source: e.into() })?,
                 );
             }
@@ -420,7 +434,7 @@ impl KernelBridge {
                 }
 
                 let spec: StorageSpec =
-                    musubi_api::types::from_value(data.values().get(0).unwrap().clone())
+                    musubi_api::types::from_value(&data.values().get(0).unwrap().clone())
                         .map_err(|e| Error::Unknown { source: e.into() })?;
 
                 self.kernel.store_data(spec).await?;

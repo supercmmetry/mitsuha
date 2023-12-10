@@ -1,0 +1,8 @@
+[registry]
+global-credential-providers = ["cargo:token"]
+
+[registries]
+Mitsuha-Central-Feed = { index = "sparse+https://pkgs.dev.azure.com/mitsuha-io/Mitsuha/_packaging/Mitsuha-Central-Feed/Cargo/index/" }
+
+[source.crates-io]
+replace-with = "Mitsuha-Central-Feed"

@@ -1,5 +1,8 @@
 use futures::future::BoxFuture;
-use mitsuha_core_types::{module::{ModuleInfo, ModuleType}, symbol::Symbol};
+use mitsuha_core_types::{
+    module::{ModuleInfo, ModuleType},
+    symbol::Symbol,
+};
 
 use crate::types::SharedAsyncMany;
 
@@ -11,13 +14,17 @@ pub trait SymbolExt {
         symbol: &str,
         modtype: ModuleType,
         version: &str,
-    ) -> anyhow::Result<Self> where Self: Sized;
+    ) -> anyhow::Result<Self>
+    where
+        Self: Sized;
 
     fn from_exported_function_symbol(
         symbol: &str,
         modtype: ModuleType,
         version: &str,
-    ) -> anyhow::Result<Self> where Self: Sized;
+    ) -> anyhow::Result<Self>
+    where
+        Self: Sized;
 }
 
 impl SymbolExt for Symbol {

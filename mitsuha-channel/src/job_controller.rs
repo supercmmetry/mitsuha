@@ -1,12 +1,11 @@
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use futures::stream::AbortHandle;
-use mitsuha_core::{
-    constants::Constants,
-    errors::Error,
-    types,
+use mitsuha_core::{constants::Constants, errors::Error, types};
+use mitsuha_core_types::{
+    channel::{ComputeInput, ComputeOutput},
+    kernel::{JobSpec, JobStatus, JobStatusType, StorageSpec},
 };
-use mitsuha_core_types::{kernel::{JobSpec, JobStatusType, JobStatus, StorageSpec}, channel::{ComputeInput, ComputeOutput}};
 use tokio::{
     sync::mpsc::{Receiver, Sender},
     task::JoinHandle,
@@ -68,7 +67,7 @@ impl JobController {
             .collect(),
         };
 
-        let status_data = musubi_api::types::to_value(status)
+        let status_data = musubi_api::types::to_value(&status)
             .map_err(|e| Error::Unknown { source: e })?
             .try_into()
             .map_err(|e| Error::Unknown { source: e })?;

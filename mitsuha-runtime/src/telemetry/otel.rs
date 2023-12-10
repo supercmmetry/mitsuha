@@ -6,7 +6,6 @@ use opentelemetry::{
 use opentelemetry_otlp::WithExportConfig;
 use tracing::Subscriber;
 use tracing_opentelemetry::OpenTelemetryLayer;
-use tracing_subscriber::Registry;
 
 pub fn create_otel_layer<S>(
     config: &Config,
