@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mitsuha_core::{
     channel::ComputeChannel, errors::Error, kernel::LabelExtensionExt, selector::Label,
-    storage::Storage, types,
+    storage::RawStorage, types,
 };
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use tokio::sync::RwLock;
@@ -11,7 +11,7 @@ use tokio::sync::RwLock;
 use crate::WrappedComputeChannel;
 
 pub struct LabeledStorageChannel<Context: Send> {
-    storage: Arc<Box<dyn Storage>>,
+    storage: Arc<Box<dyn RawStorage>>,
     storage_selector: Label,
     next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
     id: String,
@@ -102,7 +102,7 @@ where
         "mitsuha/channel/labeled_storage"
     }
 
-    pub fn new(storage: Arc<Box<dyn Storage>>, selector: Label) -> WrappedComputeChannel<Self> {
+    pub fn new(storage: Arc<Box<dyn RawStorage>>, selector: Label) -> WrappedComputeChannel<Self> {
         WrappedComputeChannel::new(Self {
             storage,
             storage_selector: selector,

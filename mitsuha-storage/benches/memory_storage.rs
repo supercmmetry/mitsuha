@@ -41,7 +41,7 @@ fn make_basic_config() -> config::storage::Storage {
 
 async fn make_unified_storage() -> Arc<Box<dyn Storage>> {
     let config = make_basic_config();
-    UnifiedStorage::new(&config).unwrap()
+    UnifiedStorage::new(&config).await.unwrap()
 }
 
 async fn store_and_load_light(storage: Arc<Box<dyn Storage>>) {

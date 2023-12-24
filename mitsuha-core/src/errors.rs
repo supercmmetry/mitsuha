@@ -192,7 +192,7 @@ pub enum Error {
 }
 
 #[macro_export]
-macro_rules! unknown_err {
+macro_rules! err_unknown {
     ($msg: expr) => {
         Error::UnknownWithMsgOnly {
             message: $msg.to_string(),
@@ -201,10 +201,15 @@ macro_rules! unknown_err {
 }
 
 #[macro_export]
-macro_rules! unsupported_op {
+macro_rules! err_unsupported_op {
     ($msg: expr) => {
         Error::UnsupportedOperation {
             op: $msg.to_string(),
+        }
+    };
+    ($msg: expr, $($arg:tt)*) => {
+        Error::UnsupportedOperation {
+            op: format!($msg, $($arg)*).to_string(),
         }
     };
 }

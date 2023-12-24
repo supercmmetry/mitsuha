@@ -2,6 +2,7 @@
 
 use serial_test::serial;
 use std::{collections::HashMap, sync::Arc, time::Duration};
+use tikv_client::{Key, TransactionClient};
 
 use lazy_static::lazy_static;
 use mitsuha_core::{
@@ -17,31 +18,46 @@ mod fs;
 
 fn make_basic_config() -> config::storage::Storage {
     config::storage::Storage {
-        classes: vec![
-            StorageClass {
-                kind: mitsuha_core::storage::StorageKind::Memory,
-                locality: StorageLocality::Solid {
-                    cache_name: Some("cache_memory_1".to_string()),
-                },
-                name: "solid_memory_1".to_string(),
-                labels: vec![Label {
-                    name: "storage".to_string(),
-                    value: "sample".to_string(),
-                }],
-                extensions: [(ConfKey::EnableGC.to_string(), "true".to_string())]
-                    .iter()
-                    .cloned()
-                    .collect(),
-            },
-            StorageClass {
-                kind: mitsuha_core::storage::StorageKind::Memory,
-                locality: StorageLocality::Cache { ttl: 1 },
-                name: "cache_memory_1".to_string(),
-                labels: vec![],
-                extensions: HashMap::new(),
-            },
-        ],
+        classes: vec![StorageClass {
+            kind: mitsuha_core::storage::StorageKind::Tikv,
+            locality: StorageLocality::Solid { cache_name: None },
+            name: "solid_memory_1".to_string(),
+            labels: vec![Label {
+                name: "storage".to_string(),
+                value: "sample".to_string(),
+            }],
+            extensions: [
+                (ConfKey::EnableGC.to_string(), "true".to_string()),
+                (
+                    ConfKey::PdEndpoints.to_string(),
+                    "127.0.0.1:2379".to_string(),
+                ),
+                (
+                    ConfKey::ConcurrencyMode.to_string(),
+                    "pessimistic".to_string(),
+                ),
+            ]
+            .iter()
+            .cloned()
+            .collect(),
+        }],
     }
+}
+
+async fn reset_all_keys() {
+    let client = TransactionClient::new(vec!["127.0.0.1:2379"])
+        .await
+        .unwrap();
+
+    let lower_bound: Key = b"".to_vec().into();
+
+    let mut tx = client.begin_pessimistic().await.unwrap();
+
+    for key in tx.scan_keys(lower_bound.., u32::MAX).await.unwrap() {
+        _ = tx.delete(key).await;
+    }
+
+    tx.commit().await.unwrap();
 }
 
 async fn make_unified_storage() -> Arc<Box<dyn Storage>> {
@@ -52,6 +68,8 @@ async fn make_unified_storage() -> Arc<Box<dyn Storage>> {
 #[tokio::test]
 #[serial]
 async fn store_and_load() -> anyhow::Result<()> {
+    reset_all_keys().await;
+
     let storage = make_unified_storage().await;
 
     let mut spec = StorageSpec {
@@ -83,6 +101,8 @@ async fn store_and_load() -> anyhow::Result<()> {
 #[tokio::test]
 #[serial]
 async fn store_and_expire() -> anyhow::Result<()> {
+    reset_all_keys().await;
+
     let storage = make_unified_storage().await;
 
     let mut spec = StorageSpec {
@@ -115,6 +135,8 @@ async fn store_and_expire() -> anyhow::Result<()> {
 #[tokio::test]
 #[serial]
 async fn store_persist_expire() -> anyhow::Result<()> {
+    reset_all_keys().await;
+
     let storage = make_unified_storage().await;
 
     let mut spec = StorageSpec {
@@ -168,6 +190,8 @@ async fn store_persist_expire() -> anyhow::Result<()> {
 #[tokio::test]
 #[serial]
 async fn store_and_clear() -> anyhow::Result<()> {
+    reset_all_keys().await;
+
     let storage = make_unified_storage().await;
 
     let mut spec = StorageSpec {
@@ -198,8 +222,6 @@ async fn store_and_clear() -> anyhow::Result<()> {
     Ok(())
 }
 
-// MNFS tests
-
 lazy_static! {
     static ref CONFIG: config::storage::Storage = make_basic_config();
     static ref EXTENSIONS: HashMap<String, String> = [(
@@ -214,4 +236,4 @@ lazy_static! {
     .collect();
 }
 
-mnfs_test_suite!(&CONFIG, &EXTENSIONS);
+mnfs_test_suite!(&CONFIG, &EXTENSIONS, reset_all_keys);

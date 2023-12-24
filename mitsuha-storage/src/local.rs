@@ -5,24 +5,28 @@ use std::{
     sync::Arc,
 };
 
-use tokio::{fs::{OpenOptions, File}, io::{AsyncSeekExt, AsyncWriteExt, AsyncReadExt}};
+use tokio::{
+    fs::{File, OpenOptions},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use lazy_static::lazy_static;
 use mitsuha_core::{
-    constants::StorageControlConstants,
+    err_unknown,
     errors::Error,
-    storage::{FileSystem, GarbageCollectable, Storage, StorageClass},
-    types, unknown_err,
+    storage::{FileSystem, GarbageCollectable, RawStorage, Storage, StorageClass},
+    types,
 };
-use mitsuha_core_types::kernel::StorageSpec;
+use mitsuha_core_types::{kernel::StorageSpec, storage::StorageCapability};
 use mitsuha_filesystem::{
     constant::NativeFileSystemConstants, util::PathExt, NativeFileMetadata, NativeFileType,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::sync::RwLock;
+
+use crate::{conf::ConfKey, util};
 
 lazy_static! {
     static ref INTERNAL_METADATA_EXT: String =
@@ -42,65 +46,26 @@ pub struct LocalFileMetadata {
 pub struct LocalStorage {
     root_dir: String,
     enable_gc: bool,
-    total_size: Arc<RwLock<usize>>,
 }
 
 #[async_trait]
-impl Storage for LocalStorage {
+impl RawStorage for LocalStorage {
     async fn store(&self, spec: StorageSpec) -> types::Result<()> {
         let handle = spec.handle;
 
-        match spec
-            .extensions
-            .get(&StorageControlConstants::StorageExpiryTimestamp.to_string())
-        {
-            Some(value) => {
-                let date_time =
-                    value
-                        .parse::<DateTime<Utc>>()
-                        .map_err(|e| Error::StorageStoreFailed {
-                            message: format!(
-                                "failed to parse storage expiry time for storage handle: '{}'",
-                                handle.clone()
-                            ),
-                            source: e.into(),
-                        })?;
+        let expiry = util::get_expiry(&handle, spec.ttl, &spec.extensions)?;
 
-                if date_time <= Utc::now() {
-                    return Err(Error::StorageStoreFailed {
-                        message: format!(
-                            "storage handle has already expired: '{}'",
-                            handle.clone()
-                        ),
-                        source: anyhow::anyhow!(""),
-                    });
-                }
+        let metadata = LocalFileMetadata {
+            handle: handle.clone(),
+            expiry,
+        };
 
-                let metadata = LocalFileMetadata {
-                    handle: handle.clone(),
-                    expiry: date_time,
-                };
-
-                self.store_metadata_internal(handle.clone(), metadata)
-                    .await?;
-            }
-            None => {
-                // TODO: Add warnings here for adding calculated timestamp
-
-                let metadata = LocalFileMetadata {
-                    handle: handle.clone(),
-                    expiry: Utc::now() + Duration::seconds(spec.ttl as i64),
-                };
-
-                self.store_metadata_internal(handle.clone(), metadata.clone())
-                    .await?;
-            }
-        }
+        self.store_internal_metadata(handle.clone(), metadata)
+            .await?;
 
         let data = spec.data;
 
-        *self.total_size.write().await += data.len();
-        self.store_data(handle.clone(), data).await?;
+        self.store_data(handle, data).await?;
 
         Ok(())
     }
@@ -110,7 +75,7 @@ impl Storage for LocalStorage {
         handle: String,
         _extensions: HashMap<String, String>,
     ) -> types::Result<Vec<u8>> {
-        let metadata = self.load_metadata_internal(handle.clone()).await;
+        let metadata = self.load_internal_metadata(handle.clone()).await;
 
         match metadata {
             Ok(LocalFileMetadata { expiry, .. }) => {
@@ -157,12 +122,12 @@ impl Storage for LocalStorage {
         time: u64,
         _extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        let value = self.load_metadata_internal(handle.clone()).await;
+        let value = self.load_internal_metadata(handle.clone()).await;
 
         match value {
             Ok(mut metadata) => {
                 metadata.expiry += Duration::seconds(time as i64);
-                self.store_metadata_internal(handle.clone(), metadata)
+                self.store_internal_metadata(handle.clone(), metadata)
                     .await?;
                 Ok(())
             }
@@ -176,33 +141,34 @@ impl Storage for LocalStorage {
     async fn clear(
         &self,
         handle: String,
-        _extensions: HashMap<String, String>,
+        extensions: HashMap<String, String>,
     ) -> types::Result<()> {
         tracing::debug!("clearing handle: '{}'", handle);
 
-        match self.load_data(handle.clone()).await {
-            Ok(data) => {
-                if *self.total_size.read().await > data.len() {
-                    *self.total_size.write().await -= data.len();
-                }
-            }
-            _ => {}
+        if !self.exists(handle.clone(), extensions).await? {
+            return Ok(());
         }
 
         let file_name = self.get_full_handle(&handle);
         let metadata_file_name = self.get_full_handle(&Self::gen_internal_metadata_handle(&handle));
 
-        std::fs::remove_file(file_name)
+        tokio::fs::remove_file(file_name)
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        std::fs::remove_file(metadata_file_name)
+        tokio::fs::remove_file(metadata_file_name)
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         Ok(())
     }
 
-    async fn size(&self) -> types::Result<usize> {
-        Ok(self.total_size.read().await.clone())
+    async fn capabilities(
+        &self,
+        _handle: String,
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<StorageCapability>> {
+        Ok(vec![StorageCapability::StorageLocal])
     }
 }
 
@@ -226,24 +192,27 @@ impl FileSystem for LocalStorage {
             .write(true)
             .open(file_name)
             .await
-            .map_err(|e| unknown_err!(e))?;
+            .map_err(|e| err_unknown!(e))?;
 
-        file.seek(SeekFrom::Start(offset)).await
-            .map_err(|e| unknown_err!(e))?;
+        file.seek(SeekFrom::Start(offset))
+            .await
+            .map_err(|e| err_unknown!(e))?;
 
-        file.write(&data).await.map_err(|e| unknown_err!(e))?;
+        file.write(&data).await.map_err(|e| err_unknown!(e))?;
 
-        file.flush().await
+        file.flush()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.shutdown().await
+        file.shutdown()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        let mut metadata = self.load_metadata_internal(handle.clone()).await?;
+        let mut metadata = self.load_internal_metadata(handle.clone()).await?;
 
         metadata.expiry += Duration::seconds(ttl as i64);
 
-        self.store_metadata_internal(handle, metadata).await?;
+        self.store_internal_metadata(handle, metadata).await?;
 
         Ok(())
     }
@@ -263,16 +232,18 @@ impl FileSystem for LocalStorage {
             .read(true)
             .open(file_name)
             .await
-            .map_err(|e| unknown_err!(e))?;
+            .map_err(|e| err_unknown!(e))?;
 
-        file.seek(SeekFrom::Start(offset)).await
-            .map_err(|e| unknown_err!(e))?;
+        file.seek(SeekFrom::Start(offset))
+            .await
+            .map_err(|e| err_unknown!(e))?;
 
         let mut data = vec![0u8; part_size as usize];
 
-        let bytes_read = file.read(&mut data).await.map_err(|e| unknown_err!(e))?;
+        let bytes_read = file.read(&mut data).await.map_err(|e| err_unknown!(e))?;
 
-        file.shutdown().await
+        file.shutdown()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         data.truncate(bytes_read);
@@ -290,7 +261,7 @@ impl FileSystem for LocalStorage {
 
         let data_len = tokio::fs::metadata(file_name)
             .await
-            .map_err(|e| unknown_err!(e))?
+            .map_err(|e| err_unknown!(e))?
             .len();
 
         let part_count = data_len / part_size + (data_len % part_size > 0) as u64;
@@ -307,9 +278,9 @@ impl FileSystem for LocalStorage {
 
         let data = self.load_data(metadata_handle).await?;
 
-        let value = musubi_api::types::Value::try_from(data).map_err(|e| unknown_err!(e))?;
+        let value = musubi_api::types::Value::try_from(data).map_err(|e| err_unknown!(e))?;
 
-        let metadata = musubi_api::types::from_value(&value).map_err(|e| unknown_err!(e))?;
+        let metadata = musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
 
         Ok(metadata)
     }
@@ -321,10 +292,10 @@ impl FileSystem for LocalStorage {
         ttl: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        let value = musubi_api::types::to_value(&metadata).map_err(|e| unknown_err!(e))?;
+        let value = musubi_api::types::to_value(&metadata).map_err(|e| err_unknown!(e))?;
         let data: Vec<u8> = value
             .try_into()
-            .map_err(|e: anyhow::Error| unknown_err!(e))?;
+            .map_err(|e: anyhow::Error| err_unknown!(e))?;
 
         let metadata_handle = Self::gen_native_metadata_handle(&handle);
 
@@ -338,16 +309,17 @@ impl FileSystem for LocalStorage {
         let full_handle = self
             .get_full_handle(&handle)
             .to_string()
-            .map_err(|e| unknown_err!(e))?;
+            .map_err(|e| err_unknown!(e))?;
 
         // Create directory based on metadata
         if metadata.file_type == NativeFileType::Dir {
-            if !tokio::fs::try_exists(&full_handle).await
-                .map_err(|e| unknown_err!(e))?
+            if !tokio::fs::try_exists(&full_handle)
+                .await
+                .map_err(|e| err_unknown!(e))?
             {
-                tokio::fs::create_dir(full_handle).await
-                    .map_err(|e| unknown_err!(e))?;
-
+                tokio::fs::create_dir(full_handle)
+                    .await
+                    .map_err(|e| err_unknown!(e))?;
             }
         }
 
@@ -373,18 +345,17 @@ impl FileSystem for LocalStorage {
 
         let path = self.get_full_handle(&handle);
 
-        let list_iter = std::fs::read_dir(&path)
-            .map_err(|e| unknown_err!(e))?;
+        let list_iter = std::fs::read_dir(&path).map_err(|e| err_unknown!(e))?;
 
         let mut data = Vec::new();
 
         for item in list_iter {
             let entry = item
-                .map_err(|e| unknown_err!(e))?
+                .map_err(|e| err_unknown!(e))?
                 .file_name()
                 .to_str()
                 .map(|x| x.to_string())
-                .ok_or(unknown_err!("encountered non utf-8 chars in dir entry"))?;
+                .ok_or(err_unknown!("encountered non utf-8 chars in dir entry"))?;
 
             if entry.contains(&NativeFileSystemConstants::MnfsSuffix.to_string()) {
                 continue;
@@ -435,15 +406,18 @@ impl FileSystem for LocalStorage {
 
         let mut file = OpenOptions::new()
             .write(true)
-            .open(file_name).await
-            .map_err(|e| unknown_err!(e))?;
+            .open(file_name)
+            .await
+            .map_err(|e| err_unknown!(e))?;
 
-        file.set_len(len).await.map_err(|e| unknown_err!(e))?;
+        file.set_len(len).await.map_err(|e| err_unknown!(e))?;
 
-        file.flush().await
+        file.flush()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.shutdown().await
+        file.shutdown()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         Ok(())
@@ -458,8 +432,9 @@ impl FileSystem for LocalStorage {
         let full_source_handle = self.get_full_handle(&source_handle);
         let full_destination_handle = self.get_full_handle(&destination_handle);
 
-        std::fs::rename(full_source_handle, full_destination_handle)
-            .map_err(|e| unknown_err!(e))
+        tokio::fs::rename(full_source_handle, full_destination_handle)
+            .await
+            .map_err(|e| err_unknown!(e))
     }
 
     async fn delete_path(
@@ -469,30 +444,52 @@ impl FileSystem for LocalStorage {
     ) -> types::Result<()> {
         let path = self.get_full_handle(&handle);
 
-        let metadata = std::fs::metadata(&path)
-            .map_err(|e| unknown_err!(e))?;
+        let metadata = tokio::fs::metadata(&path)
+            .await
+            .map_err(|e| err_unknown!(e))?;
 
         let metadata_handle = self.get_full_handle(&Self::gen_internal_metadata_handle(&handle));
         let native_metadata_handle =
             self.get_full_handle(&Self::gen_native_metadata_handle(&handle));
 
         if metadata.file_type().is_dir() {
-            std::fs::remove_dir_all(path)
-                .map_err(|e| unknown_err!(e))?;
+            tokio::fs::remove_dir_all(path)
+                .await
+                .map_err(|e| err_unknown!(e))?;
         } else if metadata.file_type().is_file() {
-            std::fs::remove_file(path)
-                .map_err(|e| unknown_err!(e))?;
+            tokio::fs::remove_file(path)
+                .await
+                .map_err(|e| err_unknown!(e))?;
         } else {
-            return Err(unknown_err!("symlink deletion is not allowed"));
+            return Err(err_unknown!("symlink deletion is not allowed"));
         }
 
-        std::fs::remove_file(metadata_handle)
-            .map_err(|e| unknown_err!(e))?;
+        tokio::fs::remove_file(metadata_handle)
+            .await
+            .map_err(|e| err_unknown!(e))?;
 
-        std::fs::remove_file(native_metadata_handle)
-            .map_err(|e| unknown_err!(e))?;
+        tokio::fs::remove_file(native_metadata_handle)
+            .await
+            .map_err(|e| err_unknown!(e))?;
 
         Ok(())
+    }
+
+    async fn get_capabilities(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<StorageCapability>> {
+        let raw_caps = self.capabilities(handle, extensions).await?;
+
+        let mut fs_caps = vec![
+            StorageCapability::FSRecursiveDelete,
+            StorageCapability::FSRecursiveMove,
+        ];
+
+        fs_caps.extend(raw_caps);
+
+        Ok(fs_caps)
     }
 }
 
@@ -511,17 +508,16 @@ impl GarbageCollectable for LocalStorage {
 
 impl LocalStorage {
     pub fn new(class: StorageClass) -> types::Result<Arc<Box<dyn Storage>>> {
-        let root_dir = class.get_extension_property("rootDirectory")?;
+        let root_dir = class.get_extension_property(&ConfKey::RootDir.to_string())?;
 
         let enable_gc = class
-            .get_extension_property("enableGC")?
+            .get_extension_property(&ConfKey::EnableGC.to_string())?
             .parse::<bool>()
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         let storage = Self {
             root_dir,
             enable_gc,
-            total_size: Arc::new(RwLock::new(0)),
         };
 
         Ok(Arc::new(Box::new(storage)))
@@ -550,7 +546,7 @@ impl LocalStorage {
         )
     }
 
-    async fn store_metadata_internal(
+    async fn store_internal_metadata(
         &self,
         handle: String,
         metadata: LocalFileMetadata,
@@ -560,21 +556,25 @@ impl LocalStorage {
         let full_handle = self
             .get_full_handle(&internal_metadata_handle)
             .to_string()
-            .map_err(|e| unknown_err!(e))?;
+            .map_err(|e| err_unknown!(e))?;
 
-        let mut file = File::create(full_handle).await
+        let mut file = File::create(full_handle)
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         let metadata_json =
             serde_json::to_string(&metadata).map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.write_all(metadata_json.as_bytes()).await
+        file.write_all(metadata_json.as_bytes())
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.flush().await
+        file.flush()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.shutdown().await
+        file.shutdown()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         Ok(())
@@ -583,47 +583,55 @@ impl LocalStorage {
     async fn store_data(&self, handle: String, data: Vec<u8>) -> types::Result<()> {
         let mut file_name = self.get_full_handle(&handle);
 
-        if tokio::fs::try_exists(&file_name).await
-            .map_err(|e| unknown_err!(e))?
+        if tokio::fs::try_exists(&file_name)
+            .await
+            .map_err(|e| err_unknown!(e))?
         {
-            let metadata = tokio::fs::metadata(&file_name).await
-                .map_err(|e| unknown_err!(e))?;
+            let metadata = tokio::fs::metadata(&file_name)
+                .await
+                .map_err(|e| err_unknown!(e))?;
 
             if metadata.is_dir() {
                 file_name.push(DIRDATA_EXT.as_str());
             }
         }
 
-        let mut file = File::create(file_name).await
+        let mut file = File::create(file_name)
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.write_all(&data).await
+        file.write_all(&data)
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.flush().await.map_err(|e| Error::Unknown { source: e.into() })?;
+        file.flush()
+            .await
+            .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.shutdown().await
+        file.shutdown()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         Ok(())
     }
 
-    async fn load_metadata_internal(&self, handle: String) -> types::Result<LocalFileMetadata> {
-        let expiry_handle = Self::gen_internal_metadata_handle(
-            &handle
-        );
+    async fn load_internal_metadata(&self, handle: String) -> types::Result<LocalFileMetadata> {
+        let expiry_handle = Self::gen_internal_metadata_handle(&handle);
 
         let full_handle = self.get_full_handle(&expiry_handle);
 
-        let mut file = File::open(full_handle).await
+        let mut file = File::open(full_handle)
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         let mut metadata_json_buf = Vec::new();
 
-        file.read_to_end(&mut metadata_json_buf).await
+        file.read_to_end(&mut metadata_json_buf)
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.shutdown().await
+        file.shutdown()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         let metadata_json = String::from_utf8(metadata_json_buf)
@@ -657,26 +665,31 @@ impl LocalStorage {
     async fn load_data(&self, handle: String) -> types::Result<Vec<u8>> {
         let mut file_name = self.get_full_handle(&handle);
 
-        if tokio::fs::try_exists(&file_name).await
-            .map_err(|e| unknown_err!(e))?
+        if tokio::fs::try_exists(&file_name)
+            .await
+            .map_err(|e| err_unknown!(e))?
         {
-            let metadata = tokio::fs::metadata(&file_name).await
-                .map_err(|e| unknown_err!(e))?;
+            let metadata = tokio::fs::metadata(&file_name)
+                .await
+                .map_err(|e| err_unknown!(e))?;
 
             if metadata.is_dir() {
                 file_name.push(DIRDATA_EXT.as_str());
             }
         }
 
-        let mut file = File::open(file_name).await
+        let mut file = File::open(file_name)
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         let mut buf = Vec::new();
 
-        file.read_to_end(&mut buf).await
+        file.read_to_end(&mut buf)
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
-        file.shutdown().await
+        file.shutdown()
+            .await
             .map_err(|e| Error::Unknown { source: e.into() })?;
 
         Ok(buf)
@@ -685,12 +698,10 @@ impl LocalStorage {
     async fn run_gc(&self) -> anyhow::Result<Vec<String>> {
         let mut delete_handles = vec![];
 
-        let read_dir = std::fs::read_dir(&self.root_dir)?;
+        let mut read_dir = tokio::fs::read_dir(&self.root_dir).await?;
 
-        for entry in read_dir {
-            let entry = entry?;
-
-            if !entry.file_type()?.is_file() {
+        while let Some(entry) = read_dir.next_entry().await? {
+            if !entry.file_type().await?.is_file() {
                 continue;
             }
 
@@ -703,7 +714,7 @@ impl LocalStorage {
                         continue;
                     }
 
-                    let metadata_json = std::fs::read_to_string(full_path.unwrap());
+                    let metadata_json = tokio::fs::read_to_string(full_path.unwrap()).await;
                     if metadata_json.is_err() {
                         tracing::warn!(
                             "failed to read metadata for file: '{}', error: {}",

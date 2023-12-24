@@ -5,7 +5,7 @@ use mitsuha_core_types::{kernel::StorageSpec, storage::StorageCapability};
 use mitsuha_filesystem::{NativeFileLease, NativeFileMetadata};
 use serde::{Deserialize, Serialize};
 
-use crate::{errors::Error, selector::Label, types, unsupported_op};
+use crate::{err_unsupported_op, errors::Error, selector::Label, types};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "snake_case")]
@@ -28,6 +28,7 @@ impl StorageLocality {
 pub enum StorageKind {
     Memory,
     Local,
+    Tikv,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -53,8 +54,12 @@ impl StorageClass {
     }
 }
 
+pub trait Storage: RawStorage + FileSystem {}
+
+impl<T> Storage for T where T: RawStorage + FileSystem {}
+
 #[async_trait]
-pub trait Storage: FileSystem + GarbageCollectable + Send + Sync {
+pub trait RawStorage: GarbageCollectable + Send + Sync {
     async fn store(&self, spec: StorageSpec) -> types::Result<()>;
 
     async fn load(
@@ -78,8 +83,6 @@ pub trait Storage: FileSystem + GarbageCollectable + Send + Sync {
 
     async fn clear(&self, handle: String, extensions: HashMap<String, String>)
         -> types::Result<()>;
-
-    async fn size(&self) -> types::Result<usize>;
 
     async fn capabilities(
         &self,
@@ -107,7 +110,7 @@ pub trait FileSystem {
         data: Vec<u8>,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("store_file_part"))
+        Err(err_unsupported_op!("store_file_part"))
     }
 
     #[allow(unused_variables)]
@@ -118,7 +121,7 @@ pub trait FileSystem {
         part_size: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<Vec<u8>> {
-        Err(unsupported_op!("load_file_part"))
+        Err(err_unsupported_op!("load_file_part"))
     }
 
     #[allow(unused_variables)]
@@ -128,7 +131,7 @@ pub trait FileSystem {
         part_size: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<u64> {
-        Err(unsupported_op!("get_file_part_count"))
+        Err(err_unsupported_op!("get_file_part_count"))
     }
 
     #[allow(unused_variables)]
@@ -137,7 +140,7 @@ pub trait FileSystem {
         handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<NativeFileMetadata> {
-        Err(unsupported_op!("get_metadata"))
+        Err(err_unsupported_op!("get_metadata"))
     }
 
     #[allow(unused_variables)]
@@ -148,7 +151,7 @@ pub trait FileSystem {
         ttl: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("set_metadata"))
+        Err(err_unsupported_op!("set_metadata"))
     }
 
     #[allow(unused_variables)]
@@ -157,7 +160,7 @@ pub trait FileSystem {
         handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<bool> {
-        Err(unsupported_op!("path_exists"))
+        Err(err_unsupported_op!("path_exists"))
     }
 
     #[allow(unused_variables)]
@@ -168,7 +171,7 @@ pub trait FileSystem {
         page_size: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<Vec<String>> {
-        Err(unsupported_op!("list"))
+        Err(err_unsupported_op!("list"))
     }
 
     #[allow(unused_variables)]
@@ -178,7 +181,7 @@ pub trait FileSystem {
         item: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("add_list_item"))
+        Err(err_unsupported_op!("add_list_item"))
     }
 
     #[allow(unused_variables)]
@@ -188,7 +191,7 @@ pub trait FileSystem {
         item: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("remove_list_item"))
+        Err(err_unsupported_op!("remove_list_item"))
     }
 
     #[allow(unused_variables)]
@@ -198,7 +201,7 @@ pub trait FileSystem {
         len: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("truncate"))
+        Err(err_unsupported_op!("truncate"))
     }
 
     #[allow(unused_variables)]
@@ -209,7 +212,7 @@ pub trait FileSystem {
         ttl: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("acquire_lease"))
+        Err(err_unsupported_op!("acquire_lease"))
     }
 
     #[allow(unused_variables)]
@@ -220,7 +223,7 @@ pub trait FileSystem {
         ttl: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("renew_lease"))
+        Err(err_unsupported_op!("renew_lease"))
     }
 
     #[allow(unused_variables)]
@@ -230,7 +233,7 @@ pub trait FileSystem {
         lease_id: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("release_lease"))
+        Err(err_unsupported_op!("release_lease"))
     }
 
     #[allow(unused_variables)]
@@ -240,7 +243,7 @@ pub trait FileSystem {
         destination_handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("copy_path"))
+        Err(err_unsupported_op!("copy_path"))
     }
 
     #[allow(unused_variables)]
@@ -250,7 +253,7 @@ pub trait FileSystem {
         destination_handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("move_path"))
+        Err(err_unsupported_op!("move_path"))
     }
 
     #[allow(unused_variables)]
@@ -259,7 +262,7 @@ pub trait FileSystem {
         handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        Err(unsupported_op!("delete_path"))
+        Err(err_unsupported_op!("delete_path"))
     }
 
     #[allow(unused_variables)]
@@ -268,7 +271,7 @@ pub trait FileSystem {
         handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<Vec<StorageCapability>> {
-        Err(unsupported_op!("get_capabilities"))
+        Ok(vec![])
     }
 
     #[allow(unused_variables)]
@@ -277,6 +280,6 @@ pub trait FileSystem {
         handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<String> {
-        Err(unsupported_op!("get_storage_class"))
+        Err(err_unsupported_op!("get_storage_class"))
     }
 }

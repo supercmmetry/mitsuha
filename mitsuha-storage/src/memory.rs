@@ -1,75 +1,40 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
-use mitsuha_core::constants::StorageControlConstants;
 
-use mitsuha_core::unknown_err;
+use mitsuha_core::err_unknown;
 use mitsuha_core::{errors::Error, types};
 use mitsuha_core_types::kernel::StorageSpec;
 
-use mitsuha_core::storage::{FileSystem, GarbageCollectable, Storage};
+use mitsuha_core::storage::{FileSystem, GarbageCollectable, RawStorage, Storage};
 use mitsuha_core_types::storage::StorageCapability;
 use mitsuha_filesystem::constant::NativeFileSystemConstants;
 use mitsuha_filesystem::NativeFileMetadata;
 use musubi_api::types::Value;
 
+use crate::util;
+
 pub struct MemoryStorage {
     store: DashMap<String, Vec<u8>>,
     expiry_map: DashMap<String, DateTime<Utc>>,
-    total_size: Arc<RwLock<usize>>,
 }
 
 #[async_trait]
-impl Storage for MemoryStorage {
+impl RawStorage for MemoryStorage {
     async fn store(&self, spec: StorageSpec) -> types::Result<()> {
         let handle = spec.handle;
 
-        match spec
-            .extensions
-            .get(&StorageControlConstants::StorageExpiryTimestamp.to_string())
-        {
-            Some(value) => {
-                let date_time =
-                    value
-                        .parse::<DateTime<Utc>>()
-                        .map_err(|e| Error::StorageStoreFailed {
-                            message: format!(
-                                "failed to parse storage expiry time for storage handle: '{}'",
-                                handle.clone()
-                            ),
-                            source: e.into(),
-                        })?;
+        let expiry = util::get_expiry(&handle, spec.ttl, &spec.extensions)?;
 
-                if date_time <= Utc::now() {
-                    return Err(Error::StorageStoreFailed {
-                        message: format!(
-                            "storage handle has already expired: '{}'",
-                            handle.clone()
-                        ),
-                        source: anyhow::anyhow!(""),
-                    });
-                }
-
-                self.expiry_map.insert(handle.clone(), date_time);
-            }
-            None => {
-                // TODO: Add warnings here for adding calculated timestamp
-
-                self.expiry_map.insert(
-                    handle.clone(),
-                    Utc::now() + Duration::seconds(spec.ttl as i64),
-                );
-            }
-        }
+        self.expiry_map.insert(handle.clone(), expiry);
 
         let data = spec.data;
 
-        *self.total_size.write().unwrap() += data.len();
-        self.store.insert(handle.clone(), data);
+        self.store.insert(handle, data);
 
         Ok(())
     }
@@ -142,18 +107,10 @@ impl Storage for MemoryStorage {
         handle: String,
         _extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        if let Some(data) = self.store.get(&handle) {
-            *self.total_size.write().unwrap() -= data.len();
-        }
-
         self.expiry_map.remove(&handle);
         self.store.remove(&handle);
 
         Ok(())
-    }
-
-    async fn size(&self) -> types::Result<usize> {
-        Ok(self.total_size.read().unwrap().clone())
     }
 
     async fn capabilities(
@@ -207,10 +164,10 @@ impl FileSystem for MemoryStorage {
         let mut existing_data = self
             .store
             .get_mut(&handle)
-            .ok_or(unknown_err!("could not find store handle"))?;
+            .ok_or(err_unknown!("could not find store handle"))?;
 
         if offset > existing_data.len() {
-            return Err(unknown_err!("offset is out of bounds"));
+            return Err(err_unknown!("offset is out of bounds"));
         }
 
         for byte in data.iter() {
@@ -226,7 +183,7 @@ impl FileSystem for MemoryStorage {
         let mut expiry = self
             .expiry_map
             .get_mut(&handle)
-            .ok_or(unknown_err!("could not find expiry_map handle"))?;
+            .ok_or(err_unknown!("could not find expiry_map handle"))?;
 
         *expiry += Duration::seconds(ttl as i64);
 
@@ -245,7 +202,7 @@ impl FileSystem for MemoryStorage {
         let data = self
             .store
             .get(&handle)
-            .ok_or(unknown_err!("could not find store handle"))?;
+            .ok_or(err_unknown!("could not find store handle"))?;
 
         if offset >= data.len() {
             return Ok(vec![]);
@@ -269,7 +226,7 @@ impl FileSystem for MemoryStorage {
         let data = self
             .store
             .get(&handle)
-            .ok_or(unknown_err!("could not find store handle"))?;
+            .ok_or(err_unknown!("could not find store handle"))?;
 
         let data_len = data.len() as u64;
         let part_count = data_len / part_size + (data_len % part_size > 0) as u64;
@@ -291,11 +248,11 @@ impl FileSystem for MemoryStorage {
         let data = self
             .store
             .get(&metadata_handle)
-            .ok_or(unknown_err!("could not find metadata handle"))?;
+            .ok_or(err_unknown!("could not find metadata handle"))?;
 
         let value =
-            musubi_api::types::Value::try_from(data.clone()).map_err(|e| unknown_err!(e))?;
-        let metadata = musubi_api::types::from_value(&value).map_err(|e| unknown_err!(e))?;
+            musubi_api::types::Value::try_from(data.clone()).map_err(|e| err_unknown!(e))?;
+        let metadata = musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
 
         Ok(metadata)
     }
@@ -313,10 +270,10 @@ impl FileSystem for MemoryStorage {
             NativeFileSystemConstants::MetadataSuffix.to_string()
         );
 
-        let value = musubi_api::types::to_value(&metadata).map_err(|e| unknown_err!(e))?;
+        let value = musubi_api::types::to_value(&metadata).map_err(|e| err_unknown!(e))?;
         let data: Vec<u8> = value
             .try_into()
-            .map_err(|e: anyhow::Error| unknown_err!(e))?;
+            .map_err(|e: anyhow::Error| err_unknown!(e))?;
 
         let spec = StorageSpec {
             handle: metadata_handle,
@@ -356,9 +313,9 @@ impl FileSystem for MemoryStorage {
         }
 
         let value = musubi_api::types::Value::try_from(data.unwrap().clone())
-            .map_err(|e| unknown_err!(e))?;
+            .map_err(|e| err_unknown!(e))?;
         let list: Vec<String> =
-            musubi_api::types::from_value(&value).map_err(|e| unknown_err!(e))?;
+            musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
 
         let offset = (page_index * page_size) as usize;
 
@@ -395,19 +352,25 @@ impl FileSystem for MemoryStorage {
             value = data
                 .clone()
                 .try_into()
-                .map_err(|e: anyhow::Error| unknown_err!(e))?;
+                .map_err(|e: anyhow::Error| err_unknown!(e))?;
         }
 
         match &mut value {
             musubi_api::types::Value::Array(v) => {
                 v.push(musubi_api::types::Value::String(item));
+
                 v.sort_by(|x, y| match (&x, &y) {
                     (&Value::String(x), &Value::String(y)) => x.cmp(y),
                     _ => Ordering::Equal,
-                })
+                });
+
+                v.dedup_by(|a, b| match (&a, &b) {
+                    (Value::String(x), Value::String(y)) => x == y,
+                    _ => false,
+                });
             }
             _ => {
-                return Err(unknown_err!(
+                return Err(err_unknown!(
                     "unexpected error encountered while parsing list"
                 ));
             }
@@ -416,7 +379,7 @@ impl FileSystem for MemoryStorage {
         let expiry = self
             .expiry_map
             .get(&handle)
-            .ok_or(unknown_err!("could not find expiry handle"))?;
+            .ok_or(err_unknown!("could not find expiry handle"))?;
         let ttl_duration = expiry.clone() - Utc::now();
 
         let mut ttl = ttl_duration.num_seconds();
@@ -428,7 +391,7 @@ impl FileSystem for MemoryStorage {
             handle: list_handle,
             data: value
                 .try_into()
-                .map_err(|e: anyhow::Error| unknown_err!(e))?,
+                .map_err(|e: anyhow::Error| err_unknown!(e))?,
             ttl: ttl as u64,
             extensions,
         };
@@ -456,7 +419,7 @@ impl FileSystem for MemoryStorage {
             value = data
                 .clone()
                 .try_into()
-                .map_err(|e: anyhow::Error| unknown_err!(e))?;
+                .map_err(|e: anyhow::Error| err_unknown!(e))?;
         }
 
         match &mut value {
@@ -470,7 +433,7 @@ impl FileSystem for MemoryStorage {
                 });
             }
             _ => {
-                return Err(unknown_err!(
+                return Err(err_unknown!(
                     "unexpected error encountered while parsing list"
                 ));
             }
@@ -479,7 +442,7 @@ impl FileSystem for MemoryStorage {
         let expiry = self
             .expiry_map
             .get(&handle)
-            .ok_or(unknown_err!("could not find expiry handle"))?;
+            .ok_or(err_unknown!("could not find expiry handle"))?;
         let ttl_duration = expiry.clone() - Utc::now();
 
         let mut ttl = ttl_duration.num_seconds();
@@ -491,7 +454,7 @@ impl FileSystem for MemoryStorage {
             handle: list_handle,
             data: value
                 .try_into()
-                .map_err(|e: anyhow::Error| unknown_err!(e))?,
+                .map_err(|e: anyhow::Error| err_unknown!(e))?,
             ttl: ttl as u64,
             extensions,
         };
@@ -508,7 +471,7 @@ impl FileSystem for MemoryStorage {
         let mut data = self
             .store
             .get_mut(&handle)
-            .ok_or(unknown_err!("failed to get handle"))?;
+            .ok_or(err_unknown!("failed to get handle"))?;
 
         data.truncate(len as usize);
 
@@ -530,14 +493,6 @@ impl FileSystem for MemoryStorage {
     ) -> types::Result<Vec<StorageCapability>> {
         self.capabilities(handle, extensions).await
     }
-
-    async fn get_storage_class(
-        &self,
-        _handle: String,
-        _extensions: HashMap<String, String>,
-    ) -> types::Result<String> {
-        unimplemented!()
-    }
 }
 
 impl MemoryStorage {
@@ -545,7 +500,6 @@ impl MemoryStorage {
         let obj = Self {
             store: Default::default(),
             expiry_map: Default::default(),
-            total_size: Arc::new(RwLock::new(0usize)),
         };
 
         Ok(Arc::new(Box::new(obj)))

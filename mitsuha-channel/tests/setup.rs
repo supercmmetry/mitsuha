@@ -10,7 +10,7 @@ use mitsuha_core::{
     kernel::Kernel,
     resolver::{blob::BlobResolver, Resolver},
     selector::Label,
-    storage::{Storage, StorageClass, StorageLocality},
+    storage::{RawStorage, StorageClass, StorageLocality},
 };
 use mitsuha_core_types::module::ModuleInfo;
 use mitsuha_storage::UnifiedStorage;
@@ -63,7 +63,7 @@ pub fn make_basic_config() -> config::storage::Storage {
     }
 }
 
-pub fn make_unified_storage() -> Arc<Box<dyn Storage>> {
+pub fn make_unified_storage() -> Arc<Box<dyn RawStorage>> {
     let config = make_basic_config();
     UnifiedStorage::new(&config).unwrap()
 }

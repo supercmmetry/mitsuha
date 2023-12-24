@@ -1,15 +1,17 @@
-use std::{collections::HashMap, num::ParseIntError, sync::Arc, time::Duration};
+use std::{collections::HashMap, num::ParseIntError, path::Path, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use mitsuha_core::{
     config,
     constants::StorageControlConstants,
+    err_unknown, err_unsupported_op,
     errors::Error,
     selector::Label,
     storage::{
-        FileSystem, GarbageCollectable, Storage, StorageClass, StorageKind, StorageLocality,
+        FileSystem, GarbageCollectable, RawStorage, Storage, StorageClass, StorageKind,
+        StorageLocality,
     },
-    types, unknown_err, unsupported_op,
+    types,
 };
 use mitsuha_core_types::{kernel::StorageSpec, storage::StorageCapability};
 use mitsuha_filesystem::{
@@ -18,7 +20,7 @@ use mitsuha_filesystem::{
     NativeFileLease, NativeFileMetadata,
 };
 
-use crate::{local::LocalStorage, memory::MemoryStorage};
+use crate::{local::LocalStorage, memory::MemoryStorage, tikv::TikvStorage, util::StorageClassExt};
 
 #[derive(Clone)]
 pub struct UnifiedStorage {
@@ -27,9 +29,9 @@ pub struct UnifiedStorage {
 }
 
 #[async_trait]
-impl Storage for UnifiedStorage {
+impl RawStorage for UnifiedStorage {
     async fn store(&self, mut spec: StorageSpec) -> types::Result<()> {
-        self.sanitize_handle(&mut spec.handle)?;
+        Self::sanitize_handle(&mut spec.handle)?;
 
         if self.validate_mnfs_call(&spec.extensions)? {
             return self.process_mnfs_store_context(spec).await;
@@ -43,15 +45,18 @@ impl Storage for UnifiedStorage {
         mut handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<Vec<u8>> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         if self.validate_mnfs_call(&extensions)? {
-            return self.process_mnfs_load_context(handle, extensions).await
-            .map_err(|e| unknown_err!(e));
+            return self
+                .process_mnfs_load_context(handle, extensions)
+                .await
+                .map_err(|e| err_unknown!(e));
         }
 
         self.load_internal(handle, extensions)
-        .await.map_err(|e| unknown_err!(e))
+            .await
+            .map_err(|e| err_unknown!(e))
     }
 
     async fn exists(
@@ -59,7 +64,7 @@ impl Storage for UnifiedStorage {
         mut handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<bool> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -72,7 +77,7 @@ impl Storage for UnifiedStorage {
         time: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         if self.validate_mnfs_call(&extensions)? {
             return self
@@ -88,7 +93,7 @@ impl Storage for UnifiedStorage {
         mut handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         if self.validate_mnfs_call(&extensions)? {
             return self.process_mnfs_clear_context(handle, extensions).await;
@@ -97,22 +102,12 @@ impl Storage for UnifiedStorage {
         self.clear_internal(handle, extensions).await
     }
 
-    async fn size(&self) -> types::Result<usize> {
-        let mut total_size = 0usize;
-
-        for storage in self.stores.values() {
-            total_size += storage.size().await?;
-        }
-
-        Ok(total_size)
-    }
-
     async fn capabilities(
         &self,
         mut handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<Vec<StorageCapability>> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -131,13 +126,21 @@ impl FileSystem for UnifiedStorage {
         data: Vec<u8>,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
+        let (parent, item) = Self::get_parent_and_child_path(&handle);
+
         storage
-            .store_file_part(handle, part_index, part_size, ttl, data, extensions)
-            .await
+            .store_file_part(handle, part_index, part_size, ttl, data, extensions.clone())
+            .await?;
+
+        if let (Some(parent), Some(item)) = (parent, item) {
+            self.add_list_item(parent, item, extensions).await?;
+        }
+
+        Ok(())
     }
 
     async fn load_file_part(
@@ -147,7 +150,7 @@ impl FileSystem for UnifiedStorage {
         part_size: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<Vec<u8>> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -162,7 +165,7 @@ impl FileSystem for UnifiedStorage {
         part_size: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<u64> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -176,7 +179,7 @@ impl FileSystem for UnifiedStorage {
         mut handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<NativeFileMetadata> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -190,13 +193,21 @@ impl FileSystem for UnifiedStorage {
         ttl: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
+        let (parent, item) = Self::get_parent_and_child_path(&handle);
+
         storage
-            .set_metadata(handle, metadata, ttl, extensions)
-            .await
+            .set_metadata(handle, metadata, ttl, extensions.clone())
+            .await?;
+
+        if let (Some(parent), Some(item)) = (parent, item) {
+            self.add_list_item(parent, item, extensions).await?;
+        }
+
+        Ok(())
     }
 
     async fn path_exists(
@@ -204,7 +215,7 @@ impl FileSystem for UnifiedStorage {
         mut handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<bool> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -218,7 +229,7 @@ impl FileSystem for UnifiedStorage {
         page_size: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<Vec<String>> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -233,7 +244,7 @@ impl FileSystem for UnifiedStorage {
         item: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -246,7 +257,7 @@ impl FileSystem for UnifiedStorage {
         item: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -259,7 +270,7 @@ impl FileSystem for UnifiedStorage {
         len: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -273,7 +284,7 @@ impl FileSystem for UnifiedStorage {
         ttl: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -287,7 +298,7 @@ impl FileSystem for UnifiedStorage {
         ttl: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -300,7 +311,7 @@ impl FileSystem for UnifiedStorage {
         lease_id: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -313,14 +324,22 @@ impl FileSystem for UnifiedStorage {
         mut destination_handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut source_handle)?;
-        self.sanitize_handle(&mut destination_handle)?;
+        Self::sanitize_handle(&mut source_handle)?;
+        Self::sanitize_handle(&mut destination_handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
+        let (dest_parent, dest_item) = Self::get_parent_and_child_path(&destination_handle);
+
         storage
-            .copy_path(source_handle, destination_handle, extensions)
-            .await
+            .copy_path(source_handle, destination_handle, extensions.clone())
+            .await?;
+
+        if let (Some(parent), Some(item)) = (dest_parent, dest_item) {
+            self.add_list_item(parent, item, extensions).await?;
+        }
+
+        Ok(())
     }
 
     async fn move_path(
@@ -329,14 +348,27 @@ impl FileSystem for UnifiedStorage {
         mut destination_handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut source_handle)?;
-        self.sanitize_handle(&mut destination_handle)?;
+        Self::sanitize_handle(&mut source_handle)?;
+        Self::sanitize_handle(&mut destination_handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
+        let (src_parent, src_item) = Self::get_parent_and_child_path(&destination_handle);
+        let (dest_parent, dest_item) = Self::get_parent_and_child_path(&destination_handle);
+
         storage
-            .move_path(source_handle, destination_handle, extensions)
-            .await
+            .move_path(source_handle, destination_handle, extensions.clone())
+            .await?;
+
+        if let (Some(parent), Some(item)) = (dest_parent, dest_item) {
+            self.add_list_item(parent, item, extensions.clone()).await?;
+        }
+
+        if let (Some(parent), Some(item)) = (src_parent, src_item) {
+            self.remove_list_item(parent, item, extensions).await?;
+        }
+
+        Ok(())
     }
 
     async fn delete_path(
@@ -344,11 +376,19 @@ impl FileSystem for UnifiedStorage {
         mut handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
-        storage.delete_path(handle, extensions).await
+        let (parent, item) = Self::get_parent_and_child_path(&handle);
+
+        storage.delete_path(handle, extensions.clone()).await?;
+
+        if let (Some(parent), Some(item)) = (parent, item) {
+            self.remove_list_item(parent, item, extensions).await?;
+        }
+
+        Ok(())
     }
 
     async fn get_capabilities(
@@ -356,7 +396,7 @@ impl FileSystem for UnifiedStorage {
         mut handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<Vec<StorageCapability>> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -375,7 +415,7 @@ impl FileSystem for UnifiedStorage {
         mut handle: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<String> {
-        self.sanitize_handle(&mut handle)?;
+        Self::sanitize_handle(&mut handle)?;
 
         let storage = self.get_storage_by_selector(&extensions)?;
 
@@ -394,9 +434,15 @@ impl GarbageCollectable for UnifiedStorage {
         let mut deleted_handles = vec![];
 
         for (name, collectable) in self.stores.iter() {
+            let class = self.classes.get(name).unwrap();
+
+            if !class.should_enable_gc()? {
+                continue;
+            }
+
             let handles = collectable.garbage_collect().await?;
 
-            if !self.classes.get(name).unwrap().locality.is_cache() {
+            if !class.locality.is_cache() {
                 deleted_handles.extend(handles);
             }
         }
@@ -406,7 +452,7 @@ impl GarbageCollectable for UnifiedStorage {
 }
 
 impl UnifiedStorage {
-    pub fn new(config: &config::storage::Storage) -> types::Result<Arc<Box<dyn Storage>>> {
+    pub async fn new(config: &config::storage::Storage) -> types::Result<Arc<Box<dyn Storage>>> {
         let mut unified_storage = Self {
             stores: Default::default(),
             classes: Default::default(),
@@ -428,6 +474,7 @@ impl UnifiedStorage {
             let storage_impl: Arc<Box<dyn Storage>> = match storage_class.kind {
                 StorageKind::Memory => MemoryStorage::new()?,
                 StorageKind::Local => LocalStorage::new(storage_class.clone())?,
+                StorageKind::Tikv => TikvStorage::new(storage_class.clone()).await?,
             };
 
             let mut processed_storage_class = storage_class.clone();
@@ -598,13 +645,15 @@ impl UnifiedStorage {
         Ok(storage.clone())
     }
 
-    fn sanitize_handle(&self, handle: &mut String) -> types::Result<()> {
+    fn sanitize_handle(handle: &mut String) -> types::Result<()> {
         if handle.contains("..") {
-            return Err(unsupported_op!("handles containing '..' are not allowed"));
+            return Err(err_unsupported_op!(
+                "handles containing '..' are not allowed"
+            ));
         }
 
         if handle.ends_with(".") || handle.contains("./") {
-            return Err(unsupported_op!(
+            return Err(err_unsupported_op!(
                 "handles containing '.' as filename are not allowed"
             ));
         }
@@ -618,6 +667,18 @@ impl UnifiedStorage {
         }
 
         Ok(())
+    }
+
+    fn get_parent_and_child_path(handle: &String) -> (Option<String>, Option<String>) {
+        let path = Path::new(handle);
+
+        let parent = path.parent();
+        let file_name = path.file_name();
+
+        (
+            parent.map(|x| x.to_string_lossy().to_string()),
+            file_name.map(|x| x.to_string_lossy().to_string()),
+        )
     }
 
     fn validate_mnfs_call(&self, extensions: &HashMap<String, String>) -> types::Result<bool> {
@@ -637,21 +698,17 @@ impl UnifiedStorage {
 
     async fn process_mnfs_store_context(&self, spec: StorageSpec) -> types::Result<()> {
         let ctx = NativeFileSystemEventContext::Store { spec };
-        let event = ctx.get_event().map_err(|e| unknown_err!(e))?;
+        let event = ctx.get_event().map_err(|e| err_unknown!(e))?;
 
-        let inner_spec = ctx.to_spec().map_err(|e| unknown_err!(e))?;
+        let inner_spec = ctx.to_spec().map_err(|e| err_unknown!(e))?;
 
         if event.is_none() && self.contains_mnfs_suffix(&inner_spec.handle) {
-            return Err(unknown_err!("could not get event from context"));
+            return Err(err_unknown!("could not get event from context"));
         } else if event.is_none() {
             return self.store_internal(inner_spec).await;
         }
 
         match event.unwrap() {
-            NativeFileSystemEvent::AddDirListItem { handle, item } => {
-                self.add_list_item(handle, item, inner_spec.extensions)
-                    .await
-            }
             NativeFileSystemEvent::StorePart {
                 handle,
                 part_index,
@@ -671,9 +728,9 @@ impl UnifiedStorage {
                 let data = inner_spec.data;
                 let value: musubi_api::types::Value = data
                     .try_into()
-                    .map_err(|e: anyhow::Error| unknown_err!(e))?;
+                    .map_err(|e: anyhow::Error| err_unknown!(e))?;
                 let metadata: NativeFileMetadata =
-                    musubi_api::types::from_value(&value).map_err(|e| unknown_err!(e))?;
+                    musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
 
                 self.set_metadata(handle, metadata, inner_spec.ttl, inner_spec.extensions)
                     .await
@@ -682,7 +739,7 @@ impl UnifiedStorage {
                 self.acquire_lease(handle, lease, ttl, inner_spec.extensions)
                     .await
             }
-            x => Err(unsupported_op!(format!(
+            x => Err(err_unsupported_op!(format!(
                 "event {:?} is not supported within 'store' context",
                 x
             ))),
@@ -699,19 +756,19 @@ impl UnifiedStorage {
             extensions: extensions.clone(),
         };
 
-        let event = ctx.get_event().map_err(|e| unknown_err!(e))?;
+        let event = ctx.get_event().map_err(|e| err_unknown!(e))?;
 
         if event.is_none() {
-            return Err(unknown_err!("could not get event from context"));
+            return Err(err_unknown!("could not get event from context"));
         }
 
         match event.unwrap() {
             NativeFileSystemEvent::GetPartCount { handle } => {
                 let part_size = extensions
                     .get(&NativeFileSystemConstants::FilePartMaxSize.to_string())
-                    .ok_or(unknown_err!("cannot get max file part size"))?
+                    .ok_or(err_unknown!("cannot get max file part size"))?
                     .parse()
-                    .map_err(|e: ParseIntError| unknown_err!(e))?;
+                    .map_err(|e: ParseIntError| err_unknown!(e))?;
 
                 let part_count = self
                     .get_file_part_count(handle, part_size, extensions)
@@ -719,7 +776,7 @@ impl UnifiedStorage {
 
                 let data = musubi_api::types::Value::U64(part_count)
                     .try_into()
-                    .map_err(|e: anyhow::Error| unknown_err!(e))?;
+                    .map_err(|e: anyhow::Error| err_unknown!(e))?;
 
                 Ok(data)
             }
@@ -734,10 +791,10 @@ impl UnifiedStorage {
             NativeFileSystemEvent::GetMetadata { handle } => {
                 let metadata = self.get_metadata(handle, extensions).await?;
 
-                let value = musubi_api::types::to_value(&metadata).map_err(|e| unknown_err!(e))?;
+                let value = musubi_api::types::to_value(&metadata).map_err(|e| err_unknown!(e))?;
                 let data = value
                     .try_into()
-                    .map_err(|e: anyhow::Error| unknown_err!(e))?;
+                    .map_err(|e: anyhow::Error| err_unknown!(e))?;
 
                 Ok(data)
             }
@@ -746,7 +803,7 @@ impl UnifiedStorage {
                 let value = musubi_api::types::Value::Bool(path_exists);
                 let data = value
                     .try_into()
-                    .map_err(|e: anyhow::Error| unknown_err!(e))?;
+                    .map_err(|e: anyhow::Error| err_unknown!(e))?;
 
                 Ok(data)
             }
@@ -763,7 +820,7 @@ impl UnifiedStorage {
                 );
                 let data = value
                     .try_into()
-                    .map_err(|e: anyhow::Error| unknown_err!(e))?;
+                    .map_err(|e: anyhow::Error| err_unknown!(e))?;
 
                 Ok(data)
             }
@@ -778,7 +835,7 @@ impl UnifiedStorage {
                 );
                 let data = value
                     .try_into()
-                    .map_err(|e: anyhow::Error| unknown_err!(e))?;
+                    .map_err(|e: anyhow::Error| err_unknown!(e))?;
 
                 Ok(data)
             }
@@ -788,7 +845,7 @@ impl UnifiedStorage {
                 let value = musubi_api::types::Value::String(storage_class);
                 let data = value
                     .try_into()
-                    .map_err(|e: anyhow::Error| unknown_err!(e))?;
+                    .map_err(|e: anyhow::Error| err_unknown!(e))?;
 
                 Ok(data)
             }
@@ -810,7 +867,7 @@ impl UnifiedStorage {
 
                 Ok(vec![])
             }
-            x => Err(unsupported_op!(format!(
+            x => Err(err_unsupported_op!(format!(
                 "event {:?} is not supported within 'load' context",
                 x
             ))),
@@ -828,10 +885,10 @@ impl UnifiedStorage {
             ttl,
             extensions: extensions.clone(),
         };
-        let event = ctx.get_event().map_err(|e| unknown_err!(e))?;
+        let event = ctx.get_event().map_err(|e| err_unknown!(e))?;
 
         if event.is_none() {
-            return Err(unknown_err!("could not get event from context"));
+            return Err(err_unknown!("could not get event from context"));
         }
 
         match event.unwrap() {
@@ -840,7 +897,7 @@ impl UnifiedStorage {
                 lease_id,
                 ttl,
             } => self.renew_lease(handle, lease_id, ttl, extensions).await,
-            x => Err(unsupported_op!(format!(
+            x => Err(err_unsupported_op!(format!(
                 "event {:?} is not supported within 'persist' context",
                 x
             ))),
@@ -857,7 +914,7 @@ impl UnifiedStorage {
             extensions: extensions.clone(),
         };
 
-        let event = ctx.get_event().map_err(|e| unknown_err!(e))?;
+        let event = ctx.get_event().map_err(|e| err_unknown!(e))?;
 
         if event.is_none() {
             return self.delete_path(ctx.get_handle().clone(), extensions).await;
@@ -867,13 +924,10 @@ impl UnifiedStorage {
             NativeFileSystemEvent::ReleaseLease { handle, lease_id } => {
                 self.release_lease(handle, lease_id, extensions).await
             }
-            NativeFileSystemEvent::RemoveDirListItem { handle, item } => {
-                self.remove_list_item(handle, item, extensions).await
-            }
             NativeFileSystemEvent::Truncate { handle, len } => {
                 self.truncate(handle, len, extensions).await
             }
-            x => Err(unsupported_op!(format!(
+            x => Err(err_unsupported_op!(format!(
                 "event {:?} is not supported within 'clear' context",
                 x
             ))),

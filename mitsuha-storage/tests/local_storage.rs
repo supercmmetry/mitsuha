@@ -1,7 +1,7 @@
 #![feature(async_iterator)]
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
 use serial_test::serial;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use mitsuha_core::{
     config,
@@ -10,6 +10,7 @@ use mitsuha_core::{
     storage::{Storage, StorageClass, StorageLocality},
 };
 use mitsuha_core_types::kernel::StorageSpec;
+use mitsuha_storage::conf::ConfKey;
 use mitsuha_storage::unified::UnifiedStorage;
 
 mod setup;
@@ -17,13 +18,8 @@ use setup::*;
 
 use lazy_static::lazy_static;
 
-
 fn get_root_dir() -> String {
-    format!(
-        "{}/{}",
-        env!("OUT_DIR"),
-        "mitsuha-storage-local-test"
-    )
+    format!("{}/{}", env!("OUT_DIR"), "mitsuha-storage-local-test")
 }
 
 fn setup_root_dir() {
@@ -54,8 +50,8 @@ fn make_basic_config() -> config::storage::Storage {
                     value: "sample".to_string(),
                 }],
                 extensions: [
-                    ("rootDirectory".to_string(), root_dir),
-                    ("enableGC".to_string(), "true".to_string()),
+                    (ConfKey::RootDir.to_string(), root_dir),
+                    (ConfKey::EnableGC.to_string(), "true".to_string()),
                 ]
                 .iter()
                 .cloned()
@@ -72,15 +68,15 @@ fn make_basic_config() -> config::storage::Storage {
     }
 }
 
-fn make_unified_storage() -> Arc<Box<dyn Storage>> {
+async fn make_unified_storage() -> Arc<Box<dyn Storage>> {
     let config = make_basic_config();
-    UnifiedStorage::new(&config).unwrap()
+    UnifiedStorage::new(&config).await.unwrap()
 }
 
 #[tokio::test]
 #[serial]
 async fn store_and_load() -> anyhow::Result<()> {
-    let storage = make_unified_storage();
+    let storage = make_unified_storage().await;
 
     let mut spec = StorageSpec {
         handle: "store_and_load_spec1".to_string(),
@@ -111,7 +107,7 @@ async fn store_and_load() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn store_and_expire() -> anyhow::Result<()> {
-    let storage = make_unified_storage();
+    let storage = make_unified_storage().await;
 
     let mut spec = StorageSpec {
         handle: "store_and_expire_spec1".to_string(),
@@ -143,7 +139,7 @@ async fn store_and_expire() -> anyhow::Result<()> {
 #[tokio::test]
 #[serial]
 async fn store_persist_expire() -> anyhow::Result<()> {
-    let storage = make_unified_storage();
+    let storage = make_unified_storage().await;
 
     let mut spec = StorageSpec {
         handle: "store_persist_expire_spec1".to_string(),
@@ -196,7 +192,7 @@ async fn store_persist_expire() -> anyhow::Result<()> {
 #[tokio::test]
 #[serial]
 async fn store_and_clear() -> anyhow::Result<()> {
-    let storage = make_unified_storage();
+    let storage = make_unified_storage().await;
 
     let mut spec = StorageSpec {
         handle: "store_and_clear_spec1".to_string(),
@@ -228,6 +224,10 @@ async fn store_and_clear() -> anyhow::Result<()> {
 
 // MNFS tests
 
+async fn reset_mnfs_async() {
+    reset_mnfs();
+}
+
 fn reset_mnfs() {
     _ = std::fs::remove_dir_all(get_root_dir());
 }
@@ -255,24 +255,4 @@ lazy_static! {
 
 mod fs;
 
-mnfs_test!(test_rw_basic, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_rw_paged_uniform, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_rw_paged_non_uniform, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_rw_paged_one_byte, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_rw_paged_exact, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_rw_paged_large, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_list_paged_uniform, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_list_paged_non_uniform, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_list_paged_one_byte, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_list_paged_exact, &CONFIG, &EXTENSIONS);
-
-mnfs_test!(test_list_paged_large, &CONFIG, &EXTENSIONS);
+mnfs_test_suite!(&CONFIG, &EXTENSIONS, reset_mnfs_async);
