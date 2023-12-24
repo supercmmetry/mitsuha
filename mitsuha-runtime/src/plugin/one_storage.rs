@@ -15,7 +15,7 @@ impl Plugin for OneStoragePlugin {
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let storage = UnifiedStorage::new(&ctx.config.storage).unwrap();
+        let storage = UnifiedStorage::new(&ctx.config.storage).await?;
 
         let raw_channel = LabeledStorageChannel::new(
             storage,

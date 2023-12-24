@@ -1,20 +1,25 @@
 SHELL := /bin/bash
 LABEL := mitsuha_runtime
 
+build-env:
+	rustup default nightly
+	cargo install cargo-nextest --locked
+	cargo install cargo-release
+
 build-test-assets:
 	@$(MAKE) -C mitsuha-runtime-test build-assets
 
-build:
+build: build-env
 	@echo $(LABEL): Building all crates
 	@cargo build --release
 	@echo $(LABEL): Built all crates
 
-test: build-test-assets
+test: build-env build-test-assets
 	@echo $(LABEL): Running tests
 	@cargo test -- --test-threads 1
 	@echo $(LABEL): Completed tests successfully
 
-test-light: build-test-assets
+test-light: build-env build-test-assets
 	@echo $(LABEL): Running lightweight tests
 	@cargo test --workspace --exclude mitsuha-qflow -- --test-threads 1
 	@echo $(LABEL): Completed lightweight tests successfully

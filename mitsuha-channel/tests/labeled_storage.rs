@@ -12,7 +12,7 @@ use setup::*;
 
 pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
     let system_channel = make_system_channel();
-    let labeled_storage_channel = make_labeled_storage_channel();
+    let labeled_storage_channel = make_labeled_storage_channel().await;
 
     system_channel.connect(labeled_storage_channel).await;
 
