@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use mitsuha_core_types::{
     channel::{ComputeInput, ComputeOutput},
-    kernel::{JobSpec, JobStatus, StorageSpec},
+    kernel::{JobSpec, JobStatus, StorageSpec, AsyncKernel},
 };
 
 use crate::{errors::Error, kernel::Kernel, types};
@@ -190,5 +190,79 @@ where
 {
     pub fn new(channel: Arc<Box<dyn ComputeChannel<Context = Context>>>) -> Self {
         Self { channel }
+    }
+}
+
+pub struct MusubiKernelWrapper<T>(T) where T: Kernel;
+
+#[async_trait]
+impl<T> AsyncKernel for MusubiKernelWrapper<T>
+where
+    T: Kernel,
+{
+    async fn run_job(&self, spec: JobSpec) -> anyhow::Result<()> {
+        self.0.run_job(spec).await?;
+        Ok(())
+    }
+
+    async fn extend_job(
+        &self,
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> anyhow::Result<()> {
+        self.0.extend_job(handle, ttl, extensions).await?;
+        Ok(())
+    }
+
+    async fn abort_job(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> anyhow::Result<()> {
+        self.0.abort_job(handle, extensions).await?;
+        Ok(())
+    }
+
+    async fn get_job_status(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> anyhow::Result<JobStatus> {
+        let output = self.0.get_job_status(handle, extensions).await?;
+        Ok(output)
+    }
+
+    async fn store_data(&self, spec: StorageSpec) -> anyhow::Result<()> {
+        self.0.store_data(spec).await?;
+        Ok(())
+    }
+
+    async fn load_data(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> anyhow::Result<Vec<u8>> {
+        let output = self.0.load_data(handle, extensions).await?;
+        Ok(output)
+    }
+
+    async fn persist_data(
+        &self,
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> anyhow::Result<()> {
+        self.0.persist_data(handle, ttl, extensions).await?;
+        Ok(())
+    }
+
+    async fn clear_data(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> anyhow::Result<()> {
+        self.0.clear_data(handle, extensions).await?;
+        Ok(())
     }
 }
