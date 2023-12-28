@@ -16,20 +16,20 @@ impl Plugin for QFlowPlugin {
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let channel_id = ctx.extensions.get("channel_id").unwrap().clone();
+        let channel_id = ctx.current_properties.get("channel_id").unwrap().clone();
 
         let client_id = ctx
-            .extensions
+            .current_properties
             .get("client_id")
             .ok_or(Error::UnknownWithMsgOnly {
                 message: "failed to get client_id".to_string(),
             })?
             .clone();
 
-        let writer = mitsuha_qflow::make_writer(&ctx.extensions)
+        let writer = mitsuha_qflow::make_writer(&ctx.current_properties)
             .await
             .map_err(|e| Error::Unknown { source: e })?;
-        let reader = mitsuha_qflow::make_reader(&ctx.extensions)
+        let reader = mitsuha_qflow::make_reader(&ctx.current_properties)
             .await
             .map_err(|e| Error::Unknown { source: e })?;
 

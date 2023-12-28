@@ -11,6 +11,7 @@ pub mod enforcer;
 pub mod interceptor;
 mod job_controller;
 pub mod labeled_storage;
+pub mod muxed_storage;
 pub mod namespacer;
 pub mod qflow;
 pub mod system;

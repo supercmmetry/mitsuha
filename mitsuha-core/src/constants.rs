@@ -36,6 +36,9 @@ pub enum Constants {
     #[strum(serialize = "mitsuha.channel.namespace")]
     ChannelNamespace,
 
+    #[strum(serialize = "mitsuha.channel.original.handle")]
+    OriginalHandle,
+
     #[strum(serialize = "channel_id")]
     ChannelId,
 

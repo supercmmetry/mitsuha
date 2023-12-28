@@ -6,38 +6,74 @@ use mitsuha_core_types::{
     kernel::{JobSpec, JobStatus, StorageSpec, AsyncKernel},
 };
 
-use crate::{errors::Error, kernel::Kernel, types};
+use crate::{constants::Constants, errors::Error, kernel::Kernel, types};
 
 pub trait ComputeInputExt {
-    fn get_extensions(&self) -> Option<&HashMap<String, String>>;
+    fn get_handle(&self) -> String;
 
-    fn get_extensions_mut(&mut self) -> Option<&mut HashMap<String, String>>;
+    fn get_original_handle(&self) -> String;
+
+    fn get_extensions(&self) -> &HashMap<String, String>;
+
+    fn get_extensions_mut(&mut self) -> &mut HashMap<String, String>;
+
+    fn is_storage_input(&self) -> bool;
 }
 
 impl ComputeInputExt for ComputeInput {
-    fn get_extensions(&self) -> Option<&HashMap<String, String>> {
+    fn get_handle(&self) -> String {
         match self {
-            ComputeInput::Store { spec } => Some(&spec.extensions),
-            ComputeInput::Load { extensions, .. } => Some(extensions),
-            ComputeInput::Persist { extensions, .. } => Some(extensions),
-            ComputeInput::Clear { extensions, .. } => Some(extensions),
-            ComputeInput::Run { spec } => Some(&spec.extensions),
-            ComputeInput::Extend { extensions, .. } => Some(extensions),
-            ComputeInput::Status { extensions, .. } => Some(extensions),
-            ComputeInput::Abort { extensions, .. } => Some(extensions),
+            ComputeInput::Store { spec } => spec.handle.clone(),
+            ComputeInput::Load { handle, .. } => handle.clone(),
+            ComputeInput::Persist { handle, .. } => handle.clone(),
+            ComputeInput::Clear { handle, .. } => handle.clone(),
+            ComputeInput::Run { spec } => spec.handle.clone(),
+            ComputeInput::Extend { handle, .. } => handle.clone(),
+            ComputeInput::Status { handle, .. } => handle.clone(),
+            ComputeInput::Abort { handle, .. } => handle.clone(),
         }
     }
 
-    fn get_extensions_mut(&mut self) -> Option<&mut HashMap<String, String>> {
+    fn get_original_handle(&self) -> String {
+        self.get_extensions()
+            .get(&Constants::OriginalHandle.to_string())
+            .cloned()
+            .unwrap_or(self.get_handle())
+    }
+
+    fn get_extensions(&self) -> &HashMap<String, String> {
         match self {
-            ComputeInput::Store { spec } => Some(&mut spec.extensions),
-            ComputeInput::Load { extensions, .. } => Some(extensions),
-            ComputeInput::Persist { extensions, .. } => Some(extensions),
-            ComputeInput::Clear { extensions, .. } => Some(extensions),
-            ComputeInput::Run { spec } => Some(&mut spec.extensions),
-            ComputeInput::Extend { extensions, .. } => Some(extensions),
-            ComputeInput::Status { extensions, .. } => Some(extensions),
-            ComputeInput::Abort { extensions, .. } => Some(extensions),
+            ComputeInput::Store { spec } => &spec.extensions,
+            ComputeInput::Load { extensions, .. } => extensions,
+            ComputeInput::Persist { extensions, .. } => extensions,
+            ComputeInput::Clear { extensions, .. } => extensions,
+            ComputeInput::Run { spec } => &spec.extensions,
+            ComputeInput::Extend { extensions, .. } => extensions,
+            ComputeInput::Status { extensions, .. } => extensions,
+            ComputeInput::Abort { extensions, .. } => extensions,
+        }
+    }
+
+    fn get_extensions_mut(&mut self) -> &mut HashMap<String, String> {
+        match self {
+            ComputeInput::Store { spec } => &mut spec.extensions,
+            ComputeInput::Load { extensions, .. } => extensions,
+            ComputeInput::Persist { extensions, .. } => extensions,
+            ComputeInput::Clear { extensions, .. } => extensions,
+            ComputeInput::Run { spec } => &mut spec.extensions,
+            ComputeInput::Extend { extensions, .. } => extensions,
+            ComputeInput::Status { extensions, .. } => extensions,
+            ComputeInput::Abort { extensions, .. } => extensions,
+        }
+    }
+
+    fn is_storage_input(&self) -> bool {
+        match self {
+            ComputeInput::Store { .. } => true,
+            ComputeInput::Load { .. } => true,
+            ComputeInput::Persist { .. } => true,
+            ComputeInput::Clear { .. } => true,
+            _ => false,
         }
     }
 }

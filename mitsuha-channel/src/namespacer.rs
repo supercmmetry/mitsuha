@@ -30,13 +30,14 @@ impl ComputeChannel for NamespacerChannel {
         ctx: ChannelContext,
         mut elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
-        let mut namespace: Option<String> = None;
+        let mut namespace = elem
+            .get_extensions()
+            .get(&Constants::ChannelNamespace.to_string())
+            .cloned();
 
-        if let Some(extensions) = elem.get_extensions() {
-            namespace = extensions
-                .get(&Constants::ChannelNamespace.to_string())
-                .cloned();
-        }
+        let handle = elem.get_handle();
+        elem.get_extensions_mut()
+            .insert(Constants::OriginalHandle.to_string(), handle);
 
         if let Some(namespace) = namespace {
             match &mut elem {

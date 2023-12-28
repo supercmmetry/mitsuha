@@ -14,7 +14,7 @@ impl Plugin for EnforcerPlugin {
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let policy_blob_key = ctx.extensions.get("policy_blob_key").unwrap();
+        let policy_blob_key = ctx.current_properties.get("policy_blob_key").unwrap();
 
         let raw_channel = EnforcerChannel::new(policy_blob_key.clone());
         let channel = initialize_channel(&ctx, raw_channel)?;

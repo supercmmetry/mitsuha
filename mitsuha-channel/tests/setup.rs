@@ -47,17 +47,17 @@ pub fn make_basic_config() -> config::storage::Storage {
                 },
                 name: "solid_memory_1".to_string(),
                 labels: vec![Label {
-                    name: "storage".to_string(),
+                    key: "storage".to_string(),
                     value: "sample".to_string(),
                 }],
-                extensions: HashMap::new(),
+                properties: HashMap::new(),
             },
             StorageClass {
                 kind: mitsuha_core::storage::StorageKind::Memory,
                 locality: StorageLocality::Cache { ttl: 1 },
                 name: "cache_memory_1".to_string(),
                 labels: vec![],
-                extensions: HashMap::new(),
+                properties: HashMap::new(),
             },
         ],
     }
@@ -68,13 +68,14 @@ pub async fn make_unified_storage() -> Arc<Box<dyn Storage>> {
     UnifiedStorage::new(&config).await.unwrap()
 }
 
-pub async fn make_labeled_storage_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
+pub async fn make_labeled_storage_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>
+{
     let storage = make_unified_storage().await;
 
     Arc::new(Box::new(LabeledStorageChannel::new(
         storage,
         Label {
-            name: "storage".to_string(),
+            key: "storage".to_string(),
             value: "sample".to_string(),
         },
     )))

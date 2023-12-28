@@ -32,11 +32,7 @@ impl ComputeChannel for EnforcerChannel {
         ctx: ChannelContext,
         elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
-        if elem.get_extensions().is_none()
-            || elem
-                .get_extensions()
-                .is_some_and(|x| !x.contains_key(&self.policy_blob_key))
-        {
+        if !elem.get_extensions().contains_key(&self.policy_blob_key) {
             tracing::warn!(
                 "could not find policy blob key: '{}', bypassing enforcer",
                 self.policy_blob_key
@@ -45,16 +41,12 @@ impl ComputeChannel for EnforcerChannel {
             return self.forward_next(ctx, elem).await;
         }
 
-        let policy_blob_handle = elem
-            .get_extensions()
-            .unwrap()
-            .get(&self.policy_blob_key)
-            .unwrap();
+        let policy_blob_handle = elem.get_extensions().get(&self.policy_blob_key).unwrap();
         let policies: Vec<Policy>;
 
         let policy_blob_input = ComputeInput::Load {
             handle: policy_blob_handle.clone(),
-            extensions: elem.get_extensions().unwrap().clone(),
+            extensions: elem.get_extensions().clone(),
         };
 
         let policy_blob_output = self.forward_next(ctx.clone(), policy_blob_input).await?;

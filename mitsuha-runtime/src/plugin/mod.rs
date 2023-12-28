@@ -5,6 +5,7 @@ use mitsuha_channel::{context::ChannelContext, InitChannel, WrappedComputeChanne
 use mitsuha_core::{
     channel::ComputeChannel, config::Config, constants::Constants, errors::Error, types,
 };
+use crate::plugin::muxed_storage::MuxedStoragePlugin;
 
 use self::{
     common::{EofPlugin, SystemPlugin},
@@ -21,6 +22,7 @@ pub mod common;
 pub mod delegator;
 pub mod enforcer;
 pub mod interceptor;
+pub mod muxed_storage;
 pub mod namespacer;
 pub mod one_storage;
 pub mod qflow;
@@ -32,11 +34,11 @@ pub struct PluginContext {
     pub channel_end: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
     pub channel_context: ChannelContext,
     pub config: Config,
-    pub extensions: HashMap<String, String>,
+    pub current_properties: HashMap<String, String>,
 }
 
 impl PluginContext {
-    pub fn new(config: Config, extensions: HashMap<String, String>) -> Self {
+    pub fn new(config: Config, properties: HashMap<String, String>) -> Self {
         let init_channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> =
             Arc::new(Box::new(InitChannel::new()));
 
@@ -48,7 +50,7 @@ impl PluginContext {
             channel_end: init_channel.clone(),
             channel_context,
             config,
-            extensions,
+            current_properties: properties,
         }
     }
 
@@ -77,6 +79,7 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
         Box::new(NamespacerPlugin),
         Box::new(InterceptorPlugin),
         Box::new(EnforcerPlugin),
+        Box::new(MuxedStoragePlugin),
     ];
 
     let plugin_map: HashMap<&'static str, Box<dyn Plugin>> = plugin_list
@@ -90,7 +93,7 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
     for plugin_config in plugin_configs {
         let plugin = plugin_map.get(plugin_config.name.as_str()).unwrap();
 
-        ctx.extensions = plugin_config.properties;
+        ctx.current_properties = plugin_config.properties;
 
         let new_ctx = plugin.run(ctx.clone()).await.unwrap();
 
@@ -107,7 +110,7 @@ pub fn initialize_channel<T>(
 where
     T: 'static + ComputeChannel<Context = ChannelContext>,
 {
-    chan = match ctx.extensions.get(&Constants::ChannelId.to_string()) {
+    chan = match ctx.current_properties.get(&Constants::ChannelId.to_string()) {
         Some(id) => chan.with_id(id.clone()),
         None => {
             return Err(Error::UnknownWithMsgOnly {

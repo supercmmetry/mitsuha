@@ -23,17 +23,17 @@ fn make_basic_config() -> config::storage::Storage {
                 },
                 name: "solid_memory_1".to_string(),
                 labels: vec![Label {
-                    name: "storage".to_string(),
+                    key: "storage".to_string(),
                     value: "sample".to_string(),
                 }],
-                extensions: HashMap::new(),
+                properties: HashMap::new(),
             },
             StorageClass {
                 kind: mitsuha_core::storage::StorageKind::Memory,
                 locality: StorageLocality::Cache { ttl: 1 },
                 name: "cache_memory_1".to_string(),
                 labels: vec![],
-                extensions: HashMap::new(),
+                properties: HashMap::new(),
             },
         ],
     }
@@ -61,7 +61,7 @@ async fn store_and_load_light(storage: Arc<Box<dyn Storage>>) {
     spec.extensions.insert(
         StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
-            name: "storage".to_string(),
+            key: "storage".to_string(),
             value: "sample".to_string(),
         })
         .unwrap(),
@@ -94,7 +94,7 @@ async fn store_and_load_heavy(storage: Arc<Box<dyn Storage>>) {
     spec.extensions.insert(
         StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
-            name: "storage".to_string(),
+            key: "storage".to_string(),
             value: "sample".to_string(),
         })
         .unwrap(),

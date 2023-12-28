@@ -37,12 +37,12 @@ pub struct StorageClass {
     pub locality: StorageLocality,
     pub name: String,
     pub labels: Vec<Label>,
-    pub extensions: HashMap<String, String>,
+    pub properties: HashMap<String, String>,
 }
 
 impl StorageClass {
     pub fn get_extension_property(&self, key: &str) -> types::Result<String> {
-        self.extensions
+        self.properties
             .get(key)
             .ok_or(Error::UnknownWithMsgOnly {
                 message: format!(

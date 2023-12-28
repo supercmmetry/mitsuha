@@ -15,7 +15,7 @@ impl Plugin for InterceptorPlugin {
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let target_address = ctx.extensions.get("address").unwrap();
+        let target_address = ctx.current_properties.get("address").unwrap();
 
         let conn = tonic::transport::Endpoint::new(target_address.clone())
             .map_err(|e| Error::Unknown { source: e.into() })?

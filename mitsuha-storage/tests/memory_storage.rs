@@ -25,10 +25,10 @@ fn make_basic_config() -> config::storage::Storage {
                 },
                 name: "solid_memory_1".to_string(),
                 labels: vec![Label {
-                    name: "storage".to_string(),
+                    key: "storage".to_string(),
                     value: "sample".to_string(),
                 }],
-                extensions: [(ConfKey::EnableGC.to_string(), "true".to_string())]
+                properties: [(ConfKey::EnableGC.to_string(), "true".to_string())]
                     .iter()
                     .cloned()
                     .collect(),
@@ -38,7 +38,7 @@ fn make_basic_config() -> config::storage::Storage {
                 locality: StorageLocality::Cache { ttl: 1 },
                 name: "cache_memory_1".to_string(),
                 labels: vec![],
-                extensions: HashMap::new(),
+                properties: HashMap::new(),
             },
         ],
     }
@@ -64,7 +64,7 @@ async fn store_and_load() -> anyhow::Result<()> {
     spec.extensions.insert(
         StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
-            name: "storage".to_string(),
+            key: "storage".to_string(),
             value: "sample".to_string(),
         })?,
     );
@@ -95,7 +95,7 @@ async fn store_and_expire() -> anyhow::Result<()> {
     spec.extensions.insert(
         StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
-            name: "storage".to_string(),
+            key: "storage".to_string(),
             value: "sample".to_string(),
         })?,
     );
@@ -127,7 +127,7 @@ async fn store_persist_expire() -> anyhow::Result<()> {
     spec.extensions.insert(
         StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
-            name: "storage".to_string(),
+            key: "storage".to_string(),
             value: "sample".to_string(),
         })?,
     );
@@ -180,7 +180,7 @@ async fn store_and_clear() -> anyhow::Result<()> {
     spec.extensions.insert(
         StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
-            name: "storage".to_string(),
+            key: "storage".to_string(),
             value: "sample".to_string(),
         })?,
     );
@@ -205,7 +205,7 @@ lazy_static! {
     static ref EXTENSIONS: HashMap<String, String> = [(
         StorageControlConstants::StorageSelectorQuery.to_string(),
         serde_json::to_string(&Label {
-            name: "storage".to_string(),
+            key: "storage".to_string(),
             value: "sample".to_string(),
         })
         .unwrap()

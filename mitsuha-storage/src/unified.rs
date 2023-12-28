@@ -480,7 +480,7 @@ impl UnifiedStorage {
             let mut processed_storage_class = storage_class.clone();
 
             processed_storage_class.labels.push(Label {
-                name: StorageControlConstants::StorageLabel.to_string(),
+                key: StorageControlConstants::StorageLabel.to_string(),
                 value: storage_class.name.clone(),
             });
 

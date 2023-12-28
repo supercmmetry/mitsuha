@@ -19,7 +19,7 @@ impl Plugin for OneStoragePlugin {
 
         let raw_channel = LabeledStorageChannel::new(
             storage,
-            serde_json::from_str(ctx.extensions.get("selector").unwrap()).unwrap(),
+            serde_json::from_str(ctx.current_properties.get("selector").unwrap()).unwrap(),
         );
 
         let channel = initialize_channel(&ctx, raw_channel)?;

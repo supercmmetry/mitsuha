@@ -44,7 +44,7 @@ pub trait StorageClassExt {
 
 impl StorageClassExt for StorageClass {
     fn should_enable_gc(&self) -> types::Result<bool> {
-        if let Some(value) = self.extensions.get(&ConfKey::EnableGC.to_string()) {
+        if let Some(value) = self.properties.get(&ConfKey::EnableGC.to_string()) {
             value.parse().map_err(|e: ParseBoolError| err_unknown!(e))
         } else {
             Ok(false)
