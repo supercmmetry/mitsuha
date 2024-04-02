@@ -22,7 +22,7 @@ impl Plugin for OneStoragePlugin {
             serde_json::from_str(ctx.current_properties.get("selector").unwrap()).unwrap(),
         );
 
-        let channel = initialize_channel(&ctx, raw_channel)?;
+        let channel = initialize_channel(&ctx, raw_channel).await?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;

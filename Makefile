@@ -1,25 +1,20 @@
 SHELL := /bin/bash
 LABEL := mitsuha_runtime
 
-build-env:
-	rustup default nightly
-	cargo install cargo-nextest --locked
-	cargo install cargo-release
-
 build-test-assets:
 	@$(MAKE) -C mitsuha-runtime-test build-assets
 
-build: build-env
+build:
 	@echo $(LABEL): Building all crates
 	@cargo build --release
 	@echo $(LABEL): Built all crates
 
-test: build-env build-test-assets
+test: build-test-assets
 	@echo $(LABEL): Running tests
 	@cargo test -- --test-threads 1
 	@echo $(LABEL): Completed tests successfully
 
-test-light: build-env build-test-assets
+test-light: build-test-assets
 	@echo $(LABEL): Running lightweight tests
 	@cargo test --workspace --exclude mitsuha-qflow -- --test-threads 1
 	@echo $(LABEL): Completed lightweight tests successfully
@@ -47,3 +42,14 @@ load-cache:
 
 lint:
 	@cargo fmt
+
+docker-build:
+	@echo mitsuha: Building image for mitsuha
+	@export mitsuha_central_feed_token=$(mitsuha_central_feed_token)
+	@script/docker-build.sh
+	@echo mitsuha: Built image for mitsuha
+
+
+.PHONY:
+	build-env build-test-assets build test test-light clean-test-assets clean cache load-cache-internal load-cache lint docker-build
+

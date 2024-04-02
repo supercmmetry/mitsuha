@@ -612,7 +612,7 @@ impl UnifiedStorage {
         {
             let label: Label = serde_json::from_str(query.as_str()).map_err(|e| {
                 Error::StorageOperationFailed {
-                    message: format!("failed to parse storage selector."),
+                    message: "failed to parse storage selector.".to_string(),
                     source: e.into(),
                 }
             })?;
@@ -630,7 +630,7 @@ impl UnifiedStorage {
         }
 
         return Err(Error::StorageOperationFailed {
-            message: format!("failed to get a storage that satisfies the selector."),
+            message: "failed to get a storage that satisfies the selector.".to_string(),
             source: anyhow::anyhow!(""),
         });
     }

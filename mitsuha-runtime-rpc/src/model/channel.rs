@@ -345,7 +345,7 @@ impl TryInto<JobStatusType> for proto::channel::JobStatusType {
                 }
                 proto::channel::job_status_type::JobStatusTypeOneOf::ExpiredAt(x) => {
                     Ok(JobStatusType::ExpiredAt {
-                        datetime: DateTime::<Utc>::from_utc(
+                        datetime: DateTime::<Utc>::from_naive_utc_and_offset(
                             NaiveDateTime::from_timestamp_opt(
                                 x.datetime.ok_or(anyhow!("cannot find datetime"))?.seconds,
                                 0,

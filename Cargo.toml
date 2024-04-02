@@ -7,5 +7,7 @@ members = [
     "mitsuha-storage",
     "mitsuha-channel",
     "mitsuha-qflow",
+    "mitsuha-scheduler",
     "mitsuha-policy-engine",
+    "mitsuha-persistence"
 ]

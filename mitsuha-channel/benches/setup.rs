@@ -1,9 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use mitsuha_channel::{
-    context::ChannelContext, labeled_storage::LabeledStorageChannel, system::SystemChannel,
-    wasmtime::WasmtimeChannel,
+    labeled_storage::LabeledStorageChannel, system::SystemChannel, wasmtime::WasmtimeChannel,
 };
+use mitsuha_core::channel::ChannelContext;
+use mitsuha_core::storage::Storage;
 use mitsuha_core::{
     channel::{ComputeChannel, ComputeKernel},
     config,
@@ -45,13 +46,14 @@ pub fn make_basic_config() -> config::storage::Storage {
     }
 }
 
-pub fn make_unified_storage() -> Arc<Box<dyn RawStorage>> {
+pub async fn make_unified_storage() -> Arc<Box<dyn Storage>> {
     let config = make_basic_config();
-    UnifiedStorage::new(&config).unwrap()
+    UnifiedStorage::new(&config).await.unwrap()
 }
 
-pub fn make_labeled_storage_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
-    let storage = make_unified_storage();
+pub async fn make_labeled_storage_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>
+{
+    let storage = make_unified_storage().await;
 
     Arc::new(Box::new(LabeledStorageChannel::new(
         storage,

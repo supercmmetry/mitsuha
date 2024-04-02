@@ -1,14 +1,14 @@
 #[derive(strum_macros::Display)]
 pub enum ConfKey {
-    #[strum(serialize = "rootDir")]
+    #[strum(serialize = "root_dir")]
     RootDir,
 
-    #[strum(serialize = "enableGc")]
+    #[strum(serialize = "enable_gc")]
     EnableGC,
 
-    #[strum(serialize = "pdEndpoints")]
+    #[strum(serialize = "pd_endpoints")]
     PdEndpoints,
 
-    #[strum(serialize = "concurrencyMode")]
+    #[strum(serialize = "concurrency_mode")]
     ConcurrencyMode,
 }

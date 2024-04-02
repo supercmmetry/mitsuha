@@ -17,7 +17,7 @@ impl Plugin for EnforcerPlugin {
         let policy_blob_key = ctx.current_properties.get("policy_blob_key").unwrap();
 
         let raw_channel = EnforcerChannel::new(policy_blob_key.clone());
-        let channel = initialize_channel(&ctx, raw_channel)?;
+        let channel = initialize_channel(&ctx, raw_channel).await?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;

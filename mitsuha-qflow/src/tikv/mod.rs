@@ -4,7 +4,7 @@ use anyhow::anyhow;
 
 use crate::{
     tikv::{muxer::TikvQueueMuxer, writer::TikvWriter},
-    Reader, Writer,
+    ComputeInputGate, Reader, Writer,
 };
 
 use self::reader::TikvReader;
@@ -37,6 +37,7 @@ pub async fn make_tikv_writer(
 }
 
 pub async fn make_tikv_reader(
+    gate: Arc<Box<dyn ComputeInputGate>>,
     extensions: &HashMap<String, String>,
 ) -> anyhow::Result<Arc<Box<dyn Reader>>> {
     let desired_queue_count = extensions
@@ -53,7 +54,7 @@ pub async fn make_tikv_reader(
 
     let muxer = Arc::new(TikvQueueMuxer::new(client.clone(), desired_queue_count).await?);
 
-    let reader = TikvReader::new(client, muxer).await?;
+    let reader = TikvReader::new(client, gate, muxer).await?;
 
     Ok(Arc::new(Box::new(reader)))
 }

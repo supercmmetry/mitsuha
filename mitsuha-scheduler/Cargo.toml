@@ -1,0 +1,31 @@
+[package]
+name = "mitsuha-scheduler"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+musubi_api = "0.1"
+mitsuha_filesystem = "0.1"
+mitsuha_core_types = "0.1"
+
+mitsuha-core = { path = "../mitsuha-core" }
+mitsuha-persistence = { path = "../mitsuha-persistence" }
+
+
+sea-orm = { version = "0.12.2", features = ["sqlx-mysql", "runtime-tokio-rustls", "with-chrono", "with-uuid", "macros"]}
+sea-orm-migration = { version = "0.12.2", features = ["sqlx-mysql", "runtime-tokio-rustls"] }
+strum_macros = "0.24.3"
+strum = "0.24"
+chrono = "0.4.26"
+tokio = { version = "1.24.1", features = ["full"] }
+uuid = { version = "1.6.1", features = ["v4"] }
+sha2 = "0.10.7"
+hex = "0.4.3"
+tracing = "0.1.37"
+async-trait = "0.1.75"
+lazy_static = "1.4.0"
+prometheus = "0.13.3"
+rand = "0.8.5"

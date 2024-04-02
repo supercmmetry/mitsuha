@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 mod setup;
-use mitsuha_channel::context::ChannelContext;
+use mitsuha_core::channel::ChannelContext;
 use mitsuha_core::{channel::ComputeChannel, constants::Constants};
 use mitsuha_core_types::{
     channel::{ComputeInput, ComputeOutput},
@@ -20,7 +20,7 @@ pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelConte
 
     let init_channel = make_init_channel();
     let system_channel = make_system_channel();
-    let labeled_storage_channel = make_labeled_storage_channel();
+    let labeled_storage_channel = make_labeled_storage_channel().await;
     let wasmtime_channel = make_wasmtime_channel(init_channel.clone());
 
     labeled_storage_channel.connect(wasmtime_channel).await;
@@ -28,6 +28,8 @@ pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelConte
     system_channel.connect(labeled_storage_channel).await;
 
     init_channel.connect(system_channel).await;
+
+    init_global_channel_ctx(init_channel.clone()).await;
 
     init_channel
 }
@@ -44,6 +46,10 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
         "../../mitsuha-runtime-test/target/wasm32-unknown-unknown/release/mitsuha_wasm_main.wasm"
     )
     .to_vec();
+    let wasi_echo: Vec<u8> = include_bytes!(
+        "../../mitsuha-runtime-test/target/wasm32-wasi/release/mitsuha_wasi_echo.wasm"
+    )
+        .to_vec();
 
     let module_info_echo = ModuleInfo {
         name: "mitsuha.test.echo".to_string(),
@@ -59,6 +65,12 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
 
     let module_info_main = ModuleInfo {
         name: "mitsuha.test.main".to_string(),
+        version: "0.1.0".to_string(),
+        modtype: ModuleType::WASM,
+    };
+
+    let module_info_wasi_echo = ModuleInfo {
+        name: "mitsuha.test.wasi.echo".to_string(),
         version: "0.1.0".to_string(),
         modtype: ModuleType::WASM,
     };
@@ -84,6 +96,13 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
         extensions: Default::default(),
     };
 
+    let spec_wasi_echo = StorageSpec {
+        handle: module_info_wasi_echo.get_identifier(),
+        data: wasi_echo,
+        ttl: 86400,
+        extensions: Default::default(),
+    };
+
     channel
         .compute(
             ChannelContext::default(),
@@ -102,6 +121,13 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
         .compute(
             ChannelContext::default(),
             ComputeInput::Store { spec: spec_main },
+        )
+        .await
+        .unwrap();
+    channel
+        .compute(
+            ChannelContext::default(),
+            ComputeInput::Store { spec: spec_wasi_echo },
         )
         .await
         .unwrap();
@@ -124,7 +150,7 @@ async fn internal_run_hello_world() {
     let channel = make_channel().await;
     let mut ctx = ChannelContext::default();
 
-    ctx.channel_start = Some(channel.clone());
+    ctx.set_channel_start(channel.clone());
 
     upload_artifacts(channel.clone()).await;
 
@@ -201,7 +227,7 @@ async fn internal_run_mugen_loop() {
     let channel = make_channel().await;
     let mut ctx = ChannelContext::default();
 
-    ctx.channel_start = Some(channel.clone());
+    ctx.set_channel_start(channel.clone());
 
     upload_artifacts(channel.clone()).await;
 
@@ -257,7 +283,7 @@ async fn internal_run_and_abort_mugen_loop() {
     let channel = make_channel().await;
     let mut ctx = ChannelContext::default();
 
-    ctx.channel_start = Some(channel.clone());
+    ctx.set_channel_start(channel.clone());
 
     upload_artifacts(channel.clone()).await;
 
@@ -333,7 +359,7 @@ async fn internal_run_wasm_with_deps() {
     let channel = make_channel().await;
     let mut ctx = ChannelContext::default();
 
-    ctx.channel_start = Some(channel.clone());
+    ctx.set_channel_start(channel.clone());
 
     upload_artifacts(channel.clone()).await;
 
@@ -409,6 +435,83 @@ async fn internal_run_wasm_with_deps() {
     }
 }
 
+async fn internal_run_wasi_hello_world() {
+    let channel = make_channel().await;
+    let mut ctx = ChannelContext::default();
+
+    ctx.set_channel_start(channel.clone());
+
+    upload_artifacts(channel.clone()).await;
+
+    let input = DataBuilder::new()
+        .add(Value::String("Hello world!".to_string()))
+        .build();
+
+    let job_handle = "run_hello_world_job_1".to_string();
+    let input_handle = "run_hello_world_input_1".to_string();
+    let output_handle = "run_hello_world_output_1".to_string();
+
+    let input_spec = StorageSpec {
+        handle: input_handle.clone(),
+        data: input.clone().try_into().unwrap(),
+        ttl: 1200,
+        extensions: Default::default(),
+    };
+
+    let job_spec = JobSpec {
+        handle: job_handle,
+        symbol: Symbol {
+            name: "echo".to_string(),
+            module_info: ModuleInfo {
+                name: "mitsuha.test.wasi.echo".to_string(),
+                version: "0.1.0".to_string(),
+                modtype: ModuleType::WASM,
+            },
+        },
+        ttl: 1200,
+        input_handle,
+        output_handle: output_handle.clone(),
+        extensions: [
+            (Constants::JobOutputTTL.to_string(), "120".to_string()),
+            (Constants::JobChannelAwait.to_string(), "true".to_string()),
+        ]
+            .into_iter()
+            .collect(),
+    };
+
+    channel
+        .compute(ctx.clone(), ComputeInput::Store { spec: input_spec })
+        .await
+        .unwrap();
+
+    channel
+        .compute(ctx.clone(), ComputeInput::Run { spec: job_spec })
+        .await
+        .unwrap();
+
+    let output = channel
+        .compute(
+            ctx.clone(),
+            ComputeInput::Load {
+                handle: output_handle,
+                extensions: Default::default(),
+            },
+        )
+        .await
+        .unwrap();
+
+    if let ComputeOutput::Loaded { data } = output {
+        match Data::try_from(data).unwrap().values().get(0).unwrap() {
+            Value::String(s) => {
+                assert_eq!(s.as_str(), "Hello world!");
+            }
+            _ => panic!("expected string"),
+        }
+    } else {
+        panic!("expected ComputeOutput of type Loaded");
+    }
+}
+
 #[test]
 fn run_hello_world() {
     graceless_async_test!({
@@ -434,5 +537,12 @@ fn run_and_abort_mugen_loop() {
 fn run_mugen_loop() {
     graceless_async_test!({
         internal_run_mugen_loop().await;
+    });
+}
+
+#[test]
+fn run_wasi_hello_world() {
+    graceless_async_test!({
+        internal_run_wasi_hello_world().await;
     });
 }

@@ -13,7 +13,12 @@ build-wasm-loop:
 	@$(MAKE) -C "../../mitsuha-wasm-loop" build
 	@cp "../../target/wasm32-unknown-unknown/release/mitsuha_wasm_loop.wasm" mitsuha.test.loop.v0.1.0.wasm
 
-build: build-wasm-echo build-wasm-main build-wasm-loop
+build-wasi-echo:
+	@$(MAKE) -C "../../mitsuha-wasi-echo" build
+	@cp "../../target/wasm32-wasi/release/mitsuha_wasi_echo.wasm" mitsuha.test.wasi.echo.v0.1.0.wasm
+
+
+build: build-wasm-echo build-wasm-main build-wasm-loop build-wasi-echo
 	@echo $(LABEL): Successfully built
 
 clean:

@@ -4,12 +4,13 @@ use mitsuha_core::{channel::ComputeChannel, errors::Error, types};
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use mitsuha_runtime_rpc::proto::channel::{interceptor_client::InterceptorClient, ComputeRequest};
 
-use crate::{context::ChannelContext, WrappedComputeChannel};
+use crate::{NextComputeChannel, WrappedComputeChannel};
 
 use async_trait::async_trait;
+use mitsuha_core::channel::ChannelContext;
 
 pub struct InterceptorChannel {
-    next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
+    next: NextComputeChannel<ChannelContext>,
     id: String,
     client: InterceptorClient<tonic::transport::Channel>,
 }

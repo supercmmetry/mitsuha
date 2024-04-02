@@ -5,6 +5,7 @@ use crate::{
     types,
 };
 use std::{collections::HashMap, sync::Arc};
+use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
@@ -19,6 +20,7 @@ use musubi_api::{
 use serde::{Deserialize, Serialize};
 
 use async_trait::async_trait;
+use mitsuha_core_types::kernel::AsyncKernel;
 use uuid::Uuid;
 
 pub trait JobSpecExt {
@@ -149,7 +151,44 @@ pub trait Kernel: Send + Sync {
 }
 
 #[async_trait]
+impl<T, I> Kernel for T where T: Deref<Target = I> + Send + Sync, I: Kernel + ?Sized {
+    async fn run_job(&self, spec: JobSpec) -> types::Result<()> {
+        self.deref().run_job(spec).await
+    }
+
+    async fn extend_job(&self, handle: String, ttl: u64, extensions: HashMap<String, String>) -> types::Result<()> {
+        self.deref().extend_job(handle, ttl, extensions).await
+    }
+
+    async fn abort_job(&self, handle: String, extensions: HashMap<String, String>) -> types::Result<()> {
+        self.deref().abort_job(handle, extensions).await
+    }
+
+    async fn get_job_status(&self, handle: String, extensions: HashMap<String, String>) -> types::Result<JobStatus> {
+        self.deref().get_job_status(handle, extensions).await
+    }
+
+    async fn store_data(&self, spec: StorageSpec) -> types::Result<()> {
+        self.deref().store_data(spec).await
+    }
+
+    async fn load_data(&self, handle: String, extensions: HashMap<String, String>) -> types::Result<Vec<u8>> {
+        self.deref().load_data(handle, extensions).await
+    }
+
+    async fn persist_data(&self, handle: String, ttl: u64, extensions: HashMap<String, String>) -> types::Result<()> {
+        self.deref().persist_data(handle, ttl, extensions).await
+    }
+
+    async fn clear_data(&self, handle: String, extensions: HashMap<String, String>) -> types::Result<()> {
+        self.deref().clear_data(handle, extensions).await
+    }
+}
+
+// TODO: Implement a bridged kernel to override metadata from client-side.
+#[async_trait]
 pub trait KernelBinding: Send + Sync {
+    async fn get_kernel(&self) -> Arc<Box<dyn Kernel>>;
     async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>>;
 }
 
@@ -199,6 +238,10 @@ lazy_static! {
 
 #[async_trait]
 impl KernelBinding for KernelBridge {
+    async fn get_kernel(&self) -> Arc<Box<dyn Kernel>> {
+        self.kernel.clone()
+    }
+
     async fn run(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
         if self.is_core_symbol(symbol) {
             self.kernel_call(symbol, input).await

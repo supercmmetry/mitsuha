@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 mod setup;
 use criterion::{criterion_group, criterion_main, Criterion};
-use mitsuha_channel::context::ChannelContext;
-use mitsuha_core::channel::ComputeChannel;
+use mitsuha_core::channel::{ChannelContext, ComputeChannel};
 use mitsuha_core_types::{
     channel::{ComputeInput, ComputeOutput},
     kernel::{JobSpec, StorageSpec},
@@ -19,7 +18,7 @@ use setup::*;
 
 pub async fn make_channel() -> Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> {
     let system_channel = make_system_channel();
-    let labeled_storage_channel = make_labeled_storage_channel();
+    let labeled_storage_channel = make_labeled_storage_channel().await;
     let wasmtime_channel = make_wasmtime_channel(system_channel.clone());
 
     labeled_storage_channel.connect(wasmtime_channel).await;

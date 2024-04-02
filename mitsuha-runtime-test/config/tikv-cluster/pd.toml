@@ -47,9 +47,9 @@ level = "error"
 #log-rotate = true
 
 [metric]
-# prometheus client push interval, set "0s" to disable prometheus.
+# http client push interval, set "0s" to disable http.
 interval = "15s"
-# prometheus pushgateway address, leaves it empty will disable prometheus.
+# http pushgateway address, leaves it empty will disable http.
 # address = "pushgateway:9091"
 
 [schedule]

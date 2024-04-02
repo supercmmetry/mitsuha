@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mitsuha-runtime-config
+  namespace: mitsuha-dev
+data:
+  default.yml: |
+    api:
+      address: 0.0.0.0
+      rpc_port: 20000
+      http_port: 80
+    
+    job:
+      maximum_concurrent_cost:
+        compute: 480
+      cost_evaluator_type: standard
+      scheduler:
+        enable_update_optimization: false
+        core_scheduling_capacity:
+          compute: 480
+    
+    persistence:
+      database_connection_string: mysql://root:@miru-persistence-tidb:4000/mitsuha_persistence
+
+    telemetry:
+      stdout:
+        level: warn
+
+    storage:
+      classes:
+      - name: tikv_store
+        kind: tikv
+        locality:
+          solid: {}
+        labels:
+        - key: kind
+          value: tikv
+        properties:
+          pd_endpoints: 'tikv-store-pd:2379'
+          concurrency_mode: optimistic
+
+    plugins:
+    - name: mitsuha.plugin.scheduler
+      properties:
+        channel_id: scheduler-0
+        partition_lease_duration_seconds: 60
+    - name: mitsuha.plugin.system
+      properties:
+        channel_id: system-0
+    - name: mitsuha.plugin.wasmtime
+      properties:
+        channel_id: wasmtime-0
+    - name: mitsuha.plugin.muxed_storage
+      properties:
+        channel_id: muxedstorage-0
+        rules.0.expr: '.*'
+        rules.0.label.key: kind
+        rules.0.label.value: tikv
+    - name: mitsuha.plugin.eof
+      properties:
+        channel_id: eof-0

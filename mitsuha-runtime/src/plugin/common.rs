@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use mitsuha_channel::{system::SystemChannel, EofChannel, InitChannel};
+use mitsuha_channel::{system::SystemChannel, EntrypointChannel, EofChannel};
+use mitsuha_core::channel::ChannelManager;
 use mitsuha_core::types;
 
 use super::{initialize_channel, Plugin, PluginContext};
@@ -14,7 +15,7 @@ impl Plugin for SystemPlugin {
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let channel = initialize_channel(&ctx, SystemChannel::new())?;
+        let channel = initialize_channel(&ctx, SystemChannel::new()).await?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;
@@ -33,12 +34,13 @@ impl Plugin for InitPlugin {
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let channel = initialize_channel(&ctx, InitChannel::new())?;
+        let channel = initialize_channel(&ctx, EntrypointChannel::new()).await?;
 
         channel.connect(ctx.channel_start.clone()).await;
 
         ctx.channel_start = channel.clone();
-        ctx.channel_context.channel_start = Some(channel);
+
+        ChannelManager::global_rw().write().await.channel_start = Some(channel);
 
         Ok(ctx)
     }
@@ -54,7 +56,7 @@ impl Plugin for EofPlugin {
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let channel = initialize_channel(&ctx, EofChannel::new())?;
+        let channel = initialize_channel(&ctx, EofChannel::new()).await?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;

@@ -734,6 +734,22 @@ version = "0.1.0"
 source = "git+https://github.com/supercmmetry/musubi?branch=master#dc29ff54bc0fc7cd4b80bfaa71188e39a1e42631"
 
 [[package]]
+name = "mitsuha_bindings"
+version = "0.1.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "662682f172acb683e55d954b81cae5e10d9a8fef1e7f5e3cc5807c4c10e95866"
+dependencies = [
+ "lazy_static",
+ "musubi_api 0.1.36",
+ "musubi_bindings 0.1.36",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "mitsuha_service_main"
 version = "0.1.0"
 dependencies = [
@@ -741,30 +757,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "mitsuha_wasi_echo"
+version = "0.1.0"
+dependencies = [
+ "mitsuha_bindings 0.1.36",
+ "musubi_api 0.1.36",
+ "musubi_bindings 0.1.36",
+]
+
+[[package]]
 name = "mitsuha_wasm_echo"
 version = "0.1.0"
 dependencies = [
- "mitsuha_bindings",
- "musubi_api",
- "musubi_bindings",
+ "mitsuha_bindings 0.1.36",
+ "musubi_api 0.1.36",
+ "musubi_bindings 0.1.36",
 ]
 
 [[package]]
 name = "mitsuha_wasm_loop"
 version = "0.1.0"
 dependencies = [
- "mitsuha_bindings",
- "musubi_api",
- "musubi_bindings",
+ "mitsuha_bindings 0.1.0",
+ "musubi_api 0.1.0",
+ "musubi_bindings 0.1.0",
 ]
 
 [[package]]
 name = "mitsuha_wasm_main"
 version = "0.1.0"
 dependencies = [
- "mitsuha_bindings",
- "musubi_api",
- "musubi_bindings",
+ "mitsuha_bindings 0.1.36",
+ "musubi_api 0.1.36",
+ "musubi_bindings 0.1.36",
 ]
 
 [[package]]
@@ -786,11 +811,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "musubi_api"
+version = "0.1.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06cd6e2d12246470d9c2ca355a7075b2e42e17b2476f3c1feea9528e16fba7e6"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "lazy_static",
+ "num-derive",
+ "num-traits",
+ "protobuf",
+ "protobuf-codegen",
+ "protobuf-json-mapping",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "musubi_bindings"
 version = "0.1.0"
 source = "git+https://github.com/supercmmetry/musubi?branch=master#dc29ff54bc0fc7cd4b80bfaa71188e39a1e42631"
 dependencies = [
- "musubi_api",
+ "musubi_api 0.1.0",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "musubi_bindings"
+version = "0.1.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce1abf2e5b71200bd176b648856b0bf1b86e1d74ca644d723b62d968dbbe7687"
+dependencies = [
+ "musubi_api 0.1.36",
  "proc-macro2",
  "quote",
  "serde",

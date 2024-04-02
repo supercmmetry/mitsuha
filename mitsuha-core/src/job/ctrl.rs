@@ -1,53 +1,100 @@
+use crate::channel::{ComputeChannel, StateProvider};
+use crate::constants::Constants;
+use crate::errors::Error;
+use crate::job::ctx::JobState;
+use crate::job::mgr::JobManagerProvider;
+use crate::types;
 use anyhow::anyhow;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use futures::stream::AbortHandle;
-use mitsuha_core::{constants::Constants, errors::Error, types};
-use mitsuha_core_types::{
-    channel::{ComputeInput, ComputeOutput},
-    kernel::{JobSpec, JobStatus, JobStatusType, StorageSpec},
-};
-use tokio::{
-    sync::mpsc::{Receiver, Sender},
-    task::JoinHandle,
-};
+use futures::future::AbortHandle;
+use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
+use mitsuha_core_types::kernel::{JobSpec, JobStatus, JobStatusType, StorageSpec};
+use std::sync::Arc;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::task::JoinHandle;
 use tracing::Instrument;
 
-use crate::context::ChannelContext;
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum JobState {
-    Completed,
-    Aborted,
-    ExpireAt(DateTime<Utc>),
+#[async_trait]
+pub trait PostJobHook<Context: StateProvider>: Send + Sync {
+    async fn run(&self, ctx: Context) -> types::Result<()>;
 }
 
-pub struct JobController {
+pub struct JobController<Context: JobManagerProvider + StateProvider> {
     spec: JobSpec,
     task: JoinHandle<types::Result<()>>,
     abort_handle: AbortHandle,
-    channel_context: ChannelContext,
+    channel: Arc<Box<dyn ComputeChannel<Context = Context>>>,
+    channel_context: Context,
     prev_status_update: Option<DateTime<Utc>>,
+    post_job_hooks: Vec<Arc<dyn PostJobHook<Context>>>,
 }
 
-impl JobController {
+struct JobCompletionHook {
+    notifier: Sender<JobState>,
+    job_handle: String,
+}
+
+#[async_trait]
+impl<Context> PostJobHook<Context> for JobCompletionHook
+where
+    Context: 'static + JobManagerProvider + StateProvider,
+{
+    async fn run(&self, _ctx: Context) -> types::Result<()> {
+        match self.notifier.send(JobState::Completed).await {
+            Ok(_) => {
+                tracing::debug!("completion_notifier triggered for job!");
+            }
+            Err(e) => {
+                tracing::debug!("failed to trigger completion_notifier. error: {}", e);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<Context> JobController<Context>
+where
+    Context: 'static + JobManagerProvider + StateProvider,
+{
     pub fn new(
         spec: JobSpec,
         task: JoinHandle<types::Result<()>>,
         abort_handle: AbortHandle,
-        channel_context: ChannelContext,
+        channel: Arc<Box<dyn ComputeChannel<Context = Context>>>,
+        channel_context: Context,
     ) -> Self {
         Self {
             spec,
             task,
             abort_handle,
+            channel,
             channel_context,
             prev_status_update: None,
+            post_job_hooks: Vec::new(),
+        }
+    }
+
+    pub fn add_post_job_hook(&mut self, hook: Arc<dyn PostJobHook<Context>>) {
+        self.post_job_hooks.push(hook);
+    }
+
+    async fn run_post_job_hooks(
+        ctx: &Context,
+        post_job_hooks: &Vec<Arc<dyn PostJobHook<Context>>>,
+    ) {
+        for hook in post_job_hooks.iter() {
+            if let Err(e) = hook.run(ctx.clone()).await {
+                tracing::error!("failed to run hook, error: {}", e);
+            }
         }
     }
 
     async fn update_status(
         spec: &JobSpec,
-        channel_context: &ChannelContext,
+        channel: Arc<Box<dyn ComputeChannel<Context = Context>>>,
+        channel_context: &Context,
         status_type: JobStatusType,
         current_time: DateTime<Utc>,
     ) -> types::Result<()> {
@@ -86,9 +133,7 @@ impl JobController {
             extensions: spec.extensions.clone(),
         };
 
-        channel_context
-            .get_channel_start()
-            .unwrap()
+        channel
             .compute(channel_context.clone(), ComputeInput::Store { spec })
             .await?;
 
@@ -98,27 +143,23 @@ impl JobController {
     pub async fn run(
         mut self,
         handle: String,
+        ctx: &Context,
         updater: Sender<JobState>,
         mut updation_target: Receiver<JobState>,
         status_updater: Sender<JobState>,
     ) -> types::Result<ComputeOutput> {
-        let completion_notifier = updater.clone();
-        let job_handle = self.spec.handle.clone();
+        let completion_hook = JobCompletionHook {
+            notifier: updater.clone(),
+            job_handle: handle.clone(),
+        };
 
+        let other_ctx = ctx.clone();
+        let task = self.task;
+        let post_job_hooks = self.post_job_hooks;
         let observable_task_future = async move {
-            let result = self.task.await;
-            match completion_notifier.send(JobState::Completed).await {
-                Ok(_) => {
-                    tracing::debug!("completion_notifier triggered for job '{}'!", job_handle);
-                }
-                Err(e) => {
-                    tracing::debug!(
-                        "failed to trigger completion_notifier for job '{}'. error: {}",
-                        job_handle,
-                        e
-                    );
-                }
-            }
+            let result = task.await;
+
+            completion_hook.run(other_ctx.clone()).await?;
 
             result.map_err(|e| Error::Unknown { source: e.into() })?
         };
@@ -137,8 +178,12 @@ impl JobController {
                         self.abort_handle.abort();
                         _ = observable_task.await;
 
+                        Self::run_post_job_hooks(ctx, &post_job_hooks).await;
+                        ctx.get_job_mgr().await.dequeue_job(&handle).await?;
+
                         Self::update_status(
                             &self.spec,
+                            self.channel.clone(),
                             &self.channel_context,
                             JobStatusType::ExpiredAt {
                                 datetime: x.clone(),
@@ -163,8 +208,12 @@ impl JobController {
                         _ = observable_task.await;
                         _ = status_updater.send(JobState::Aborted).await;
 
+                        Self::run_post_job_hooks(ctx, &post_job_hooks).await;
+                        ctx.get_job_mgr().await.dequeue_job(&handle).await?;
+
                         Self::update_status(
                             &self.spec,
+                            self.channel.clone(),
                             &self.channel_context,
                             JobStatusType::Aborted,
                             current_time,
@@ -177,6 +226,10 @@ impl JobController {
                     }
                     JobState::Completed => {
                         let result = observable_task.await;
+
+                        Self::run_post_job_hooks(ctx, &post_job_hooks).await;
+                        ctx.get_job_mgr().await.dequeue_job(&handle).await?;
+
                         match status_updater.send(JobState::Completed).await {
                             Ok(_) => {
                                 tracing::debug!(
@@ -197,6 +250,7 @@ impl JobController {
 
                         Self::update_status(
                             &self.spec,
+                            self.channel.clone(),
                             &self.channel_context,
                             JobStatusType::Completed,
                             current_time,
@@ -224,6 +278,7 @@ impl JobController {
                             {
                                 Self::update_status(
                                     &self.spec,
+                                    self.channel.clone(),
                                     &self.channel_context,
                                     JobStatusType::Running,
                                     current_time,
@@ -237,6 +292,7 @@ impl JobController {
                                 self.prev_status_update = Some(current_time);
                                 Self::update_status(
                                     &self.spec,
+                                    self.channel.clone(),
                                     &self.channel_context,
                                     JobStatusType::Running,
                                     current_time,

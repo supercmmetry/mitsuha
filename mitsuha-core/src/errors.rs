@@ -93,8 +93,8 @@ pub enum Error {
         source: anyhow::Error,
     },
 
-    // service errors
-    #[error("failed to initialize service, {message}")]
+    // rpc errors
+    #[error("failed to initialize rpc, {message}")]
     ServiceInitializationFailed {
         message: String,
 
@@ -180,6 +180,22 @@ pub enum Error {
     #[error("unsupported operation {op}")]
     UnsupportedOperation { op: String },
 
+    #[error("error occured at the persistence layer, details: {source}")]
+    PersistenceLayerError {
+        #[from]
+        source: sea_orm::DbErr,
+    },
+
+    #[error("could not find entity: kind={kind}, name={name}")]
+    EntityNotFoundError { name: String, kind: String },
+
+    #[error("encountered conflict for entity: kind={kind}, name={name}, reason={reason}")]
+    EntityConflictError {
+        name: String,
+        kind: String,
+        reason: String,
+    },
+
     // unknown errors
     #[error("encountered unknown error, source: {source}")]
     Unknown {
@@ -189,6 +205,24 @@ pub enum Error {
 
     #[error("encountered unknown error, {message}")]
     UnknownWithMsgOnly { message: String },
+}
+
+pub trait ToUnknownErrorResult<T> {
+    fn to_unknown_err_result(self) -> Result<T, Error>;
+}
+
+impl<T, E> ToUnknownErrorResult<T> for Result<T, E>
+where
+    E: ToString,
+{
+    fn to_unknown_err_result(self) -> Result<T, Error> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(e) => Err(Error::UnknownWithMsgOnly {
+                message: e.to_string(),
+            }),
+        }
+    }
 }
 
 #[macro_export]

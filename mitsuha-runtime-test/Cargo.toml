@@ -3,5 +3,6 @@ members = [
     "mitsuha-service-main",
     "mitsuha-wasm-echo",
     "mitsuha-wasm-loop",
-    "mitsuha-wasm-main"
+    "mitsuha-wasm-main",
+    "mitsuha-wasi-echo"
 ]

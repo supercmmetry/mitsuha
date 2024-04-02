@@ -1,0 +1,12 @@
+[package]
+name = "mitsuha_wasi_echo"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Musubi dependencies
+musubi_api = { version = "0.1", features = ["package"] }
+musubi_bindings = "0.1"
+mitsuha_bindings = "0.1"

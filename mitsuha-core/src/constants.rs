@@ -18,6 +18,9 @@ pub enum StorageControlConstants {
 
 #[derive(strum_macros::Display)]
 pub enum Constants {
+    #[strum(serialize = "mitsuha.core.computeinput.signature")]
+    ComputeInputSignature,
+
     #[strum(serialize = "mitsuha.core.job.handle")]
     JobHandle,
 
@@ -29,6 +32,9 @@ pub enum Constants {
 
     #[strum(serialize = "mitsuha.job.status.last_updated")]
     JobStatusLastUpdated,
+
+    #[strum(serialize = "mitsuha.channel.skiplist")]
+    ChannelSkipList,
 
     #[strum(serialize = "mitsuha.channel.job.await")]
     JobChannelAwait,
@@ -44,4 +50,7 @@ pub enum Constants {
 
     #[strum(serialize = "mitsuha.core.module.resolver.prefix")]
     ModuleResolverPrefix,
+
+    #[strum(serialize = "mitsuha.scheduler.computeinput.queued")]
+    SchedulerComputeInputQueued,
 }

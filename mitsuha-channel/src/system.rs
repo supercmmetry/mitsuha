@@ -1,78 +1,15 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use mitsuha_core::{channel::ComputeChannel, errors::Error, types};
+use mitsuha_core::channel::ChannelContext;
+use mitsuha_core::job::mgr::JobManagerProvider;
+use mitsuha_core::{channel::ComputeChannel, err_unsupported_op, errors::Error, types};
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
-use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{context::ChannelContext, job_controller::JobState, WrappedComputeChannel};
-
-pub struct JobContext {
-    handle: String,
-    updater: Sender<JobState>,
-    reader: Receiver<JobState>,
-    desired: JobState,
-    actual: JobState,
-}
-
-impl JobContext {
-    pub async fn new(
-        handle: String,
-        updater: Sender<JobState>,
-        reader: Receiver<JobState>,
-        desired: JobState,
-    ) -> Self {
-        updater.send(desired.clone()).await.unwrap();
-
-        Self {
-            handle,
-            updater,
-            reader,
-            actual: desired.clone(),
-            desired,
-        }
-    }
-
-    pub async fn set_state(&mut self, desired: JobState) -> types::Result<()> {
-        self.desired = desired;
-
-        if self.desired != self.actual {
-            tracing::info!(
-                "updating job context from {:?} to {:?} for handle: '{}'",
-                self.actual,
-                self.desired,
-                self.handle
-            );
-
-            self.updater
-                .send(self.desired.clone())
-                .await
-                .map_err(|e| Error::Unknown { source: e.into() })?;
-        }
-
-        Ok(())
-    }
-
-    pub fn get_state(&mut self) -> types::Result<JobState> {
-        match self.reader.try_recv() {
-            Ok(x) => {
-                tracing::info!(
-                    "received new job state {:?} for handle: '{}'",
-                    x,
-                    self.handle
-                );
-
-                self.actual = x;
-            }
-            Err(_) => {}
-        }
-
-        Ok(self.actual.clone())
-    }
-}
+use crate::{NextComputeChannel, WrappedComputeChannel};
 
 pub struct SystemChannel {
-    next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
+    next: NextComputeChannel<ChannelContext>,
     id: String,
 }
 
@@ -90,16 +27,26 @@ impl ComputeChannel for SystemChannel {
         mut elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
         match &mut elem {
+            ComputeInput::Run { spec } => {
+                if !ctx.get_job_mgr().await.queue_job(spec).await? {
+                    tracing::error!("job allocation failed!");
+                    return Err(err_unsupported_op!("cannot allocate resources for job"));
+                }
+            }
             ComputeInput::Extend { handle, ttl, .. } => {
-                ctx.extend_job(handle, *ttl).await?;
+                ctx.get_job_mgr().await.extend_job(handle, *ttl).await?;
                 return Ok(ComputeOutput::Completed);
             }
             ComputeInput::Abort { handle, .. } => {
-                ctx.abort_job(handle).await?;
+                ctx.get_job_mgr().await.abort_job(handle).await?;
                 return Ok(ComputeOutput::Completed);
             }
             ComputeInput::Status { handle, extensions } => {
-                let status = ctx.get_job_status(handle, extensions.clone()).await?;
+                let status = ctx
+                    .get_job_mgr()
+                    .await
+                    .get_job_status(handle, extensions.clone())
+                    .await?;
                 return Ok(ComputeOutput::Status { status });
             }
             _ => {}

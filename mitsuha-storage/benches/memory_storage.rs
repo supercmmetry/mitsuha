@@ -52,7 +52,7 @@ async fn store_and_load_light(storage: Arc<Box<dyn Storage>>) {
         .collect();
 
     let mut spec = StorageSpec {
-        handle: handle,
+        handle,
         data: "Hello world!".bytes().collect(),
         ttl: 100,
         extensions: HashMap::new(),
@@ -85,7 +85,7 @@ async fn store_and_load_heavy(storage: Arc<Box<dyn Storage>>) {
         .collect();
 
     let mut spec = StorageSpec {
-        handle: handle,
+        handle,
         data: vec![0; 1048576],
         ttl: 100,
         extensions: HashMap::new(),

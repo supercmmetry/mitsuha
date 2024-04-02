@@ -27,7 +27,7 @@ impl Plugin for MuxedStoragePlugin {
 
         let raw_channel = MuxedStorageChannel::new(storage, self.build_muxing_rules(&ctx)?);
 
-        let channel = initialize_channel(&ctx, raw_channel)?;
+        let channel = initialize_channel(&ctx, raw_channel).await?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;
@@ -70,9 +70,21 @@ impl MuxedStoragePlugin {
                 break;
             }
 
-            let regexp_str = ctx.current_properties.get(&expression_property).unwrap().clone();
-            let label_key = ctx.current_properties.get(&label_key_property).unwrap().clone();
-            let label_value = ctx.current_properties.get(&label_value_property).unwrap().clone();
+            let regexp_str = ctx
+                .current_properties
+                .get(&expression_property)
+                .unwrap()
+                .clone();
+            let label_key = ctx
+                .current_properties
+                .get(&label_key_property)
+                .unwrap()
+                .clone();
+            let label_value = ctx
+                .current_properties
+                .get(&label_value_property)
+                .unwrap()
+                .clone();
 
             let regexp = Regex::new(&regexp_str).map_err(|e| err_unknown!(e))?;
             let label = Label {

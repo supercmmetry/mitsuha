@@ -24,7 +24,7 @@ impl Plugin for InterceptorPlugin {
         let client = InterceptorClient::new(conn);
 
         let raw_channel = InterceptorChannel::new(client);
-        let channel = initialize_channel(&ctx, raw_channel)?;
+        let channel = initialize_channel(&ctx, raw_channel).await?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;

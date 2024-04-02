@@ -1,12 +1,11 @@
+use crate::telemetry::stdout::create_stdout_layer;
 use mitsuha_core::config::Config;
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry};
-use crate::telemetry::stdout::create_stdout_layer;
 
 use self::otel::create_otel_layer;
 
 pub mod otel;
 mod stdout;
-
 pub fn setup(config: &Config) -> anyhow::Result<()> {
     tracing_log::LogTracer::init()?;
 

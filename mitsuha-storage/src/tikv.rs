@@ -262,49 +262,6 @@ impl GarbageCollectable for TikvStorage {
 
 #[async_trait]
 impl FileSystem for TikvStorage {
-    async fn get_metadata(
-        &self,
-        handle: String,
-        _extensions: HashMap<String, String>,
-    ) -> types::Result<NativeFileMetadata> {
-        let mut tx = self.tx().await?;
-
-        match self.load_native_metadata(&mut tx, handle).await {
-            Ok(metadata) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
-                Ok(metadata)
-            }
-            Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
-                Err(e)
-            }
-        }
-    }
-
-    async fn set_metadata(
-        &self,
-        handle: String,
-        metadata: NativeFileMetadata,
-        ttl: u64,
-        extensions: HashMap<String, String>,
-    ) -> types::Result<()> {
-        let mut tx = self.tx().await?;
-
-        match self
-            .store_native_metadata(&mut tx, handle, metadata, ttl, extensions)
-            .await
-        {
-            Ok(_) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
-                Ok(())
-            }
-            Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
-                Err(e)
-            }
-        }
-    }
-
     async fn store_file_part(
         &self,
         handle: String,
@@ -391,43 +348,38 @@ impl FileSystem for TikvStorage {
         Ok(total_bytes / part_size + (total_bytes % part_size > 0) as u64)
     }
 
-    async fn path_exists(
+    async fn get_metadata(
         &self,
         handle: String,
-        extensions: HashMap<String, String>,
-    ) -> types::Result<bool> {
-        let exist_handle = Self::gen_exist_metadata_handle(&handle);
-        self.exists(exist_handle, extensions).await
-    }
-
-    async fn add_list_item(
-        &self,
-        handle: String,
-        item: String,
-        extensions: HashMap<String, String>,
-    ) -> types::Result<()> {
+        _extensions: HashMap<String, String>,
+    ) -> types::Result<NativeFileMetadata> {
         let mut tx = self.tx().await?;
 
-        let result = match self.load_internal_metadata(&mut tx, handle.clone()).await {
-            Ok(data) => Ok(data),
+        match self.load_native_metadata(&mut tx, handle).await {
+            Ok(metadata) => {
+                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                Ok(metadata)
+            }
             Err(e) => {
                 tx.rollback().await.map_err(|e| err_unknown!(e))?;
                 Err(e)
             }
-        };
+        }
+    }
 
-        let internal_metadata = result?;
+    async fn set_metadata(
+        &self,
+        handle: String,
+        metadata: NativeFileMetadata,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
+        let mut tx = self.tx().await?;
 
-        let list_metadata_handle = Self::gen_list_item_metadata_handle(&handle, &item);
-
-        let spec = StorageSpec {
-            handle: list_metadata_handle,
-            data: Vec::new(),
-            ttl: internal_metadata.ttl,
-            extensions,
-        };
-
-        match self.store_by_tx(&mut tx, spec).await {
+        match self
+            .store_native_metadata(&mut tx, handle, metadata, ttl, extensions)
+            .await
+        {
             Ok(_) => {
                 tx.commit().await.map_err(|e| err_unknown!(e))?;
                 Ok(())
@@ -439,15 +391,13 @@ impl FileSystem for TikvStorage {
         }
     }
 
-    async fn remove_list_item(
+    async fn path_exists(
         &self,
         handle: String,
-        item: String,
         extensions: HashMap<String, String>,
-    ) -> types::Result<()> {
-        let list_metadata_handle = Self::gen_list_item_metadata_handle(&handle, &item);
-
-        self.clear(list_metadata_handle, extensions).await
+    ) -> types::Result<bool> {
+        let exist_handle = Self::gen_exist_metadata_handle(&handle);
+        self.exists(exist_handle, extensions).await
     }
 
     async fn list(
@@ -501,16 +451,34 @@ impl FileSystem for TikvStorage {
         Ok(output)
     }
 
-    async fn delete_path(
+    async fn add_list_item(
         &self,
         handle: String,
+        item: String,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
         let mut tx = self.tx().await?;
 
-        let result = self.delete_path_by_tx(&mut tx, handle, extensions).await;
+        let result = match self.load_internal_metadata(&mut tx, handle.clone()).await {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                Err(e)
+            }
+        };
 
-        match result {
+        let internal_metadata = result?;
+
+        let list_metadata_handle = Self::gen_list_item_metadata_handle(&handle, &item);
+
+        let spec = StorageSpec {
+            handle: list_metadata_handle,
+            data: Vec::new(),
+            ttl: internal_metadata.ttl,
+            extensions,
+        };
+
+        match self.store_by_tx(&mut tx, spec).await {
             Ok(_) => {
                 tx.commit().await.map_err(|e| err_unknown!(e))?;
                 Ok(())
@@ -520,6 +488,17 @@ impl FileSystem for TikvStorage {
                 Err(e)
             }
         }
+    }
+
+    async fn remove_list_item(
+        &self,
+        handle: String,
+        item: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
+        let list_metadata_handle = Self::gen_list_item_metadata_handle(&handle, &item);
+
+        self.clear(list_metadata_handle, extensions).await
     }
 
     async fn acquire_lease(
@@ -583,6 +562,27 @@ impl FileSystem for TikvStorage {
         let result = self
             .release_lease_by_tx(&mut tx, handle, lease_id, extensions)
             .await;
+
+        match result {
+            Ok(_) => {
+                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                Ok(())
+            }
+            Err(e) => {
+                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn delete_path(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
+        let mut tx = self.tx().await?;
+
+        let result = self.delete_path_by_tx(&mut tx, handle, extensions).await;
 
         match result {
             Ok(_) => {

@@ -8,12 +8,13 @@ use mitsuha_core::{
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use mitsuha_policy_engine::{engine::StandardPolicyEngine, Policy, PolicyEngine};
 
-use crate::{context::ChannelContext, WrappedComputeChannel};
+use crate::{NextComputeChannel, WrappedComputeChannel};
 
 use async_trait::async_trait;
+use mitsuha_core::channel::ChannelContext;
 
 pub struct EnforcerChannel {
-    next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
+    next: NextComputeChannel<ChannelContext>,
     id: String,
     policy_engine: Arc<Box<dyn PolicyEngine>>,
     policy_blob_key: String,
@@ -59,7 +60,7 @@ impl ComputeChannel for EnforcerChannel {
                 .map_err(|e| Error::Unknown { source: e.into() })?;
         } else {
             return Err(Error::UnknownWithMsgOnly {
-                message: format!("expected to find data in policy blob compute output"),
+                message: "expected to find data in policy blob compute output".to_string(),
             });
         }
 

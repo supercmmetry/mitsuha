@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use mitsuha_channel::context::ChannelContext;
-use mitsuha_core::channel::ComputeChannel;
+use mitsuha_core::channel::{ChannelContext, ComputeChannel};
 
 mod setup;
 use mitsuha_core_types::{
@@ -36,7 +35,7 @@ async fn store_and_load() {
 
     let output = chan
         .compute(
-            ChannelContext::default(),
+            ChannelContext::new(),
             ComputeInput::Load {
                 handle: "spec1".to_string(),
                 extensions: Default::default(),
@@ -64,7 +63,7 @@ async fn store_and_expire() {
         extensions: HashMap::new(),
     };
 
-    chan.compute(ChannelContext::default(), ComputeInput::Store { spec })
+    chan.compute(ChannelContext::new(), ComputeInput::Store { spec })
         .await
         .unwrap();
 
@@ -94,7 +93,7 @@ async fn store_and_persist() {
         extensions: HashMap::new(),
     };
 
-    chan.compute(ChannelContext::default(), ComputeInput::Store { spec })
+    chan.compute(ChannelContext::new(), ComputeInput::Store { spec })
         .await
         .unwrap();
     chan.compute(
@@ -112,7 +111,7 @@ async fn store_and_persist() {
 
     let output = chan
         .compute(
-            ChannelContext::default(),
+            ChannelContext::new(),
             ComputeInput::Load {
                 handle: "spec1".to_string(),
                 extensions: Default::default(),

@@ -4,21 +4,27 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use mitsuha_core_types::channel::ComputeInput;
 
-use crate::{util, Reader, System};
+use crate::{util, ComputeInputGate, Reader, System};
 
 use super::{constants::Constants, muxer::TikvQueueMuxer};
 
 pub struct TikvReader {
     client: Arc<tikv_client::TransactionClient>,
+    gate: Arc<Box<dyn ComputeInputGate>>,
     muxer: Arc<TikvQueueMuxer>,
 }
 
 impl TikvReader {
     pub async fn new(
         client: Arc<tikv_client::TransactionClient>,
+        gate: Arc<Box<dyn ComputeInputGate>>,
         muxer: Arc<TikvQueueMuxer>,
     ) -> anyhow::Result<Self> {
-        Ok(Self { client, muxer })
+        Ok(Self {
+            client,
+            gate,
+            muxer,
+        })
     }
 
     async fn read_compute_input_tx(
@@ -54,7 +60,11 @@ impl TikvReader {
 
         let value = musubi_api::types::Value::try_from(data.unwrap())?;
 
-        Ok(musubi_api::types::from_value(&value)?)
+        let mut compute_input = musubi_api::types::from_value(&value)?;
+
+        self.gate.evaluate_compute_input(&mut compute_input).await?;
+
+        Ok(compute_input)
     }
 
     async fn process_sticky_element(
@@ -112,7 +122,11 @@ impl TikvReader {
         tx.put(queue_offset_handle, offset.to_le_bytes()).await?;
         let value = musubi_api::types::Value::try_from(data.unwrap())?;
 
-        Ok(musubi_api::types::from_value(&value)?)
+        let mut compute_input = musubi_api::types::from_value(&value)?;
+
+        self.gate.evaluate_compute_input(&mut compute_input).await?;
+
+        Ok(compute_input)
     }
 }
 

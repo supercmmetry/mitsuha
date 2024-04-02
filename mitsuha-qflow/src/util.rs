@@ -4,6 +4,10 @@ pub fn generate_queue_handle(id: u64) -> String {
     format!("mitsuha/qflow/queue/{}", id)
 }
 
+pub fn generate_pending_handle(id: u64) -> String {
+    format!("mitsuha/qflow/pending/{}", id)
+}
+
 pub fn generate_queue_element_handle(id: u64, elem_idx: u64) -> String {
     format!("{}/elem/{}", generate_queue_handle(id), elem_idx)
 }

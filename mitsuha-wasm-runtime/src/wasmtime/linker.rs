@@ -16,9 +16,16 @@ use mitsuha_core_types::{
     module::{ModuleInfo, ModuleType},
     symbol::Symbol,
 };
+use mitsuha_core_types::kernel::AsyncKernel;
+use mitsuha_filesystem::async_fs::{AsyncNativeFileSystem, AsyncNativeFileSystemBuilder};
 use num_traits::cast::FromPrimitive;
+use wasi_common::sync::{clocks_ctx, random_ctx, sched_ctx, WasiCtxBuilder};
+use wasi_common::{Table, WasiCtx, WasiDir};
+use mitsuha_core::channel::MusubiKernelWrapper;
+use mitsuha_core::errors::ToUnknownErrorResult;
 
 use crate::{constants::Constants, resolver::wasmtime::WasmtimeModuleResolver};
+use crate::wasmtime::wasi::dir::Dir;
 
 #[derive(Clone)]
 pub struct WasmMetadata {
@@ -106,12 +113,12 @@ impl Module<wasmtime::Module> for WasmtimeModule {
         self.info.clone()
     }
 
-    fn inner(&self) -> &wasmtime::Module {
-        &self.inner
-    }
-
     fn get_musubi_spec(&mut self) -> anyhow::Result<musubi_api::types::Spec> {
         Ok(self.metadata.get_musubi_spec())
+    }
+
+    fn inner(&self) -> &wasmtime::Module {
+        &self.inner
     }
 }
 
@@ -145,13 +152,15 @@ impl WasmtimeModule {
 
 #[derive(Clone)]
 pub struct WasmtimeContext {
+    wasi_ctx: WasiCtx,
     kernel_binding: Arc<Box<dyn KernelBinding>>,
     instance: SharedAsyncMany<Option<wasmtime::Instance>>,
 }
 
 impl WasmtimeContext {
-    pub fn new(kernel_binding: Arc<Box<dyn KernelBinding>>) -> Self {
+    pub fn new(wasi_ctx: WasiCtx, kernel_binding: Arc<Box<dyn KernelBinding>>) -> Self {
         Self {
+            wasi_ctx,
             kernel_binding,
             instance: Arc::new(tokio::sync::RwLock::new(None)),
         }
@@ -397,14 +406,27 @@ impl Linker for WasmtimeLinker {
         module_info: &ModuleInfo,
     ) -> types::Result<ExecutorContext> {
         let mut module = self.fetch_module(&context, &module_info).await?;
+        let kernel = context.kernel_binding.get_kernel().await;
+        let musubi_kernel: Arc<Box<dyn AsyncKernel>> = Arc::new(Box::new(MusubiKernelWrapper::new(Box::new(kernel))));
 
-        let wasmtime_context = WasmtimeContext::new(context.kernel_binding.clone());
+        let fs = Arc::new(AsyncNativeFileSystemBuilder::new(musubi_kernel).build());
+        
+        let root_dir = Box::new(Dir::new(fs, "/"));
+        
+        let mut wasi_ctx = WasiCtx::new(random_ctx(), clocks_ctx(), sched_ctx(), Table::new());
+
+        wasi_ctx.push_preopened_dir(root_dir, "/").to_unknown_err_result()?;
+
+
+        let wasmtime_context = WasmtimeContext::new(wasi_ctx, context.kernel_binding.clone());
 
         let mut store = wasmtime::Store::new(&self.engine, wasmtime_context.clone());
 
         store.epoch_deadline_async_yield_and_update(1);
 
         let mut linker = wasmtime::Linker::new(&self.engine);
+
+        wasi_common::tokio::add_to_linker(&mut linker, |s: &mut WasmtimeContext| &mut s.wasi_ctx).to_unknown_err_result()?;
 
         let dep_map =
             context
@@ -465,7 +487,7 @@ impl Linker for WasmtimeLinker {
             .map_err(|e| Error::LinkerLinkFailed {
                 message: format!("failed to import musubi symbol: {}", import.name()),
                 target: module_info.clone(),
-                source: e,
+                source: e.into(),
             })?;
 
             let imported_symbol = symbol.clone();
@@ -494,7 +516,7 @@ impl Linker for WasmtimeLinker {
                 .map_err(|e| Error::LinkerLinkFailed {
                     message: "failed to define import in wasmtime module".to_string(),
                     target: module_info.clone(),
-                    source: e,
+                    source: e.into(),
                 })?;
         }
 
@@ -502,7 +524,7 @@ impl Linker for WasmtimeLinker {
             .instantiate_async(&mut store, module.inner())
             .await
             .map_err(|e| Error::LinkerLinkFailed {
-                message: format!("failed to instantiate wasmtime module with imports"),
+                message: "failed to instantiate wasmtime module with imports".to_string(),
                 target: module_info.clone(),
                 source: e,
             })?;
@@ -541,7 +563,7 @@ impl Linker for WasmtimeLinker {
             .map_err(|e| Error::LinkerLinkFailed {
                 message: format!("failed to export musubi symbol: {}", export.name()),
                 target: module_info.clone(),
-                source: e,
+                source: e.into(),
             })?;
 
             tracing::debug!("exporting symbol: {:?}", symbol.clone());

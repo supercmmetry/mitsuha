@@ -53,7 +53,7 @@ impl SymbolExt for Symbol {
             ));
         }
 
-        let rhs = split_1.get(1).unwrap().clone();
+        let rhs = split_1.get(1).unwrap();
 
         let split_2: Vec<&str> = rhs.split("__fun__").into_iter().collect();
         if split_2.len() != 2 {
@@ -63,8 +63,8 @@ impl SymbolExt for Symbol {
             ));
         }
 
-        let unsanitized_module_name = split_2.get(0).unwrap().clone().replace("_", ".");
-        let function_name = split_2.get(1).unwrap().clone();
+        let unsanitized_module_name = split_2.get(0).unwrap().replace("_", ".");
+        let function_name = split_2.get(1).unwrap();
 
         if !musubi_api::utils::validate_module_name(unsanitized_module_name.as_str()) {
             return Err(anyhow::anyhow!(

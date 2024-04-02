@@ -14,14 +14,14 @@ use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use regex::Regex;
 use tokio::sync::RwLock;
 
-use crate::WrappedComputeChannel;
+use crate::{NextComputeChannel, WrappedComputeChannel};
 
 pub type Rule = (Regex, Label);
 
 pub struct MuxedStorageChannel<Context: Send> {
     storage: Arc<Box<dyn Storage>>,
     rules: Vec<Rule>,
-    next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
+    next: NextComputeChannel<Context>,
     id: String,
 }
 
@@ -62,10 +62,7 @@ where
                     Err(e) => Err(e),
                 }
             }
-            ComputeInput::Load {
-                handle,
-                extensions,
-            } => {
+            ComputeInput::Load { handle, extensions } => {
                 let result = storage.load(handle, extensions).await;
 
                 match result {
@@ -85,10 +82,7 @@ where
                     Err(e) => Err(e),
                 }
             }
-            ComputeInput::Clear {
-                handle,
-                extensions,
-            } => {
+            ComputeInput::Clear { handle, extensions } => {
                 let result = storage.clear(handle, extensions).await;
 
                 match result {

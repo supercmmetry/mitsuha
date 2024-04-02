@@ -15,7 +15,7 @@ impl Plugin for NamespacerPlugin {
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
         let raw_channel = NamespacerChannel::new();
-        let channel = initialize_channel(&ctx, raw_channel)?;
+        let channel = initialize_channel(&ctx, raw_channel).await?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;

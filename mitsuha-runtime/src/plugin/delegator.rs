@@ -14,17 +14,10 @@ impl Plugin for DelegatorPlugin {
     }
 
     async fn run(&self, mut ctx: PluginContext) -> types::Result<PluginContext> {
-        let raw_channel = DelegatorChannel::new(
-            ctx.current_properties.get("slave_id").unwrap().clone(),
-            ctx.current_properties
-                .get("max_jobs")
-                .unwrap()
-                .clone()
-                .parse()
-                .unwrap(),
-        );
+        let raw_channel =
+            DelegatorChannel::new(ctx.current_properties.get("slave_id").unwrap().clone());
 
-        let channel = initialize_channel(&ctx, raw_channel)?;
+        let channel = initialize_channel(&ctx, raw_channel).await?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;

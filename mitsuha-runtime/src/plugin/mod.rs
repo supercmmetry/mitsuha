@@ -1,11 +1,15 @@
 use std::{collections::HashMap, sync::Arc};
 
-use async_trait::async_trait;
-use mitsuha_channel::{context::ChannelContext, InitChannel, WrappedComputeChannel};
-use mitsuha_core::{
-    channel::ComputeChannel, config::Config, constants::Constants, errors::Error, types,
-};
 use crate::plugin::muxed_storage::MuxedStoragePlugin;
+use crate::plugin::scheduler::SchedulerPlugin;
+use async_trait::async_trait;
+use mitsuha_channel::{EntrypointChannel, WrappedComputeChannel};
+use mitsuha_core::channel::{ChannelContext, ChannelManager};
+use mitsuha_core::job::mgr::JobManager;
+use mitsuha_core::{
+    channel::ComputeChannel, config::Config, constants::Constants, err_unsupported_op,
+    errors::Error, types,
+};
 
 use self::{
     common::{EofPlugin, SystemPlugin},
@@ -26,36 +30,46 @@ pub mod muxed_storage;
 pub mod namespacer;
 pub mod one_storage;
 pub mod qflow;
+mod scheduler;
 pub mod wasmtime;
 
 #[derive(Clone)]
 pub struct PluginContext {
     pub channel_start: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
     pub channel_end: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
-    pub channel_context: ChannelContext,
     pub config: Config,
     pub current_properties: HashMap<String, String>,
 }
 
 impl PluginContext {
-    pub fn new(config: Config, properties: HashMap<String, String>) -> Self {
+    pub async fn new(config: Config, properties: HashMap<String, String>) -> types::Result<Self> {
         let init_channel: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> =
-            Arc::new(Box::new(InitChannel::new()));
+            Arc::new(Box::new(EntrypointChannel::new()));
 
         let mut channel_context = ChannelContext::default();
-        channel_context.channel_start = Some(init_channel.clone());
 
-        Self {
+        let job_manager = JobManager::new(
+            init_channel.clone(),
+            Arc::new(Box::new(channel_context.clone())),
+            config.job.maximum_concurrent_cost.clone(),
+            config.try_into()?,
+            config.instance.id.clone(),
+        )?;
+
+        let channel_manager = ChannelManager::global_rw();
+
+        channel_manager.write().await.channel_start = Some(init_channel.clone());
+        channel_manager.write().await.job_manager = Some(job_manager);
+
+        Ok(Self {
             channel_start: init_channel.clone(),
             channel_end: init_channel.clone(),
-            channel_context,
             config,
             current_properties: properties,
-        }
+        })
     }
 
     fn merge(&mut self, value: PluginContext) {
-        self.channel_context = value.channel_context;
         self.channel_start = value.channel_start;
         self.channel_end = value.channel_end;
     }
@@ -68,7 +82,7 @@ pub trait Plugin: Send + Sync {
     async fn run(&self, ctx: PluginContext) -> types::Result<PluginContext>;
 }
 
-pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
+pub async fn load_plugins(mut ctx: PluginContext) -> types::Result<PluginContext> {
     let plugin_list: Vec<Box<dyn Plugin>> = vec![
         Box::new(EofPlugin),
         Box::new(SystemPlugin),
@@ -80,6 +94,7 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
         Box::new(InterceptorPlugin),
         Box::new(EnforcerPlugin),
         Box::new(MuxedStoragePlugin),
+        Box::new(SchedulerPlugin),
     ];
 
     let plugin_map: HashMap<&'static str, Box<dyn Plugin>> = plugin_list
@@ -91,30 +106,35 @@ pub async fn load_plugins(mut ctx: PluginContext) -> PluginContext {
     let plugin_configs = ctx.config.plugins.clone();
 
     for plugin_config in plugin_configs {
-        let plugin = plugin_map.get(plugin_config.name.as_str()).unwrap();
+        let plugin = plugin_map
+            .get(plugin_config.name.as_str())
+            .ok_or(err_unsupported_op!("could not find plugin"))?;
 
         ctx.current_properties = plugin_config.properties;
 
-        let new_ctx = plugin.run(ctx.clone()).await.unwrap();
+        let new_ctx = plugin.run(ctx.clone()).await?;
 
         ctx.merge(new_ctx);
     }
 
-    ctx
+    Ok(ctx)
 }
 
-pub fn initialize_channel<T>(
+pub async fn initialize_channel<T>(
     ctx: &PluginContext,
     mut chan: WrappedComputeChannel<T>,
 ) -> types::Result<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>
 where
     T: 'static + ComputeChannel<Context = ChannelContext>,
 {
-    chan = match ctx.current_properties.get(&Constants::ChannelId.to_string()) {
+    chan = match ctx
+        .current_properties
+        .get(&Constants::ChannelId.to_string())
+    {
         Some(id) => chan.with_id(id.clone()),
         None => {
             return Err(Error::UnknownWithMsgOnly {
-                message: format!("channel id was not assigned"),
+                message: "channel id was not assigned".to_string(),
             })
         }
     };
@@ -122,7 +142,9 @@ where
     let boxed_chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> =
         Arc::new(Box::new(chan));
 
-    ctx.channel_context
+    ChannelManager::global_rw()
+        .read()
+        .await
         .channel_map
         .insert(boxed_chan.id(), boxed_chan.clone());
 

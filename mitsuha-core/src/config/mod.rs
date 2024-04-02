@@ -1,8 +1,14 @@
 pub mod api;
+mod instance;
+mod job;
+mod persistence;
 pub mod plugin;
 pub mod storage;
 pub mod telemetry;
 
+use crate::config::instance::Instance;
+use crate::config::job::Job;
+use crate::config::persistence::Persistence;
 use anyhow::anyhow;
 use lazy_static::lazy_static;
 use serde::Deserialize;
@@ -18,10 +24,13 @@ use self::{api::Api, plugin::Plugin, storage::Storage, telemetry::Telemetry};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
+    pub instance: Instance,
     pub api: Api,
+    pub job: Job,
     pub storage: Storage,
     pub plugins: Vec<Plugin>,
     pub telemetry: Telemetry,
+    pub persistence: Persistence,
 }
 
 lazy_static! {
@@ -69,18 +78,18 @@ impl Config {
             .add_source(config::File::with_name(&format!("{}/local", config_dir)).required(false))
             // Add in settings from the environment (with a prefix of MITSUHA)
             // Eg.. `MITSUHA_RUNTIME_DEBUG=1 ./target/mitsuha_runtime` would set the `debug` key
-            .add_source(config::Environment::with_prefix("mitsuha_runtime"))
+            .add_source(config::Environment::with_prefix("mitsuha_runtime").separator("_"))
             .build()?;
 
         Ok(config.try_deserialize()?)
     }
 
     pub fn get_config_dir() -> anyhow::Result<String> {
-        if let Ok(dir) = env::var("MITSUHA_RUNTIME_CONFIG_DIR") {
-            return Ok(dir);
+        return if let Ok(dir) = env::var("MITSUHA_RUNTIME_CONFIG_DIR") {
+            Ok(dir)
         } else {
-            return Self::get_local_config_dir();
-        }
+            Self::get_local_config_dir()
+        };
     }
 
     pub fn custom_run_mode(run_mode: String) -> anyhow::Result<Self> {

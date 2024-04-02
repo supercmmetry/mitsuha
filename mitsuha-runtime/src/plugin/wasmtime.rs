@@ -20,7 +20,7 @@ impl Plugin for WasmtimePlugin {
             Arc::new(Box::new(ComputeKernel::new(ctx.channel_start.clone())));
 
         let raw_channel = WasmtimeChannel::new(kernel);
-        let channel = initialize_channel(&ctx, raw_channel)?;
+        let channel = initialize_channel(&ctx, raw_channel).await?;
 
         ctx.channel_end.connect(channel.clone()).await;
         ctx.channel_end = channel;

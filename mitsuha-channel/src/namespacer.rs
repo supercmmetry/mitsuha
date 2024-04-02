@@ -6,14 +6,16 @@ use mitsuha_core::{
     errors::Error,
     types,
 };
+
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 
-use crate::{context::ChannelContext, WrappedComputeChannel};
+use crate::{NextComputeChannel, WrappedComputeChannel};
 
 use async_trait::async_trait;
+use mitsuha_core::channel::ChannelContext;
 
 pub struct NamespacerChannel {
-    next: Arc<tokio::sync::RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
+    next: NextComputeChannel<ChannelContext>,
     id: String,
 }
 
@@ -30,7 +32,7 @@ impl ComputeChannel for NamespacerChannel {
         ctx: ChannelContext,
         mut elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
-        let mut namespace = elem
+        let namespace = elem
             .get_extensions()
             .get(&Constants::ChannelNamespace.to_string())
             .cloned();
@@ -107,6 +109,7 @@ mod test {
 
     use async_trait::async_trait;
     use lazy_static::lazy_static;
+    use mitsuha_core::channel::ChannelContext;
     use mitsuha_core::{channel::ComputeChannel, constants::Constants, types};
     use mitsuha_core_types::{
         channel::{ComputeInput, ComputeOutput},
@@ -115,8 +118,6 @@ mod test {
         symbol::Symbol,
     };
     use tokio::sync::RwLock;
-
-    use crate::context::ChannelContext;
 
     use super::NamespacerChannel;
 

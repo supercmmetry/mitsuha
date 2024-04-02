@@ -8,12 +8,12 @@ use mitsuha_core::{
 use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use tokio::sync::RwLock;
 
-use crate::WrappedComputeChannel;
+use crate::{NextComputeChannel, WrappedComputeChannel};
 
 pub struct LabeledStorageChannel<Context: Send> {
     storage: Arc<Box<dyn Storage>>,
     storage_selector: Label,
-    next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = Context>>>>>>,
+    next: NextComputeChannel<Context>,
     id: String,
 }
 

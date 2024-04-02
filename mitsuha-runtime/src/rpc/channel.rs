@@ -1,12 +1,10 @@
-use mitsuha_channel::context::ChannelContext;
+use mitsuha_core::channel::{ChannelContext, ChannelManager};
 use mitsuha_runtime_rpc::{model::channel::channel_proto, proto};
 
 use super::Service;
 
 #[derive(Clone)]
-pub struct ChannelService {
-    context: ChannelContext,
-}
+pub struct ChannelService;
 
 #[tonic::async_trait]
 impl proto::channel::channel_server::Channel for ChannelService {
@@ -14,15 +12,15 @@ impl proto::channel::channel_server::Channel for ChannelService {
         &self,
         request: tonic::Request<proto::channel::ComputeRequest>,
     ) -> tonic::Result<tonic::Response<proto::channel::ComputeResponse>> {
-        let ctx = self.context.clone();
+        let ctx = ChannelContext::default();
+        let mgr = ChannelManager::global().await;
 
         let compute_input = request
             .into_inner()
             .try_into()
             .map_err(|e: anyhow::Error| tonic::Status::internal(e.to_string()))?;
 
-        let compute_output = self
-            .context
+        let compute_output = mgr
             .channel_start
             .clone()
             .unwrap()
@@ -39,10 +37,8 @@ impl proto::channel::channel_server::Channel for ChannelService {
 }
 
 impl ChannelService {
-    pub fn new(channel_context: ChannelContext) -> Box<dyn Service> {
-        Box::new(Self {
-            context: channel_context,
-        })
+    pub fn new() -> Box<dyn Service> {
+        Box::new(Self)
     }
 }
 

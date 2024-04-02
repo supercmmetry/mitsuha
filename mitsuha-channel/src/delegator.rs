@@ -1,22 +1,20 @@
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use mitsuha_core::channel::{ChannelContext, ChannelUtilityProvider};
+use mitsuha_core::job::mgr::JobManagerProvider;
 use mitsuha_core::{channel::ComputeChannel, errors::Error, types};
-use mitsuha_core_types::{
-    channel::{ComputeInput, ComputeOutput},
-    kernel::{JobStatus, JobStatusType},
-};
+use mitsuha_core_types::channel::{ComputeInput, ComputeOutput};
 use tokio::sync::RwLock;
 
-use crate::{context::ChannelContext, WrappedComputeChannel};
+use crate::{NextComputeChannel, WrappedComputeChannel};
 
+#[derive(Clone)]
 pub struct DelegatorChannel {
     id: String,
-    next: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
+    next: NextComputeChannel<ChannelContext>,
     slave_id: String,
-    slave: Arc<RwLock<Option<Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>>>>,
-    max_jobs: usize,
-    job_handles: Arc<RwLock<HashSet<String>>>,
+    slave: NextComputeChannel<ChannelContext>,
 }
 
 #[async_trait]
@@ -33,7 +31,7 @@ impl ComputeChannel for DelegatorChannel {
         elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
         if self.slave.read().await.is_none() {
-            match ctx.channel_map.get(&self.slave_id) {
+            match ctx.get_mgr().read().await.channel_map.get(&self.slave_id) {
                 Some(slave) => *self.slave.write().await = Some(slave.clone()),
                 None => {
                     panic!("slave missing")
@@ -43,17 +41,17 @@ impl ComputeChannel for DelegatorChannel {
 
         match &elem {
             ComputeInput::Run { spec } => {
-                self.run_gc(ctx.clone()).await?;
-
-                if self.job_handles.read().await.len() < self.max_jobs {
-                    self.job_handles.write().await.insert(spec.handle.clone());
-
-                    self.forward_compute(ctx, elem).await
+                if ctx.is_compute_input_signed(&elem).await {
+                    self.forward(ctx, elem).await
                 } else {
-                    self.delegate_compute(ctx, elem).await
+                    if ctx.get_job_mgr().await.queue_job(spec).await? {
+                        self.forward(ctx, elem).await
+                    } else {
+                        self.delegate(ctx, elem).await
+                    }
                 }
             }
-            _ => self.forward_compute(ctx, elem).await,
+            _ => self.forward(ctx, elem).await,
         }
     }
 
@@ -67,18 +65,16 @@ impl DelegatorChannel {
         "mitsuha/channel/delegator"
     }
 
-    pub fn new(slave_id: String, max_jobs: usize) -> WrappedComputeChannel<Self> {
+    pub fn new(slave_id: String) -> WrappedComputeChannel<Self> {
         WrappedComputeChannel::new(Self {
             id: Self::get_identifier_type().to_string(),
             next: Arc::new(RwLock::new(None)),
             slave_id,
             slave: Arc::new(RwLock::new(None)),
-            max_jobs,
-            job_handles: Arc::new(RwLock::new(HashSet::new())),
         })
     }
 
-    async fn forward_compute(
+    async fn forward(
         &self,
         ctx: ChannelContext,
         elem: ComputeInput,
@@ -92,52 +88,21 @@ impl DelegatorChannel {
         }
     }
 
-    async fn delegate_compute(
+    async fn delegate(
         &self,
         ctx: ChannelContext,
         elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
-        tracing::debug!("delegating compute to slave: '{}'", self.slave_id);
+        tracing::debug!("delegating compute to slave channel: '{}'", self.slave_id);
 
         self.slave
             .read()
             .await
             .as_ref()
             .ok_or(Error::UnknownWithMsgOnly {
-                message: format!("could not find slave channel"),
+                message: "could not find slave channel".to_string(),
             })?
             .compute(ctx, elem)
             .await
-    }
-
-    async fn run_gc(&self, ctx: ChannelContext) -> types::Result<()> {
-        if self.job_handles.read().await.len() < self.max_jobs {
-            return Ok(());
-        }
-
-        let handles = self.job_handles.read().await.clone();
-
-        for handle in handles {
-            tracing::debug!("running gc for job with handle: '{}'", handle.clone());
-
-            match ctx.get_local_job_status(&handle).await {
-                Ok(JobStatus { status, .. }) => {
-                    if status != JobStatusType::Running {
-                        if let Ok(mut v) = self.job_handles.try_write() {
-                            v.remove(&handle);
-                        } else {
-                            tracing::error!("failed to attain lock on job_handles!");
-                        }
-                    }
-                }
-                _ => {
-                    if let Ok(mut v) = self.job_handles.try_write() {
-                        v.remove(&handle);
-                    }
-                }
-            }
-        }
-
-        Ok(())
     }
 }

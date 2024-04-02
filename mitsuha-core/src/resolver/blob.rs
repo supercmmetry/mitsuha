@@ -32,7 +32,7 @@ where
         match output {
             ComputeOutput::Loaded { data } => Ok(data),
             _ => Err(Error::UnknownWithMsgOnly {
-                message: format!("expected compute output with load type"),
+                message: "expected compute output with load type".to_string(),
             }),
         }
     }
@@ -52,7 +52,7 @@ where
         match output {
             ComputeOutput::Completed => Ok(()),
             _ => Err(Error::UnknownWithMsgOnly {
-                message: format!("expected compute output with completion type"),
+                message: "expected compute output with completion type".to_string(),
             }),
         }
     }

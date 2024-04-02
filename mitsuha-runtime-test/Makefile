@@ -21,4 +21,5 @@ clean: clean-assets
 	@$(MAKE) -C mitsuha_wasm_echo clean
 	@$(MAKE) -C mitsuha_wasm_loop clean
 	@$(MAKE) -C mitsuha_wasm_main clean
+	@$(MAKE) -C mitsuha_wasi_echo clean
 	@echo $(LABEL): Successfully cleaned
