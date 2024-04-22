@@ -13,6 +13,7 @@ use tokio::{
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use lazy_static::lazy_static;
+use mitsuha_core::errors::ToUnknownErrorResult;
 use mitsuha_core::{
     err_unknown,
     errors::Error,
@@ -154,11 +155,11 @@ impl RawStorage for LocalStorage {
 
         tokio::fs::remove_file(file_name)
             .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+            .to_unknown_err_result()?;
 
         tokio::fs::remove_file(metadata_file_name)
             .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+            .to_unknown_err_result()?;
 
         Ok(())
     }
@@ -192,21 +193,17 @@ impl FileSystem for LocalStorage {
             .write(true)
             .open(file_name)
             .await
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
         file.seek(SeekFrom::Start(offset))
             .await
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
-        file.write(&data).await.map_err(|e| err_unknown!(e))?;
+        file.write(&data).await.to_unknown_err_result()?;
 
-        file.flush()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.flush().await.to_unknown_err_result()?;
 
-        file.shutdown()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.shutdown().await.to_unknown_err_result()?;
 
         let mut metadata = self.load_internal_metadata(handle.clone()).await?;
 
@@ -232,19 +229,17 @@ impl FileSystem for LocalStorage {
             .read(true)
             .open(file_name)
             .await
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
         file.seek(SeekFrom::Start(offset))
             .await
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
         let mut data = vec![0u8; part_size as usize];
 
-        let bytes_read = file.read(&mut data).await.map_err(|e| err_unknown!(e))?;
+        let bytes_read = file.read(&mut data).await.to_unknown_err_result()?;
 
-        file.shutdown()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.shutdown().await.to_unknown_err_result()?;
 
         data.truncate(bytes_read);
 
@@ -261,7 +256,7 @@ impl FileSystem for LocalStorage {
 
         let data_len = tokio::fs::metadata(file_name)
             .await
-            .map_err(|e| err_unknown!(e))?
+            .to_unknown_err_result()?
             .len();
 
         let part_count = data_len / part_size + (data_len % part_size > 0) as u64;
@@ -278,9 +273,9 @@ impl FileSystem for LocalStorage {
 
         let data = self.load_data(metadata_handle).await?;
 
-        let value = musubi_api::types::Value::try_from(data).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::Value::try_from(data).to_unknown_err_result()?;
 
-        let metadata = musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+        let metadata = musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
         Ok(metadata)
     }
@@ -292,10 +287,8 @@ impl FileSystem for LocalStorage {
         ttl: u64,
         extensions: HashMap<String, String>,
     ) -> types::Result<()> {
-        let value = musubi_api::types::to_value(&metadata).map_err(|e| err_unknown!(e))?;
-        let data: Vec<u8> = value
-            .try_into()
-            .map_err(|e: anyhow::Error| err_unknown!(e))?;
+        let value = musubi_api::types::to_value(&metadata).to_unknown_err_result()?;
+        let data: Vec<u8> = value.try_into().to_unknown_err_result()?;
 
         let metadata_handle = Self::gen_native_metadata_handle(&handle);
 
@@ -309,17 +302,17 @@ impl FileSystem for LocalStorage {
         let full_handle = self
             .get_full_handle(&handle)
             .to_string()
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
         // Create directory based on metadata
         if metadata.file_type == NativeFileType::Dir {
             if !tokio::fs::try_exists(&full_handle)
                 .await
-                .map_err(|e| err_unknown!(e))?
+                .to_unknown_err_result()?
             {
                 tokio::fs::create_dir(full_handle)
                     .await
-                    .map_err(|e| err_unknown!(e))?;
+                    .to_unknown_err_result()?;
             }
         }
 
@@ -345,13 +338,13 @@ impl FileSystem for LocalStorage {
 
         let path = self.get_full_handle(&handle);
 
-        let list_iter = std::fs::read_dir(&path).map_err(|e| err_unknown!(e))?;
+        let list_iter = std::fs::read_dir(&path).to_unknown_err_result()?;
 
         let mut data = Vec::new();
 
         for item in list_iter {
             let entry = item
-                .map_err(|e| err_unknown!(e))?
+                .to_unknown_err_result()?
                 .file_name()
                 .to_str()
                 .map(|x| x.to_string())
@@ -408,17 +401,13 @@ impl FileSystem for LocalStorage {
             .write(true)
             .open(file_name)
             .await
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
-        file.set_len(len).await.map_err(|e| err_unknown!(e))?;
+        file.set_len(len).await.to_unknown_err_result()?;
 
-        file.flush()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.flush().await.to_unknown_err_result()?;
 
-        file.shutdown()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.shutdown().await.to_unknown_err_result()?;
 
         Ok(())
     }
@@ -434,7 +423,7 @@ impl FileSystem for LocalStorage {
 
         tokio::fs::rename(full_source_handle, full_destination_handle)
             .await
-            .map_err(|e| err_unknown!(e))
+            .to_unknown_err_result()
     }
 
     async fn delete_path(
@@ -444,9 +433,7 @@ impl FileSystem for LocalStorage {
     ) -> types::Result<()> {
         let path = self.get_full_handle(&handle);
 
-        let metadata = tokio::fs::metadata(&path)
-            .await
-            .map_err(|e| err_unknown!(e))?;
+        let metadata = tokio::fs::metadata(&path).await.to_unknown_err_result()?;
 
         let metadata_handle = self.get_full_handle(&Self::gen_internal_metadata_handle(&handle));
         let native_metadata_handle =
@@ -455,22 +442,20 @@ impl FileSystem for LocalStorage {
         if metadata.file_type().is_dir() {
             tokio::fs::remove_dir_all(path)
                 .await
-                .map_err(|e| err_unknown!(e))?;
+                .to_unknown_err_result()?;
         } else if metadata.file_type().is_file() {
-            tokio::fs::remove_file(path)
-                .await
-                .map_err(|e| err_unknown!(e))?;
+            tokio::fs::remove_file(path).await.to_unknown_err_result()?;
         } else {
             return Err(err_unknown!("symlink deletion is not allowed"));
         }
 
         tokio::fs::remove_file(metadata_handle)
             .await
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
         tokio::fs::remove_file(native_metadata_handle)
             .await
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
         Ok(())
     }
@@ -500,9 +485,7 @@ impl GarbageCollectable for LocalStorage {
             return Ok(vec![]);
         }
 
-        self.run_gc()
-            .await
-            .map_err(|e| Error::Unknown { source: e })
+        self.run_gc().await.to_unknown_err_result()
     }
 }
 
@@ -513,7 +496,7 @@ impl LocalStorage {
         let enable_gc = class
             .get_extension_property(&ConfKey::EnableGC.to_string())?
             .parse::<bool>()
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+            .to_unknown_err_result()?;
 
         let storage = Self {
             root_dir,
@@ -556,26 +539,19 @@ impl LocalStorage {
         let full_handle = self
             .get_full_handle(&internal_metadata_handle)
             .to_string()
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
-        let mut file = File::create(full_handle)
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        let mut file = File::create(full_handle).await.to_unknown_err_result()?;
 
-        let metadata_json =
-            serde_json::to_string(&metadata).map_err(|e| Error::Unknown { source: e.into() })?;
+        let metadata_json = serde_json::to_string(&metadata).to_unknown_err_result()?;
 
         file.write_all(metadata_json.as_bytes())
             .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+            .to_unknown_err_result()?;
 
-        file.flush()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.flush().await.to_unknown_err_result()?;
 
-        file.shutdown()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.shutdown().await.to_unknown_err_result()?;
 
         Ok(())
     }
@@ -585,32 +561,24 @@ impl LocalStorage {
 
         if tokio::fs::try_exists(&file_name)
             .await
-            .map_err(|e| err_unknown!(e))?
+            .to_unknown_err_result()?
         {
             let metadata = tokio::fs::metadata(&file_name)
                 .await
-                .map_err(|e| err_unknown!(e))?;
+                .to_unknown_err_result()?;
 
             if metadata.is_dir() {
                 file_name.push(DIRDATA_EXT.as_str());
             }
         }
 
-        let mut file = File::create(file_name)
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        let mut file = File::create(file_name).await.to_unknown_err_result()?;
 
-        file.write_all(&data)
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.write_all(&data).await.to_unknown_err_result()?;
 
-        file.flush()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.flush().await.to_unknown_err_result()?;
 
-        file.shutdown()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.shutdown().await.to_unknown_err_result()?;
 
         Ok(())
     }
@@ -620,25 +588,20 @@ impl LocalStorage {
 
         let full_handle = self.get_full_handle(&expiry_handle);
 
-        let mut file = File::open(full_handle)
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        let mut file = File::open(full_handle).await.to_unknown_err_result()?;
 
         let mut metadata_json_buf = Vec::new();
 
         file.read_to_end(&mut metadata_json_buf)
             .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+            .to_unknown_err_result()?;
 
-        file.shutdown()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.shutdown().await.to_unknown_err_result()?;
 
-        let metadata_json = String::from_utf8(metadata_json_buf)
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        let metadata_json = String::from_utf8(metadata_json_buf).to_unknown_err_result()?;
 
-        let metadata: LocalFileMetadata = serde_json::from_str(metadata_json.as_str())
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        let metadata: LocalFileMetadata =
+            serde_json::from_str(metadata_json.as_str()).to_unknown_err_result()?;
 
         Ok(metadata)
     }
@@ -667,30 +630,24 @@ impl LocalStorage {
 
         if tokio::fs::try_exists(&file_name)
             .await
-            .map_err(|e| err_unknown!(e))?
+            .to_unknown_err_result()?
         {
             let metadata = tokio::fs::metadata(&file_name)
                 .await
-                .map_err(|e| err_unknown!(e))?;
+                .to_unknown_err_result()?;
 
             if metadata.is_dir() {
                 file_name.push(DIRDATA_EXT.as_str());
             }
         }
 
-        let mut file = File::open(file_name)
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        let mut file = File::open(file_name).await.to_unknown_err_result()?;
 
         let mut buf = Vec::new();
 
-        file.read_to_end(&mut buf)
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.read_to_end(&mut buf).await.to_unknown_err_result()?;
 
-        file.shutdown()
-            .await
-            .map_err(|e| Error::Unknown { source: e.into() })?;
+        file.shutdown().await.to_unknown_err_result()?;
 
         Ok(buf)
     }

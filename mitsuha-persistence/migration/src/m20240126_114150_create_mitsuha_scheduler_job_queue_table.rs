@@ -1,5 +1,7 @@
 use crate::m20240126_113029_create_mitsuha_scheduler_partition_table::MitsuhaSchedulerPartition;
 use sea_orm_migration::prelude::*;
+use sea_orm_migration::prelude::extension::postgres::Type;
+use crate::sea_orm::DbBackend;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -21,7 +23,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(MitsuhaSchedulerJobQueue::PartitionId).string())
                     .col(
                         ColumnDef::new(MitsuhaSchedulerJobQueue::ShardId)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(
@@ -36,7 +38,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(MitsuhaSchedulerJobQueue::ComputeUnits)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(
@@ -62,9 +64,17 @@ impl MigrationTrait for Migration {
                             )
                             .on_delete(ForeignKeyAction::SetNull),
                     )
+                    .index(
+                        Index::create()
+                        .name("idx_mitsuha_scheduler_jq_shard_timestamp")
+                        .col(MitsuhaSchedulerJobQueue::CreationTimestamp)
+                        .col(MitsuhaSchedulerJobQueue::ShardId)
+                    )
                     .to_owned(),
             )
-            .await
+            .await?;
+        
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

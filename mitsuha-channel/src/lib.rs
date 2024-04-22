@@ -14,7 +14,6 @@ pub mod interceptor;
 pub mod labeled_storage;
 pub mod muxed_storage;
 pub mod namespacer;
-pub mod qflow;
 pub mod scheduler;
 pub mod system;
 mod util;

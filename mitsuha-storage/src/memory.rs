@@ -10,6 +10,7 @@ use mitsuha_core::err_unknown;
 use mitsuha_core::{errors::Error, types};
 use mitsuha_core_types::kernel::StorageSpec;
 
+use mitsuha_core::errors::ToUnknownErrorResult;
 use mitsuha_core::storage::{FileSystem, GarbageCollectable, RawStorage, Storage};
 use mitsuha_core_types::storage::StorageCapability;
 use mitsuha_filesystem::constant::NativeFileSystemConstants;
@@ -250,9 +251,8 @@ impl FileSystem for MemoryStorage {
             .get(&metadata_handle)
             .ok_or(err_unknown!("could not find metadata handle"))?;
 
-        let value =
-            musubi_api::types::Value::try_from(data.clone()).map_err(|e| err_unknown!(e))?;
-        let metadata = musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::Value::try_from(data.clone()).to_unknown_err_result()?;
+        let metadata = musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
         Ok(metadata)
     }
@@ -270,7 +270,7 @@ impl FileSystem for MemoryStorage {
             NativeFileSystemConstants::MetadataSuffix.to_string()
         );
 
-        let value = musubi_api::types::to_value(&metadata).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::to_value(&metadata).to_unknown_err_result()?;
         let data: Vec<u8> = value
             .try_into()
             .map_err(|e: anyhow::Error| err_unknown!(e))?;
@@ -312,10 +312,9 @@ impl FileSystem for MemoryStorage {
             return Ok(vec![]);
         }
 
-        let value = musubi_api::types::Value::try_from(data.unwrap().clone())
-            .map_err(|e| err_unknown!(e))?;
-        let list: Vec<String> =
-            musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+        let value =
+            musubi_api::types::Value::try_from(data.unwrap().clone()).to_unknown_err_result()?;
+        let list: Vec<String> = musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
         let offset = (page_index * page_size) as usize;
 

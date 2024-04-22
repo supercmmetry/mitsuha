@@ -1,6 +1,6 @@
 use crate::channel::{ComputeChannel, StateProvider};
 use crate::constants::Constants;
-use crate::errors::Error;
+use crate::errors::{Error, ToUnknownErrorResult};
 use crate::job::ctx::JobState;
 use crate::job::mgr::JobManagerProvider;
 use crate::types;
@@ -115,9 +115,9 @@ where
         };
 
         let status_data = musubi_api::types::to_value(&status)
-            .map_err(|e| Error::Unknown { source: e })?
+            .to_unknown_err_result()?
             .try_into()
-            .map_err(|e| Error::Unknown { source: e })?;
+            .to_unknown_err_result()?;
 
         let spec = StorageSpec {
             handle: spec.get_status_handle(),
@@ -129,7 +129,7 @@ where
                     source: anyhow!("failed to get job output ttl"),
                 })?
                 .parse::<u64>()
-                .map_err(|e| Error::Unknown { source: e.into() })?,
+                .to_unknown_err_result()?,
             extensions: spec.extensions.clone(),
         };
 
@@ -161,7 +161,7 @@ where
 
             completion_hook.run(other_ctx.clone()).await?;
 
-            result.map_err(|e| Error::Unknown { source: e.into() })?
+            result.to_unknown_err_result()?
         };
 
         let observable_task: JoinHandle<types::Result<()>> =
@@ -246,7 +246,7 @@ where
                             }
                         }
 
-                        result.map_err(|e| Error::Unknown { source: e.into() })??;
+                        result.to_unknown_err_result()??;
 
                         Self::update_status(
                             &self.spec,

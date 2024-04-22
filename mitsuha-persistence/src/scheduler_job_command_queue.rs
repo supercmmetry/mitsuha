@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, EnumIter, DeriveActiveEnum)]
 #[sea_orm(
     rs_type = "String",
-    db_type = "Enum",
-    enum_name = "mitsuha_scheduler_job_command_queue_job_command_state"
+    db_type = "String(Some(1))",
 )]
 pub enum JobCommandState {
     #[sea_orm(string_value = "Pending")]
@@ -20,8 +19,7 @@ pub enum JobCommandState {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, EnumIter, DeriveActiveEnum)]
 #[sea_orm(
     rs_type = "String",
-    db_type = "Enum",
-    enum_name = "mitsuha_scheduler_job_command_queue_job_command_type"
+    db_type = "String(Some(1))",
 )]
 pub enum JobCommandType {
     #[sea_orm(string_value = "Extend")]
@@ -34,7 +32,7 @@ pub enum JobCommandType {
 #[sea_orm(table_name = "mitsuha_scheduler_job_command_queue")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = true)]
-    pub id: u64,
+    pub id: i64,
     pub job_handle: String,
     pub partition_id: Option<String>,
     pub command: JobCommandType,

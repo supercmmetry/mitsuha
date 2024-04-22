@@ -21,6 +21,10 @@ pub async fn init_channel_manager(config: &Config) -> types::Result<()> {
     Ok(())
 }
 
+pub async fn start(config: Config) {
+    start_server(config).await.unwrap()
+}
+
 pub async fn start_server(config: Config) -> anyhow::Result<()> {
     let channel_context = init_channel_manager(&config).await;
 

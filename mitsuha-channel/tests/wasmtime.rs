@@ -49,7 +49,7 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
     let wasi_echo: Vec<u8> = include_bytes!(
         "../../mitsuha-runtime-test/target/wasm32-wasi/release/mitsuha_wasi_echo.wasm"
     )
-        .to_vec();
+    .to_vec();
 
     let module_info_echo = ModuleInfo {
         name: "mitsuha.test.echo".to_string(),
@@ -127,7 +127,9 @@ pub async fn upload_artifacts(channel: Arc<Box<dyn ComputeChannel<Context = Chan
     channel
         .compute(
             ChannelContext::default(),
-            ComputeInput::Store { spec: spec_wasi_echo },
+            ComputeInput::Store {
+                spec: spec_wasi_echo,
+            },
         )
         .await
         .unwrap();
@@ -475,8 +477,8 @@ async fn internal_run_wasi_hello_world() {
             (Constants::JobOutputTTL.to_string(), "120".to_string()),
             (Constants::JobChannelAwait.to_string(), "true".to_string()),
         ]
-            .into_iter()
-            .collect(),
+        .into_iter()
+        .collect(),
     };
 
     channel

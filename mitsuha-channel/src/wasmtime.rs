@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use futures::stream::{AbortHandle, Abortable};
 use mitsuha_core::channel::ChannelContext;
+use mitsuha_core::errors::ToUnknownErrorResult;
 use mitsuha_core::job::ctrl::JobController;
 use mitsuha_core::job::ctx::{JobContext, JobState};
 use mitsuha_core::job::mgr::JobManagerProvider;
@@ -106,11 +107,7 @@ impl ComputeChannel for WasmtimeChannel {
                         abort_registration,
                     );
 
-                    abortable_future
-                        .await
-                        .map_err(|e| Error::UnknownWithMsgOnly {
-                            message: e.to_string(),
-                        })??;
+                    abortable_future.await.to_unknown_err_result()??;
 
                     Ok(())
                 };
@@ -163,9 +160,7 @@ impl ComputeChannel for WasmtimeChannel {
                     .get(&Constants::JobChannelAwait.to_string())
                     .map(|e| e.as_str())
                 {
-                    consolidated_task
-                        .await
-                        .map_err(|e| Error::Unknown { source: e.into() })?
+                    consolidated_task.await.to_unknown_err_result()?
                 } else {
                     Ok(ComputeOutput::Submitted)
                 }

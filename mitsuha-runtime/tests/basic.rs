@@ -168,7 +168,7 @@ async fn dispatch_loop_job(client: &mut ChannelClient<Channel>) -> String {
 #[tokio::test]
 async fn test_simple_execution() {
     let mut client = mitsuha_runtime_rpc::proto::channel::channel_client::ChannelClient::connect(
-        "grpc://4.156.180.191:20000",
+        "grpc://127.0.0.1:20000",
     )
     .await
     .unwrap();
@@ -202,7 +202,7 @@ async fn test_simple_execution() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_multi_execution() {
     let mut client = mitsuha_runtime_rpc::proto::channel::channel_client::ChannelClient::connect(
-        "grpc://4.156.180.191:20000",
+        "grpc://127.0.0.1:20000",
     )
     .await
     .unwrap();

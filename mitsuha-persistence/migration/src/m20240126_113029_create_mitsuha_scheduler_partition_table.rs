@@ -19,12 +19,12 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(MitsuhaSchedulerPartition::ShardStart)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(MitsuhaSchedulerPartition::ShardEnd)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(ColumnDef::new(MitsuhaSchedulerPartition::LeaseExpiry).date_time())

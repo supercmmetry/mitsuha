@@ -4,13 +4,14 @@ use serde::{Deserialize, Serialize};
 use tracing::Level;
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Telemetry {
     pub stdout: Option<Stdout>,
     pub opentelemetry: Option<OpenTelemetry>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "camelCase")]
 pub enum LogLevel {
     /// The "trace" level.
     ///
@@ -52,6 +53,7 @@ pub struct Stdout {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct OpenTelemetry {
     pub endpoint: String,
     pub entity_attributes: HashMap<String, String>,

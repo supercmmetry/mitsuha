@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use mitsuha_core::err_unsupported_op;
-use mitsuha_core::errors::Error;
+use mitsuha_core::errors::{Error, ToUnknownErrorResult};
 use mitsuha_core::storage::Storage;
 use mitsuha_core::{
     err_unknown,
@@ -72,12 +72,12 @@ impl RawStorage for TikvStorage {
         let mut tx = self.tx().await?;
 
         if let Err(e) = self.store_by_tx(&mut tx, spec).await {
-            tx.rollback().await.map_err(|e| err_unknown!(e))?;
+            tx.rollback().await.to_unknown_err_result()?;
 
             return Err(e);
         }
 
-        tx.commit().await.map_err(|e| err_unknown!(e))?;
+        tx.commit().await.to_unknown_err_result()?;
 
         Ok(())
     }
@@ -91,11 +91,11 @@ impl RawStorage for TikvStorage {
 
         match self.load_data(&mut tx, handle).await {
             Ok(data) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(data)
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -110,11 +110,11 @@ impl RawStorage for TikvStorage {
 
         match self.exists_data(&mut tx, handle).await {
             Ok(data) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(data)
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -130,11 +130,11 @@ impl RawStorage for TikvStorage {
 
         match self.persist_by_tx(&mut tx, handle, time, extensions).await {
             Ok(_) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(())
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -149,11 +149,11 @@ impl RawStorage for TikvStorage {
 
         match self.clear_by_tx(&mut tx, handle, extensions).await {
             Ok(_) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(())
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -188,14 +188,14 @@ impl GarbageCollectable for TikvStorage {
             let result = tx
                 .scan(lower_bound_key.clone()..upper_bound_key.clone(), page_size)
                 .await
-                .map_err(|e| err_unknown!(e));
+                .to_unknown_err_result();
 
             if let Err(e) = result {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 return Err(e);
             }
 
-            tx.commit().await.map_err(|e| err_unknown!(e))?;
+            tx.commit().await.to_unknown_err_result()?;
 
             let kvs: Vec<KvPair> = result.unwrap().collect();
 
@@ -205,11 +205,10 @@ impl GarbageCollectable for TikvStorage {
                 let (key, data) = (kv.0, kv.1);
                 lower_bound_key = key;
 
-                let value =
-                    musubi_api::types::Value::try_from(data).map_err(|e| err_unknown!(e))?;
+                let value = musubi_api::types::Value::try_from(data).to_unknown_err_result()?;
 
                 let internal_metadata: InternalMetadata =
-                    musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+                    musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
                 if internal_metadata.expiry <= Utc::now() {
                     let mut tx = self.tx().await?;
@@ -217,9 +216,9 @@ impl GarbageCollectable for TikvStorage {
                     if let Err(e) = tx
                         .delete(internal_metadata.handle.clone())
                         .await
-                        .map_err(|e| err_unknown!(e))
+                        .to_unknown_err_result()
                     {
-                        tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                        tx.rollback().await.to_unknown_err_result()?;
                         tracing::error!(
                             "failed to perform gc operation on handle: '{}', error: {}",
                             &internal_metadata.handle,
@@ -231,9 +230,9 @@ impl GarbageCollectable for TikvStorage {
                     if let Err(e) = tx
                         .delete(lower_bound_key.clone())
                         .await
-                        .map_err(|e| err_unknown!(e))
+                        .to_unknown_err_result()
                     {
-                        tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                        tx.rollback().await.to_unknown_err_result()?;
                         tracing::error!(
                             "failed to perform gc operation on handle: '{}', error: {}",
                             &internal_metadata.handle,
@@ -242,10 +241,10 @@ impl GarbageCollectable for TikvStorage {
                         continue;
                     }
 
-                    tx.commit().await.map_err(|e| err_unknown!(e))?;
+                    tx.commit().await.to_unknown_err_result()?;
 
                     let key_data = Vec::from(lower_bound_key.clone());
-                    let key_str = String::from_utf8(key_data).map_err(|e| err_unknown!(e))?;
+                    let key_str = String::from_utf8(key_data).to_unknown_err_result()?;
 
                     deleted_handles.push(key_str);
                 }
@@ -279,7 +278,7 @@ impl FileSystem for TikvStorage {
             .store_normalized_file_parts(&mut tx, &handle, ttl, offset, &data, extensions.clone())
             .await
         {
-            tx.rollback().await.map_err(|e| err_unknown!(e))?;
+            tx.rollback().await.to_unknown_err_result()?;
 
             return Err(e);
         }
@@ -288,12 +287,12 @@ impl FileSystem for TikvStorage {
             .store_existence_metadata(&mut tx, handle, ttl, extensions)
             .await
         {
-            tx.rollback().await.map_err(|e| err_unknown!(e))?;
+            tx.rollback().await.to_unknown_err_result()?;
 
             return Err(e);
         }
 
-        tx.commit().await.map_err(|e| err_unknown!(e))?;
+        tx.commit().await.to_unknown_err_result()?;
 
         Ok(())
     }
@@ -314,11 +313,11 @@ impl FileSystem for TikvStorage {
             .await
         {
             Ok(data) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(data)
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -334,11 +333,11 @@ impl FileSystem for TikvStorage {
 
         let result = match self.load_total_parts_len(&mut tx, &handle).await {
             Ok(data) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(data.unwrap_or_default())
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         };
@@ -357,11 +356,11 @@ impl FileSystem for TikvStorage {
 
         match self.load_native_metadata(&mut tx, handle).await {
             Ok(metadata) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(metadata)
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -381,11 +380,11 @@ impl FileSystem for TikvStorage {
             .await
         {
             Ok(_) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(())
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -422,11 +421,11 @@ impl FileSystem for TikvStorage {
 
         let result = match tx.scan_keys(lower_bound_key..upper_bound_key, limit).await {
             Ok(data) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(data)
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         };
@@ -434,7 +433,7 @@ impl FileSystem for TikvStorage {
         let mut count = 0;
         let mut output = Vec::with_capacity(page_index as usize);
 
-        for key in result.map_err(|e| err_unknown!(e))?.into_iter() {
+        for key in result.to_unknown_err_result()?.into_iter() {
             count += 1;
 
             if start_offset >= count {
@@ -445,7 +444,7 @@ impl FileSystem for TikvStorage {
             let full_raw_path = String::from_utf8_lossy(&key_data).to_string();
             let full_path = Path::new(&full_raw_path);
 
-            output.push(full_path.get_file_name().map_err(|e| err_unknown!(e))?);
+            output.push(full_path.get_file_name().to_unknown_err_result()?);
         }
 
         Ok(output)
@@ -462,7 +461,7 @@ impl FileSystem for TikvStorage {
         let result = match self.load_internal_metadata(&mut tx, handle.clone()).await {
             Ok(data) => Ok(data),
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         };
@@ -480,11 +479,11 @@ impl FileSystem for TikvStorage {
 
         match self.store_by_tx(&mut tx, spec).await {
             Ok(_) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(())
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -516,11 +515,11 @@ impl FileSystem for TikvStorage {
 
         match result {
             Ok(_) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(())
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -541,11 +540,11 @@ impl FileSystem for TikvStorage {
 
         match result {
             Ok(_) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(())
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -565,11 +564,11 @@ impl FileSystem for TikvStorage {
 
         match result {
             Ok(_) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(())
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -586,11 +585,11 @@ impl FileSystem for TikvStorage {
 
         match result {
             Ok(_) => {
-                tx.commit().await.map_err(|e| err_unknown!(e))?;
+                tx.commit().await.to_unknown_err_result()?;
                 Ok(())
             }
             Err(e) => {
-                tx.rollback().await.map_err(|e| err_unknown!(e))?;
+                tx.rollback().await.to_unknown_err_result()?;
                 Err(e)
             }
         }
@@ -603,14 +602,14 @@ impl TikvStorage {
 
         let client = TransactionClient::new(pd_endpoints.split(",").collect())
             .await
-            .map_err(|e| err_unknown!(e))?;
+            .to_unknown_err_result()?;
 
         let concurrency_mode = ConcurrencyMode::from_str(
             class
                 .get_extension_property(&ConfKey::ConcurrencyMode.to_string())?
                 .as_str(),
         )
-        .map_err(|e| err_unknown!(e))?;
+        .to_unknown_err_result()?;
 
         let storage = Self {
             concurrency_mode,
@@ -626,12 +625,12 @@ impl TikvStorage {
                 .client
                 .begin_optimistic()
                 .await
-                .map_err(|e| err_unknown!(e))?,
+                .to_unknown_err_result()?,
             ConcurrencyMode::Pessimistic => self
                 .client
                 .begin_pessimistic()
                 .await
-                .map_err(|e| err_unknown!(e))?,
+                .to_unknown_err_result()?,
         };
 
         Ok(tx)
@@ -687,7 +686,7 @@ impl TikvStorage {
         handle: String,
         data: Vec<u8>,
     ) -> types::Result<()> {
-        tx.put(handle, data).await.map_err(|e| err_unknown!(e))?;
+        tx.put(handle, data).await.to_unknown_err_result()?;
         Ok(())
     }
 
@@ -709,17 +708,17 @@ impl TikvStorage {
         tx: &mut Transaction,
         handle: String,
     ) -> types::Result<Option<Vec<u8>>> {
-        let data = tx.get(handle).await.map_err(|e| err_unknown!(e))?;
+        let data = tx.get(handle).await.to_unknown_err_result()?;
 
         Ok(data)
     }
 
     async fn exists_data(&self, tx: &mut Transaction, handle: String) -> types::Result<bool> {
-        tx.key_exists(handle).await.map_err(|e| err_unknown!(e))
+        tx.key_exists(handle).await.to_unknown_err_result()
     }
 
     async fn clear_data(&self, tx: &mut Transaction, handle: String) -> types::Result<()> {
-        tx.delete(handle).await.map_err(|e| err_unknown!(e))?;
+        tx.delete(handle).await.to_unknown_err_result()?;
         Ok(())
     }
 
@@ -823,7 +822,7 @@ impl TikvStorage {
             return Ok(None);
         }
 
-        let v = musubi_api::types::Value::try_from(data.unwrap()).map_err(|e| err_unknown!(e))?;
+        let v = musubi_api::types::Value::try_from(data.unwrap()).to_unknown_err_result()?;
 
         if let musubi_api::types::Value::U64(x) = v {
             Ok(Some(x))
@@ -979,14 +978,12 @@ impl TikvStorage {
     ) -> types::Result<()> {
         let metadata_handle = Self::gen_internal_metadata_handle(&handle);
 
-        let value = musubi_api::types::to_value(&metadata).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::to_value(&metadata).to_unknown_err_result()?;
         let data: Vec<u8> = value
             .try_into()
             .map_err(|e: anyhow::Error| err_unknown!(e))?;
 
-        tx.put(metadata_handle, data)
-            .await
-            .map_err(|e| err_unknown!(e))
+        tx.put(metadata_handle, data).await.to_unknown_err_result()
     }
 
     async fn load_internal_metadata(
@@ -999,13 +996,12 @@ impl TikvStorage {
         let data = tx
             .get(metadata_handle)
             .await
-            .map_err(|e| err_unknown!(e))?
+            .to_unknown_err_result()?
             .ok_or(err_unknown!("failed to load internal metadata"))?;
 
-        let value = musubi_api::types::Value::try_from(data).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::Value::try_from(data).to_unknown_err_result()?;
 
-        let internal_metadata =
-            musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+        let internal_metadata = musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
         Ok(internal_metadata)
     }
@@ -1031,12 +1027,12 @@ impl TikvStorage {
         let data = tx
             .get(metadata_handle)
             .await
-            .map_err(|e| err_unknown!(e))?
+            .to_unknown_err_result()?
             .ok_or(err_unknown!("failed to load native file metadata"))?;
 
-        let value = musubi_api::types::Value::try_from(data).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::Value::try_from(data).to_unknown_err_result()?;
 
-        let native_metadata = musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+        let native_metadata = musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
         Ok(native_metadata)
     }
@@ -1051,7 +1047,7 @@ impl TikvStorage {
     ) -> types::Result<()> {
         let metadata_handle = Self::gen_native_metadata_handle(&handle);
 
-        let value = musubi_api::types::to_value(&metadata).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::to_value(&metadata).to_unknown_err_result()?;
         let data: Vec<u8> = value
             .try_into()
             .map_err(|e: anyhow::Error| err_unknown!(e))?;
@@ -1120,7 +1116,7 @@ impl TikvStorage {
             for key in tx
                 .scan_keys(lower_bound_key.clone()..upper_bound_key.clone(), page_size)
                 .await
-                .map_err(|e| err_unknown!(e))?
+                .to_unknown_err_result()?
             {
                 lower_bound_key = key.clone();
 
@@ -1150,16 +1146,16 @@ impl TikvStorage {
 
         let existing_lease_data = self.load_optional_data(tx, lease_handle.clone()).await?;
         if let Some(data) = existing_lease_data {
-            let value = musubi_api::types::Value::try_from(data).map_err(|e| err_unknown!(e))?;
+            let value = musubi_api::types::Value::try_from(data).to_unknown_err_result()?;
             let existing_lease: NativeFileLease =
-                musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+                musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
             if existing_lease.id != lease.id {
                 return Err(err_unsupported_op!("lease acquisition failed for id='{}' as an existing lease was found with id='{}'", lease.id, existing_lease.id));
             }
         }
 
-        let value = musubi_api::types::to_value(&lease).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::to_value(&lease).to_unknown_err_result()?;
         let data: Vec<u8> = value
             .try_into()
             .map_err(|e: anyhow::Error| err_unknown!(e))?;
@@ -1185,9 +1181,9 @@ impl TikvStorage {
         let lease_handle = Self::gen_lease_handle(&handle);
 
         let data = self.load_data(tx, lease_handle.clone()).await?;
-        let value = musubi_api::types::Value::try_from(data).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::Value::try_from(data).to_unknown_err_result()?;
         let existing_lease: NativeFileLease =
-            musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+            musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
         if existing_lease.id != lease_id {
             return Err(err_unsupported_op!(
@@ -1210,9 +1206,9 @@ impl TikvStorage {
         let lease_handle = Self::gen_lease_handle(&handle);
 
         let data = self.load_data(tx, lease_handle.clone()).await?;
-        let value = musubi_api::types::Value::try_from(data).map_err(|e| err_unknown!(e))?;
+        let value = musubi_api::types::Value::try_from(data).to_unknown_err_result()?;
         let existing_lease: NativeFileLease =
-            musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+            musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
         if existing_lease.id != lease_id {
             return Err(err_unsupported_op!(

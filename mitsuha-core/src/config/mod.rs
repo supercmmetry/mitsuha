@@ -23,6 +23,7 @@ use tokio::sync::RwLock;
 use self::{api::Api, plugin::Plugin, storage::Storage, telemetry::Telemetry};
 
 #[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Config {
     pub instance: Instance,
     pub api: Api,

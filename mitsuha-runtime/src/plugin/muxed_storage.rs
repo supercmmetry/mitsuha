@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use mitsuha_channel::muxed_storage::MuxedStorageChannel;
 use mitsuha_channel::muxed_storage::Rule;
+use mitsuha_core::errors::ToUnknownErrorResult;
 use mitsuha_core::selector::Label;
 use mitsuha_core::{err_unknown, errors::Error, types};
 use mitsuha_storage::UnifiedStorage;
@@ -86,7 +87,7 @@ impl MuxedStoragePlugin {
                 .unwrap()
                 .clone();
 
-            let regexp = Regex::new(&regexp_str).map_err(|e| err_unknown!(e))?;
+            let regexp = Regex::new(&regexp_str).to_unknown_err_result()?;
             let label = Label {
                 key: label_key,
                 value: label_value,

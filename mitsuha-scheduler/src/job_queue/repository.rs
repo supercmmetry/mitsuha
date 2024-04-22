@@ -35,6 +35,5 @@ pub trait Repository: Send + Sync {
         partition_id: String,
         batch_size: u64,
         remove_job_handles: Vec<String>,
-
     ) -> types::Result<usize>;
 }

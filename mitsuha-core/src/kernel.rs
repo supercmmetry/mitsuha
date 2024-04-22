@@ -4,8 +4,8 @@ use crate::{
     selector::Label,
     types,
 };
-use std::{collections::HashMap, sync::Arc};
 use std::ops::Deref;
+use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
@@ -19,6 +19,7 @@ use musubi_api::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::errors::ToUnknownErrorResult;
 use async_trait::async_trait;
 use mitsuha_core_types::kernel::AsyncKernel;
 use uuid::Uuid;
@@ -37,9 +38,7 @@ impl JobSpecExt for JobSpec {
     fn get_output_ttl(&self) -> types::Result<u64> {
         let mut ttl = self.ttl;
         if let Some(v) = self.extensions.get(&Constants::JobOutputTTL.to_string()) {
-            ttl = v
-                .parse::<u64>()
-                .map_err(|e| Error::Unknown { source: e.into() })?;
+            ttl = v.parse::<u64>().to_unknown_err_result()?;
         }
 
         Ok(ttl)
@@ -50,8 +49,8 @@ impl JobSpecExt for JobSpec {
 
         match self.extensions.get(kernel_bridge_metadata_key) {
             Some(value) => {
-                let obj: KernelBridgeMetadata = serde_json::from_str(value.as_str())
-                    .map_err(|e| Error::Unknown { source: e.into() })?;
+                let obj: KernelBridgeMetadata =
+                    serde_json::from_str(value.as_str()).to_unknown_err_result()?;
                 Ok(Some(obj))
             }
             None => Ok(None),
@@ -151,20 +150,37 @@ pub trait Kernel: Send + Sync {
 }
 
 #[async_trait]
-impl<T, I> Kernel for T where T: Deref<Target = I> + Send + Sync, I: Kernel + ?Sized {
+impl<T, I> Kernel for T
+where
+    T: Deref<Target = I> + Send + Sync,
+    I: Kernel + ?Sized,
+{
     async fn run_job(&self, spec: JobSpec) -> types::Result<()> {
         self.deref().run_job(spec).await
     }
 
-    async fn extend_job(&self, handle: String, ttl: u64, extensions: HashMap<String, String>) -> types::Result<()> {
+    async fn extend_job(
+        &self,
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         self.deref().extend_job(handle, ttl, extensions).await
     }
 
-    async fn abort_job(&self, handle: String, extensions: HashMap<String, String>) -> types::Result<()> {
+    async fn abort_job(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         self.deref().abort_job(handle, extensions).await
     }
 
-    async fn get_job_status(&self, handle: String, extensions: HashMap<String, String>) -> types::Result<JobStatus> {
+    async fn get_job_status(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<JobStatus> {
         self.deref().get_job_status(handle, extensions).await
     }
 
@@ -172,15 +188,28 @@ impl<T, I> Kernel for T where T: Deref<Target = I> + Send + Sync, I: Kernel + ?S
         self.deref().store_data(spec).await
     }
 
-    async fn load_data(&self, handle: String, extensions: HashMap<String, String>) -> types::Result<Vec<u8>> {
+    async fn load_data(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<Vec<u8>> {
         self.deref().load_data(handle, extensions).await
     }
 
-    async fn persist_data(&self, handle: String, ttl: u64, extensions: HashMap<String, String>) -> types::Result<()> {
+    async fn persist_data(
+        &self,
+        handle: String,
+        ttl: u64,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         self.deref().persist_data(handle, ttl, extensions).await
     }
 
-    async fn clear_data(&self, handle: String, extensions: HashMap<String, String>) -> types::Result<()> {
+    async fn clear_data(
+        &self,
+        handle: String,
+        extensions: HashMap<String, String>,
+    ) -> types::Result<()> {
         self.deref().clear_data(handle, extensions).await
     }
 }
@@ -257,6 +286,7 @@ impl KernelBridge {
     }
 
     fn is_core_symbol(&self, symbol: &Symbol) -> bool {
+        // TODO: Use Constant here
         if symbol.module_info.name != "mitsuha.core" {
             return false;
         }
@@ -265,7 +295,7 @@ impl KernelBridge {
     }
 
     async fn kernel_call(&self, symbol: &Symbol, input: Vec<u8>) -> types::Result<Vec<u8>> {
-        let data = Data::try_from(input).map_err(|e| Error::Unknown { source: e.into() })?;
+        let data = Data::try_from(input).to_unknown_err_result()?;
         let mut data_builder = DataBuilder::new();
 
         match symbol.name.as_str() {
@@ -282,7 +312,7 @@ impl KernelBridge {
 
                 let spec: JobSpec =
                     musubi_api::types::from_value(&data.values().get(0).unwrap().clone())
-                        .map_err(|e| Error::Unknown { source: e.into() })?;
+                        .to_unknown_err_result()?;
 
                 self.kernel.run_job(spec).await?;
 
@@ -460,10 +490,8 @@ impl KernelBridge {
 
                 let status = self.kernel.get_job_status(handle, extensions).await?;
 
-                data_builder = data_builder.add(
-                    musubi_api::types::to_value(&status)
-                        .map_err(|e| Error::Unknown { source: e.into() })?,
-                );
+                data_builder =
+                    data_builder.add(musubi_api::types::to_value(&status).to_unknown_err_result()?);
             }
             CORE_SYMBOL_STORE => {
                 if data.values().len() != 1 {
@@ -478,7 +506,7 @@ impl KernelBridge {
 
                 let spec: StorageSpec =
                     musubi_api::types::from_value(&data.values().get(0).unwrap().clone())
-                        .map_err(|e| Error::Unknown { source: e.into() })?;
+                        .to_unknown_err_result()?;
 
                 self.kernel.store_data(spec).await?;
 
@@ -661,8 +689,7 @@ impl KernelBridge {
             _ => {}
         }
 
-        Ok(TryInto::<Vec<u8>>::try_into(data_builder.build())
-            .map_err(|e| Error::Unknown { source: e.into() })?)
+        Ok(TryInto::<Vec<u8>>::try_into(data_builder.build()).to_unknown_err_result()?)
     }
 
     // Deprecated as this can be handled in client side by musubi with kernel calls

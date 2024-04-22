@@ -12,6 +12,7 @@ use crate::{NextComputeChannel, WrappedComputeChannel};
 
 use async_trait::async_trait;
 use mitsuha_core::channel::ChannelContext;
+use mitsuha_core::errors::ToUnknownErrorResult;
 
 pub struct EnforcerChannel {
     next: NextComputeChannel<ChannelContext>,
@@ -53,11 +54,9 @@ impl ComputeChannel for EnforcerChannel {
         let policy_blob_output = self.forward_next(ctx.clone(), policy_blob_input).await?;
 
         if let ComputeOutput::Loaded { data } = policy_blob_output {
-            let value = musubi_api::types::Value::try_from(data)
-                .map_err(|e| Error::Unknown { source: e })?;
+            let value = musubi_api::types::Value::try_from(data).to_unknown_err_result()?;
 
-            policies = musubi_api::types::from_value(&value)
-                .map_err(|e| Error::Unknown { source: e.into() })?;
+            policies = musubi_api::types::from_value(&value).to_unknown_err_result()?;
         } else {
             return Err(Error::UnknownWithMsgOnly {
                 message: "expected to find data in policy blob compute output".to_string(),

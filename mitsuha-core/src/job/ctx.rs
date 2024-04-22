@@ -1,4 +1,4 @@
-use crate::errors::Error;
+use crate::errors::{Error, ToUnknownErrorResult};
 use crate::types;
 use chrono::{DateTime, Utc};
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -50,7 +50,7 @@ impl JobContext {
             self.updater
                 .send(self.desired.clone())
                 .await
-                .map_err(|e| Error::Unknown { source: e.into() })?;
+                .to_unknown_err_result()?;
         }
 
         Ok(())

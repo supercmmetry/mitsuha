@@ -28,6 +28,7 @@ use mitsuha_persistence::scheduler_partition_resource::{
     Entity as PartitionResourceEntity,
 };
 use rand::Rng;
+use sea_orm::sea_query::LockBehavior;
 use sea_orm_migration::prelude::LockType;
 use tokio::sync::RwLock;
 
@@ -36,15 +37,17 @@ use crate::util;
 
 pub struct Service {
     connection: DatabaseConnection,
+    max_shards: i64,
     job_cost_evaluator: Arc<Box<dyn JobCostEvaluator>>,
 }
 
 impl Service {
-    pub async fn new() -> Arc<Box<dyn Repository>> {
+    pub async fn new(max_shards: i64) -> Arc<Box<dyn Repository>> {
         let config = Config::global().await.unwrap();
 
         Arc::new(Box::new(Self {
             connection: mitsuha_persistence::database_connection(),
+            max_shards,
             job_cost_evaluator: (&config).try_into().unwrap(),
         }))
     }
@@ -74,33 +77,33 @@ impl Service {
         storage_handle: String,
         algorithm: Algorithm,
     ) -> types::Result<Model> {
-        let shard_id: u64 = rand::thread_rng().gen();
+        let shard_id: i64 = rand::thread_rng().gen_range(0..self.max_shards);
 
         let utc_now = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
 
         let mut partition_id = None;
 
-        if algorithm.is_quick_fit() {
-            let partition_resource = PartitionResourceEntity::find()
-                .filter(PartitionResourceColumn::AvailableComputeUnits.gte(compute_units))
-                .lock(LockType::Update)
-                .one(tx)
-                .await?;
-
-            if let Some(partition_resource) = partition_resource {
-                PartitionResourceActiveModel {
-                    id: Set(partition_resource.id.clone()),
-                    available_compute_units: Set(
-                        partition_resource.available_compute_units - compute_units
-                    ),
-                    ..Default::default()
-                }
-                .update(tx)
-                .await?;
-
-                partition_id = Some(partition_resource.id);
-            }
-        }
+        // if algorithm.is_quick_fit() {
+        //     let partition_resource = PartitionResourceEntity::find()
+        //         .filter(PartitionResourceColumn::AvailableComputeUnits.gte(compute_units as i64))
+        //         .lock(LockType::Update)
+        //         .one(tx)
+        //         .await?;
+        // 
+        //     if let Some(partition_resource) = partition_resource {
+        //         PartitionResourceActiveModel {
+        //             id: Set(partition_resource.id.clone()),
+        //             available_compute_units: Set(
+        //                 partition_resource.available_compute_units - (compute_units as i64)
+        //             ),
+        //             ..Default::default()
+        //         }
+        //         .update(tx)
+        //         .await?;
+        // 
+        //         partition_id = Some(partition_resource.id);
+        //     }
+        // }
 
         let obj = ActiveModel {
             job_handle: Set(job_handle),
@@ -108,7 +111,7 @@ impl Service {
             shard_id: Set(shard_id),
             job_state: Set(JobState::Pending),
             creation_timestamp: Set(utc_now),
-            compute_units: Set(compute_units),
+            compute_units: Set(compute_units as i64),
             storage_handle: Set(storage_handle),
             algorithm: Set(algorithm),
         }
@@ -188,32 +191,30 @@ impl Repository for Service {
 
         let job = job.unwrap();
 
-        if job.algorithm.uses_shared_tracking() {
-            let partition_resource = PartitionResourceEntity::find_by_id(&partition_id)
-                .lock(LockType::Update)
-                .one(&tx)
-                .await?;
-
-            if partition_resource.is_none() {
-                return Err(Error::EntityConflictError {
-                    name: partition_id.clone(),
-                    kind: crate::partition::KIND.to_string(),
-                    reason: "partition not found".to_string(),
-                });
-            }
-
-            let partition_resource = partition_resource.unwrap();
-
-            PartitionResourceActiveModel {
-                id: Set(partition_id),
-                available_compute_units: Set(
-                    partition_resource.available_compute_units + job.compute_units
-                ),
-                ..Default::default()
-            }
-            .update(&tx)
+        let partition_resource = PartitionResourceEntity::find_by_id(&partition_id)
+            .lock(LockType::Update)
+            .one(&tx)
             .await?;
+
+        if partition_resource.is_none() {
+            return Err(Error::EntityConflictError {
+                name: partition_id.clone(),
+                kind: crate::partition::KIND.to_string(),
+                reason: "partition not found".to_string(),
+            });
         }
+
+        let partition_resource = partition_resource.unwrap();
+
+        PartitionResourceActiveModel {
+            id: Set(partition_id),
+            available_compute_units: Set(
+                partition_resource.available_compute_units + job.compute_units
+            ),
+            ..Default::default()
+        }
+        .update(&tx)
+        .await?;
 
         Entity::delete(ActiveModel {
             job_handle: Set(job_handle),
@@ -247,7 +248,7 @@ impl Repository for Service {
             .filter(Column::JobState.eq(JobState::Pending))
             .order_by_asc(Column::CreationTimestamp)
             .limit(1)
-            .lock(LockType::Update)
+            .lock_with_behavior(LockType::Update, LockBehavior::Nowait)
             .one(&tx)
             .await?;
 
@@ -308,22 +309,20 @@ impl Repository for Service {
             .filter(Column::ComputeUnits.lte(partition_resource.available_compute_units))
             .order_by_asc(Column::CreationTimestamp)
             .limit(1)
-            .lock(LockType::Update)
+            .lock_with_behavior(LockType::Update, LockBehavior::Nowait)
             .one(&tx)
             .await?;
 
         if let Some(job) = model.as_ref() {
-            if job.algorithm.uses_shared_tracking() {
-                PartitionResourceActiveModel {
-                    id: Set(partition_id.clone()),
-                    available_compute_units: Set(
-                        partition_resource.available_compute_units - job.compute_units
-                    ),
-                    ..Default::default()
-                }
-                .update(&tx)
-                .await?;
+            PartitionResourceActiveModel {
+                id: Set(partition_id.clone()),
+                available_compute_units: Set(
+                    partition_resource.available_compute_units - job.compute_units
+                ),
+                ..Default::default()
             }
+            .update(&tx)
+            .await?;
 
             // If we got an orphaned job, then make sure to reassign the commond queue
             // for that job as well.
@@ -386,11 +385,11 @@ impl Repository for Service {
 
         // First let's remove all jobs to free up compute as much as possible
 
-        for job_handle in remove_job_handles {
-            let job = Entity::find_by_id(&job_handle).one(&tx).await?;
+        for job_handle in remove_job_handles.iter() {
+            let job = Entity::find_by_id(job_handle).one(&tx).await?;
 
             if job.is_none() {
-                tracing::error!("failed to reclaim compute units for job '{}'", &job_handle);
+                tracing::error!("failed to reclaim compute units for job '{}'", job_handle);
                 return Err(Error::EntityNotFoundError {
                     name: job_handle.clone(),
                     kind: crate::job_queue::KIND.to_string(),
@@ -402,7 +401,7 @@ impl Repository for Service {
             available_compute_units += job.compute_units;
 
             Entity::delete(ActiveModel {
-                job_handle: Set(job_handle),
+                job_handle: Set(job_handle.clone()),
                 ..Default::default()
             })
             .exec(&tx)
@@ -418,9 +417,10 @@ impl Repository for Service {
             .filter(Column::ComputeUnits.lte(available_compute_units))
             .order_by_asc(Column::CreationTimestamp)
             .limit(batch_size)
-            .lock(LockType::Update)
+            .lock_with_behavior(LockType::Update, LockBehavior::Nowait)
             .all(&tx)
             .await?;
+
 
         let mut orphaned_jobs_added = 0usize;
         for orphaned_job in orphaned_jobs {

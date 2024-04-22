@@ -9,8 +9,8 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
     pub lease_expiry: chrono::NaiveDateTime,
-    pub shard_start: u64,
-    pub shard_end: u64,
+    pub shard_start: i64,
+    pub shard_end: i64,
 }
 
 impl Model {

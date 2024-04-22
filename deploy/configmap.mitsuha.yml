@@ -17,7 +17,7 @@ data:
       scheduler:
         enable_update_optimization: false
         core_scheduling_capacity:
-          compute: 480
+          compute: 1200
     
     persistence:
       database_connection_string: mysql://root:@miru-persistence-tidb:4000/mitsuha_persistence

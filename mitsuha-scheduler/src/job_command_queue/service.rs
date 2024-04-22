@@ -102,7 +102,7 @@ impl Repository for Service {
         Ok(model)
     }
 
-    async fn mark_as_completed(&self, command_id: u64) -> types::Result<()> {
+    async fn mark_as_completed(&self, command_id: i64) -> types::Result<()> {
         let tx = self.connection.begin().await?;
 
         ActiveModel {

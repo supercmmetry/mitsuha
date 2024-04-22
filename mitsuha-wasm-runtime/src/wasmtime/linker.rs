@@ -2,6 +2,8 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use futures::FutureExt;
+use mitsuha_core::channel::MusubiKernelWrapper;
+use mitsuha_core::errors::ToUnknownErrorResult;
 use mitsuha_core::{
     errors::Error,
     executor::ExecutorContext,
@@ -12,20 +14,18 @@ use mitsuha_core::{
     symbol::SymbolExt,
     types::{self, SharedAsyncMany},
 };
+use mitsuha_core_types::kernel::AsyncKernel;
 use mitsuha_core_types::{
     module::{ModuleInfo, ModuleType},
     symbol::Symbol,
 };
-use mitsuha_core_types::kernel::AsyncKernel;
 use mitsuha_filesystem::async_fs::{AsyncNativeFileSystem, AsyncNativeFileSystemBuilder};
 use num_traits::cast::FromPrimitive;
 use wasi_common::sync::{clocks_ctx, random_ctx, sched_ctx, WasiCtxBuilder};
 use wasi_common::{Table, WasiCtx, WasiDir};
-use mitsuha_core::channel::MusubiKernelWrapper;
-use mitsuha_core::errors::ToUnknownErrorResult;
 
-use crate::{constants::Constants, resolver::wasmtime::WasmtimeModuleResolver};
 use crate::wasmtime::wasi::dir::Dir;
+use crate::{constants::Constants, resolver::wasmtime::WasmtimeModuleResolver};
 
 #[derive(Clone)]
 pub struct WasmMetadata {
@@ -407,16 +407,18 @@ impl Linker for WasmtimeLinker {
     ) -> types::Result<ExecutorContext> {
         let mut module = self.fetch_module(&context, &module_info).await?;
         let kernel = context.kernel_binding.get_kernel().await;
-        let musubi_kernel: Arc<Box<dyn AsyncKernel>> = Arc::new(Box::new(MusubiKernelWrapper::new(Box::new(kernel))));
+        let musubi_kernel: Arc<Box<dyn AsyncKernel>> =
+            Arc::new(Box::new(MusubiKernelWrapper::new(Box::new(kernel))));
 
         let fs = Arc::new(AsyncNativeFileSystemBuilder::new(musubi_kernel).build());
-        
+
         let root_dir = Box::new(Dir::new(fs, "/"));
-        
+
         let mut wasi_ctx = WasiCtx::new(random_ctx(), clocks_ctx(), sched_ctx(), Table::new());
 
-        wasi_ctx.push_preopened_dir(root_dir, "/").to_unknown_err_result()?;
-
+        wasi_ctx
+            .push_preopened_dir(root_dir, "/")
+            .to_unknown_err_result()?;
 
         let wasmtime_context = WasmtimeContext::new(wasi_ctx, context.kernel_binding.clone());
 
@@ -426,7 +428,8 @@ impl Linker for WasmtimeLinker {
 
         let mut linker = wasmtime::Linker::new(&self.engine);
 
-        wasi_common::tokio::add_to_linker(&mut linker, |s: &mut WasmtimeContext| &mut s.wasi_ctx).to_unknown_err_result()?;
+        wasi_common::tokio::add_to_linker(&mut linker, |s: &mut WasmtimeContext| &mut s.wasi_ctx)
+            .to_unknown_err_result()?;
 
         let dep_map =
             context

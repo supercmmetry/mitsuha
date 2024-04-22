@@ -1,15 +1,15 @@
+use crate::wasmtime::wasi::file::{File, OpenOptions};
+use async_trait::async_trait;
+use mitsuha_filesystem::async_fs::AsyncNativeFileSystem;
+use mitsuha_filesystem::{AsyncFileSystem, NativeFileType};
+use path_absolutize::Absolutize;
 use std::any::Any;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use async_trait::async_trait;
-use mitsuha_filesystem::{AsyncFileSystem, NativeFileType};
-use mitsuha_filesystem::async_fs::AsyncNativeFileSystem;
-use path_absolutize::Absolutize;
 use wasi_common::dir::{OpenResult, ReaddirCursor, ReaddirEntity};
 use wasi_common::file::{FdFlags, Filestat, OFlags};
 use wasi_common::{Error, ErrorExt, SystemTimeSpec, WasiDir};
-use crate::wasmtime::wasi::file::{File, OpenOptions};
 
 #[derive(Clone)]
 pub struct Dir {
@@ -32,7 +32,15 @@ impl WasiDir for Dir {
         self
     }
 
-    async fn open_file(&self, _symlink_follow: bool, path: &str, oflags: OFlags, read: bool, write: bool, fdflags: FdFlags) -> Result<OpenResult, Error> {
+    async fn open_file(
+        &self,
+        _symlink_follow: bool,
+        path: &str,
+        oflags: OFlags,
+        read: bool,
+        write: bool,
+        fdflags: FdFlags,
+    ) -> Result<OpenResult, Error> {
         let mut opts = OpenOptions::new();
 
         if oflags.contains(OFlags::CREATE | OFlags::EXCLUSIVE) {
@@ -60,9 +68,7 @@ impl WasiDir for Dir {
             opts.append = true;
         }
 
-        if fdflags.intersects(
-            FdFlags::DSYNC | FdFlags::SYNC | FdFlags::RSYNC,
-        ) {
+        if fdflags.intersects(FdFlags::DSYNC | FdFlags::SYNC | FdFlags::RSYNC) {
             return Err(Error::not_supported().context("SYNC family of FdFlags"));
         }
 
@@ -81,10 +87,18 @@ impl WasiDir for Dir {
         let mut metadata = None;
 
         if exists {
-            metadata = Some(self.fs.get_metadata(path).await.map_err(|e| Error::trap(e))?);
+            metadata = Some(
+                self.fs
+                    .get_metadata(path)
+                    .await
+                    .map_err(|e| Error::trap(e))?,
+            );
         }
 
-        if metadata.as_ref().is_some_and(|m| m.file_type == NativeFileType::Dir) {
+        if metadata
+            .as_ref()
+            .is_some_and(|m| m.file_type == NativeFileType::Dir)
+        {
             Ok(OpenResult::Dir(Box::new(self.clone())))
         } else if metadata.is_some() && oflags.contains(OFlags::DIRECTORY) {
             Err(Error::not_dir().context("expected directory but got file"))
@@ -93,13 +107,16 @@ impl WasiDir for Dir {
 
             Ok(OpenResult::Dir(Box::new(self.clone())))
         } else {
-            Ok(OpenResult::File(Box::new(File::new(self.fs.as_ref().clone(), path.to_path_buf(), opts).await?)))
+            Ok(OpenResult::File(Box::new(
+                File::new(self.fs.as_ref().clone(), path.to_path_buf(), opts).await?,
+            )))
         }
     }
 
     async fn create_dir(&self, path: &str) -> Result<(), Error> {
         let absolute_pathbuf = self.path.join(path);
-        let absolute_cow_path = absolute_pathbuf.as_path()
+        let absolute_cow_path = absolute_pathbuf
+            .as_path()
             .absolutize_virtually("/")
             .map_err(|e| Error::trap(e.into()))?;
 
@@ -111,7 +128,6 @@ impl WasiDir for Dir {
             _ => {}
         }
 
-
         if let Err(e) = self.fs.create_dir(absolute_path).await {
             return Err(Error::trap(e));
         }
@@ -119,7 +135,10 @@ impl WasiDir for Dir {
         Ok(())
     }
 
-    async fn readdir(&self, _cursor: ReaddirCursor) -> Result<Box<dyn Iterator<Item=Result<ReaddirEntity, Error>> + Send>, Error> {
+    async fn readdir(
+        &self,
+        _cursor: ReaddirCursor,
+    ) -> Result<Box<dyn Iterator<Item = Result<ReaddirEntity, Error>> + Send>, Error> {
         todo!()
     }
 
@@ -157,19 +176,39 @@ impl WasiDir for Dir {
         todo!()
     }
 
-    async fn get_path_filestat(&self, _path: &str, _follow_symlinks: bool) -> Result<Filestat, Error> {
+    async fn get_path_filestat(
+        &self,
+        _path: &str,
+        _follow_symlinks: bool,
+    ) -> Result<Filestat, Error> {
         todo!()
     }
 
-    async fn rename(&self, _path: &str, _dest_dir: &dyn WasiDir, _dest_path: &str) -> Result<(), Error> {
+    async fn rename(
+        &self,
+        _path: &str,
+        _dest_dir: &dyn WasiDir,
+        _dest_path: &str,
+    ) -> Result<(), Error> {
         todo!()
     }
 
-    async fn hard_link(&self, _path: &str, _target_dir: &dyn WasiDir, _target_path: &str) -> Result<(), Error> {
+    async fn hard_link(
+        &self,
+        _path: &str,
+        _target_dir: &dyn WasiDir,
+        _target_path: &str,
+    ) -> Result<(), Error> {
         Err(Error::not_supported())
     }
 
-    async fn set_times(&self, _path: &str, _atime: Option<SystemTimeSpec>, _mtime: Option<SystemTimeSpec>, _follow_symlinks: bool) -> Result<(), Error> {
+    async fn set_times(
+        &self,
+        _path: &str,
+        _atime: Option<SystemTimeSpec>,
+        _mtime: Option<SystemTimeSpec>,
+        _follow_symlinks: bool,
+    ) -> Result<(), Error> {
         todo!()
     }
 }

@@ -20,12 +20,12 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(MitsuhaSchedulerPartitionResource::AvailableComputeUnits)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(MitsuhaSchedulerPartitionResource::TotalComputeUnits)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .foreign_key(

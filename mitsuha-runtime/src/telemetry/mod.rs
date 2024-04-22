@@ -10,6 +10,7 @@ pub fn setup(config: &Config) -> anyhow::Result<()> {
     tracing_log::LogTracer::init()?;
 
     let subscriber = Registry::default()
+        .with(console_subscriber::spawn())
         .with(create_stdout_layer(&config)?)
         .with(create_otel_layer(&config)?);
 

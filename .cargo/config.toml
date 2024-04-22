@@ -6,3 +6,6 @@ Mitsuha-Central-Feed = { index = "sparse+https://pkgs.dev.azure.com/mitsuha-io/M
 
 [source.crates-io]
 replace-with = "Mitsuha-Central-Feed"
+
+[build]
+rustflags = ["--cfg", "tokio_unstable"]

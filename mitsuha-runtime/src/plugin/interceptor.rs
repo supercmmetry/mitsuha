@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use mitsuha_channel::interceptor::InterceptorChannel;
+use mitsuha_core::errors::ToUnknownErrorResult;
 use mitsuha_core::{errors::Error, types};
 use mitsuha_runtime_rpc::proto::channel::interceptor_client::InterceptorClient;
 
@@ -18,7 +19,7 @@ impl Plugin for InterceptorPlugin {
         let target_address = ctx.current_properties.get("address").unwrap();
 
         let conn = tonic::transport::Endpoint::new(target_address.clone())
-            .map_err(|e| Error::Unknown { source: e.into() })?
+            .to_unknown_err_result()?
             .connect_lazy();
 
         let client = InterceptorClient::new(conn);

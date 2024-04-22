@@ -15,8 +15,8 @@ async fn main() {
 
     telemetry::setup(&config).unwrap();
 
-    let http_server = tokio::task::spawn(http::start_server(config.clone()));
-    let rpc_server = tokio::task::spawn(rpc::start_server(config));
+    let http_server = tokio::task::spawn(http::start(config.clone()));
+    let rpc_server = tokio::task::spawn(rpc::start(config));
 
     tokio::try_join!(http_server, rpc_server).unwrap();
 }

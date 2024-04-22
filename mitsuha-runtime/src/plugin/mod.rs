@@ -18,7 +18,6 @@ use self::{
     interceptor::InterceptorPlugin,
     namespacer::NamespacerPlugin,
     one_storage::OneStoragePlugin,
-    qflow::QFlowPlugin,
     wasmtime::WasmtimePlugin,
 };
 
@@ -29,7 +28,6 @@ pub mod interceptor;
 pub mod muxed_storage;
 pub mod namespacer;
 pub mod one_storage;
-pub mod qflow;
 mod scheduler;
 pub mod wasmtime;
 
@@ -48,11 +46,13 @@ impl PluginContext {
 
         let mut channel_context = ChannelContext::default();
 
+        let job_cost_evaluator = (&config).try_into()?;
+
         let job_manager = JobManager::new(
             init_channel.clone(),
             Arc::new(Box::new(channel_context.clone())),
             config.job.maximum_concurrent_cost.clone(),
-            config.try_into()?,
+            job_cost_evaluator,
             config.instance.id.clone(),
         )?;
 
@@ -89,7 +89,6 @@ pub async fn load_plugins(mut ctx: PluginContext) -> types::Result<PluginContext
         Box::new(OneStoragePlugin),
         Box::new(WasmtimePlugin),
         Box::new(DelegatorPlugin),
-        Box::new(QFlowPlugin),
         Box::new(NamespacerPlugin),
         Box::new(InterceptorPlugin),
         Box::new(EnforcerPlugin),

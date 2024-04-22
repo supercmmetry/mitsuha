@@ -33,6 +33,10 @@ where
     app
 }
 
+pub async fn start(config: Config) {
+    start_server(config).await.unwrap()
+}
+
 pub async fn start_server(config: Config) -> anyhow::Result<()> {
     let server = HttpServer::new(move || {
         let app = App::new()

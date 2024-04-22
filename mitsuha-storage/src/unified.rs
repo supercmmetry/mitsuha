@@ -1,6 +1,7 @@
 use std::{collections::HashMap, num::ParseIntError, path::Path, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use mitsuha_core::errors::ToUnknownErrorResult;
 use mitsuha_core::{
     config,
     constants::StorageControlConstants,
@@ -51,12 +52,12 @@ impl RawStorage for UnifiedStorage {
             return self
                 .process_mnfs_load_context(handle, extensions)
                 .await
-                .map_err(|e| err_unknown!(e));
+                .to_unknown_err_result();
         }
 
         self.load_internal(handle, extensions)
             .await
-            .map_err(|e| err_unknown!(e))
+            .to_unknown_err_result()
     }
 
     async fn exists(
@@ -698,9 +699,9 @@ impl UnifiedStorage {
 
     async fn process_mnfs_store_context(&self, spec: StorageSpec) -> types::Result<()> {
         let ctx = NativeFileSystemEventContext::Store { spec };
-        let event = ctx.get_event().map_err(|e| err_unknown!(e))?;
+        let event = ctx.get_event().to_unknown_err_result()?;
 
-        let inner_spec = ctx.to_spec().map_err(|e| err_unknown!(e))?;
+        let inner_spec = ctx.to_spec().to_unknown_err_result()?;
 
         if event.is_none() && self.contains_mnfs_suffix(&inner_spec.handle) {
             return Err(err_unknown!("could not get event from context"));
@@ -730,7 +731,7 @@ impl UnifiedStorage {
                     .try_into()
                     .map_err(|e: anyhow::Error| err_unknown!(e))?;
                 let metadata: NativeFileMetadata =
-                    musubi_api::types::from_value(&value).map_err(|e| err_unknown!(e))?;
+                    musubi_api::types::from_value(&value).to_unknown_err_result()?;
 
                 self.set_metadata(handle, metadata, inner_spec.ttl, inner_spec.extensions)
                     .await
@@ -756,7 +757,7 @@ impl UnifiedStorage {
             extensions: extensions.clone(),
         };
 
-        let event = ctx.get_event().map_err(|e| err_unknown!(e))?;
+        let event = ctx.get_event().to_unknown_err_result()?;
 
         if event.is_none() {
             return Err(err_unknown!("could not get event from context"));
@@ -791,7 +792,7 @@ impl UnifiedStorage {
             NativeFileSystemEvent::GetMetadata { handle } => {
                 let metadata = self.get_metadata(handle, extensions).await?;
 
-                let value = musubi_api::types::to_value(&metadata).map_err(|e| err_unknown!(e))?;
+                let value = musubi_api::types::to_value(&metadata).to_unknown_err_result()?;
                 let data = value
                     .try_into()
                     .map_err(|e: anyhow::Error| err_unknown!(e))?;
@@ -885,7 +886,7 @@ impl UnifiedStorage {
             ttl,
             extensions: extensions.clone(),
         };
-        let event = ctx.get_event().map_err(|e| err_unknown!(e))?;
+        let event = ctx.get_event().to_unknown_err_result()?;
 
         if event.is_none() {
             return Err(err_unknown!("could not get event from context"));
@@ -914,7 +915,7 @@ impl UnifiedStorage {
             extensions: extensions.clone(),
         };
 
-        let event = ctx.get_event().map_err(|e| err_unknown!(e))?;
+        let event = ctx.get_event().to_unknown_err_result()?;
 
         if event.is_none() {
             return self.delete_path(ctx.get_handle().clone(), extensions).await;

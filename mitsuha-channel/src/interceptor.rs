@@ -8,6 +8,7 @@ use crate::{NextComputeChannel, WrappedComputeChannel};
 
 use async_trait::async_trait;
 use mitsuha_core::channel::ChannelContext;
+use mitsuha_core::errors::ToUnknownErrorResult;
 
 pub struct InterceptorChannel {
     next: NextComputeChannel<ChannelContext>,
@@ -28,22 +29,17 @@ impl ComputeChannel for InterceptorChannel {
         ctx: ChannelContext,
         elem: ComputeInput,
     ) -> types::Result<ComputeOutput> {
-        let compute_request: ComputeRequest =
-            elem.try_into().map_err(|e| Error::Unknown { source: e })?;
+        let compute_request: ComputeRequest = elem.try_into().to_unknown_err_result()?;
 
         let compute_request = self
             .client
             .clone()
             .intercept(compute_request)
             .await
-            .map_err(|e| Error::UnknownWithMsgOnly {
-                message: e.to_string(),
-            })?
+            .to_unknown_err_result()?
             .into_inner();
 
-        let compute_input: ComputeInput = compute_request
-            .try_into()
-            .map_err(|e| Error::Unknown { source: e })?;
+        let compute_input: ComputeInput = compute_request.try_into().to_unknown_err_result()?;
 
         match self.next.read().await.clone() {
             Some(chan) => chan.compute(ctx, compute_input).await,

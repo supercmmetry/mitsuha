@@ -8,7 +8,7 @@ metadata:
   namespace: mitsuha-dev
 spec:
   podManagementPolicy: Parallel
-  replicas: 5
+  replicas: 1
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -42,7 +42,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-          image: mitsuha.azurecr.io/mitsuha-runtime:0.1.0-dev.52
+          image: mitsuha.azurecr.io/mitsuha-runtime:0.1.0-dev.56
           imagePullPolicy: Always
           name: runtime
           ports:

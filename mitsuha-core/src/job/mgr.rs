@@ -1,7 +1,7 @@
 use crate::channel::{ComputeChannel, StateProvider};
 use crate::config::Config;
 use crate::constants::Constants;
-use crate::errors::Error;
+use crate::errors::{Error, ToUnknownErrorResult};
 use crate::job::cost::{JobCost, JobCostEvaluator};
 use crate::job::ctrl::{JobController, PostJobHook};
 use crate::job::ctx::{JobContext, JobState};
@@ -169,10 +169,10 @@ where
                 match output {
                     Ok(ComputeOutput::Loaded { data }) => {
                         let raw_value: musubi_api::types::Value =
-                            data.try_into().map_err(|e| Error::Unknown { source: e })?;
+                            data.try_into().to_unknown_err_result()?;
 
-                        let job_status: JobStatus = musubi_api::types::from_value(&raw_value)
-                            .map_err(|e| Error::Unknown { source: e.into() })?;
+                        let job_status: JobStatus =
+                            musubi_api::types::from_value(&raw_value).to_unknown_err_result()?;
 
                         return Ok(job_status);
                     }
