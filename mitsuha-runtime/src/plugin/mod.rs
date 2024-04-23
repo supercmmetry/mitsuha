@@ -5,6 +5,8 @@ use crate::plugin::scheduler::SchedulerPlugin;
 use async_trait::async_trait;
 use mitsuha_channel::{EntrypointChannel, WrappedComputeChannel};
 use mitsuha_core::channel::{ChannelContext, ChannelManager};
+use mitsuha_core::config::plugin::PluginConfiguration;
+use mitsuha_core::errors::ToUnknownErrorResult;
 use mitsuha_core::job::mgr::JobManager;
 use mitsuha_core::{
     channel::ComputeChannel, config::Config, constants::Constants, err_unsupported_op,
@@ -17,7 +19,6 @@ use self::{
     enforcer::EnforcerPlugin,
     interceptor::InterceptorPlugin,
     namespacer::NamespacerPlugin,
-    one_storage::OneStoragePlugin,
     wasmtime::WasmtimePlugin,
 };
 
@@ -27,7 +28,6 @@ pub mod enforcer;
 pub mod interceptor;
 pub mod muxed_storage;
 pub mod namespacer;
-pub mod one_storage;
 mod scheduler;
 pub mod wasmtime;
 
@@ -35,8 +35,9 @@ pub mod wasmtime;
 pub struct PluginContext {
     pub channel_start: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
     pub channel_end: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>>,
-    pub config: Config,
-    pub current_properties: HashMap<String, String>,
+    pub global_configuration: Config,
+    pub plugin_configuration: PluginConfiguration,
+    pub plugin_name: String,
 }
 
 impl PluginContext {
@@ -64,8 +65,9 @@ impl PluginContext {
         Ok(Self {
             channel_start: init_channel.clone(),
             channel_end: init_channel.clone(),
-            config,
-            current_properties: properties,
+            global_configuration: config,
+            plugin_configuration: Default::default(),
+            plugin_name: String::new(),
         })
     }
 
@@ -77,7 +79,7 @@ impl PluginContext {
 
 #[async_trait]
 pub trait Plugin: Send + Sync {
-    fn name(&self) -> &'static str;
+    fn kind(&self) -> &'static str;
 
     async fn run(&self, ctx: PluginContext) -> types::Result<PluginContext>;
 }
@@ -86,7 +88,6 @@ pub async fn load_plugins(mut ctx: PluginContext) -> types::Result<PluginContext
     let plugin_list: Vec<Box<dyn Plugin>> = vec![
         Box::new(EofPlugin),
         Box::new(SystemPlugin),
-        Box::new(OneStoragePlugin),
         Box::new(WasmtimePlugin),
         Box::new(DelegatorPlugin),
         Box::new(NamespacerPlugin),
@@ -98,20 +99,23 @@ pub async fn load_plugins(mut ctx: PluginContext) -> types::Result<PluginContext
 
     let plugin_map: HashMap<&'static str, Box<dyn Plugin>> = plugin_list
         .into_iter()
-        .map(|x| (x.name(), x))
+        .map(|x| (x.kind(), x))
         .into_iter()
         .collect();
 
-    let plugin_configs = ctx.config.plugins.clone();
+    let plugins = ctx.global_configuration.plugins.clone();
 
-    for plugin_config in plugin_configs {
-        let plugin = plugin_map
-            .get(plugin_config.name.as_str())
+    for mut plugin in plugins {
+        let plugin_obj = plugin_map
+            .get(plugin.kind.as_str())
             .ok_or(err_unsupported_op!("could not find plugin"))?;
 
-        ctx.current_properties = plugin_config.properties;
+        plugin = plugin.with_configuration().to_unknown_err_result()?;
 
-        let new_ctx = plugin.run(ctx.clone()).await?;
+        ctx.plugin_configuration = plugin.config;
+        ctx.plugin_name = plugin.name;
+
+        let new_ctx = plugin_obj.run(ctx.clone()).await?;
 
         ctx.merge(new_ctx);
     }
@@ -126,17 +130,7 @@ pub async fn initialize_channel<T>(
 where
     T: 'static + ComputeChannel<Context = ChannelContext>,
 {
-    chan = match ctx
-        .current_properties
-        .get(&Constants::ChannelId.to_string())
-    {
-        Some(id) => chan.with_id(id.clone()),
-        None => {
-            return Err(Error::UnknownWithMsgOnly {
-                message: "channel id was not assigned".to_string(),
-            })
-        }
-    };
+    chan = chan.with_id(ctx.plugin_name.clone());
 
     let boxed_chan: Arc<Box<dyn ComputeChannel<Context = ChannelContext>>> =
         Arc::new(Box::new(chan));

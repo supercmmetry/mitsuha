@@ -11,7 +11,7 @@ pub struct WasmtimePlugin;
 
 #[async_trait]
 impl Plugin for WasmtimePlugin {
-    fn name(&self) -> &'static str {
+    fn kind(&self) -> &'static str {
         "mitsuha.plugin.wasmtime"
     }
 

@@ -9,7 +9,7 @@ pub struct NamespacerPlugin;
 
 #[async_trait]
 impl Plugin for NamespacerPlugin {
-    fn name(&self) -> &'static str {
+    fn kind(&self) -> &'static str {
         "mitsuha.plugin.namespacer"
     }
 

@@ -2979,6 +2979,8 @@ dependencies = [
  "rand 0.8.5",
  "sea-orm",
  "sea-orm-migration",
+ "serde",
+ "serde_json",
  "sha2",
  "strum 0.24.1",
  "strum_macros",

@@ -10,7 +10,7 @@ pub struct SystemPlugin;
 
 #[async_trait]
 impl Plugin for SystemPlugin {
-    fn name(&self) -> &'static str {
+    fn kind(&self) -> &'static str {
         "mitsuha.plugin.system"
     }
 
@@ -29,7 +29,7 @@ pub struct InitPlugin;
 
 #[async_trait]
 impl Plugin for InitPlugin {
-    fn name(&self) -> &'static str {
+    fn kind(&self) -> &'static str {
         "mitsuha.plugin.init"
     }
 
@@ -51,7 +51,7 @@ pub struct EofPlugin;
 
 #[async_trait]
 impl Plugin for EofPlugin {
-    fn name(&self) -> &'static str {
+    fn kind(&self) -> &'static str {
         "mitsuha.plugin.eof"
     }
 

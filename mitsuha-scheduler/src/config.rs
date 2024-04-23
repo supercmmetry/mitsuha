@@ -1,17 +1,36 @@
-#[derive(strum_macros::Display)]
-pub enum ConfKey {
-    #[strum(serialize = "partition_lease_duration_seconds")]
-    PartitionLeaseDurationSeconds,
+use serde::Deserialize;
 
-    #[strum(serialize = "partition_lease_skew_seconds")]
-    PartitionLeaseSkewDurationSeconds,
+const fn default_partition_lease_duration_seconds() -> u64 {
+    15
+}
 
-    #[strum(serialize = "partition_poll_interval_millis")]
-    PartitionPollIntervalMilliSeconds,
+const fn default_partition_lease_skew_seconds() -> u64 {
+    5
+}
 
-    #[strum(serialize = "bypass_channel_ids")]
-    BypassChannelIds,
+const fn default_partition_poll_interval_millis() -> u64 {
+    1
+}
 
-    #[strum(serialize = "max_shards")]
-    MaxShards,
+const fn default_max_shards() -> u64 {
+    i64::MAX as u64
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SchedulerConfiguration {
+    #[serde(default = "default_partition_lease_duration_seconds")]
+    pub partition_lease_duration_seconds: u64,
+
+    #[serde(default = "default_partition_lease_skew_seconds")]
+    pub partition_lease_skew_seconds: u64,
+
+    #[serde(default = "default_partition_poll_interval_millis")]
+    pub partition_poll_interval_millis: u64,
+
+    #[serde(default)]
+    pub exclude_plugins: Vec<String>,
+
+    #[serde(default = "default_max_shards")]
+    pub max_shards: u64,
 }

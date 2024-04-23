@@ -1,4 +1,4 @@
-use crate::config::ConfKey;
+use crate::config::SchedulerConfiguration;
 use crate::constant::SchedulerConstants;
 use crate::{job_command_queue, job_queue, metric, partition, util};
 use async_trait::async_trait;
@@ -32,7 +32,7 @@ struct SchedulerState<Context> {
     pub job_queue_repository: job_queue::Repository,
     pub job_command_queue_repository: job_command_queue::Repository,
     pub partition_id: PartitionId,
-    pub bypass_channel_ids: Vec<String>,
+    pub excluded_channels: Vec<String>,
     pub partition_poll_interval: Duration,
     pub channel: Arc<Box<dyn ComputeChannel<Context = Context>>>,
     pub removed_job_handles: Arc<RwLock<Vec<String>>>,
@@ -128,7 +128,7 @@ where
         let mut input = ComputeInput::Store { spec };
 
         ctx.sign_compute_input(&mut input).await;
-        ctx.append_skip_channel_list(&mut input, state.bypass_channel_ids.clone())
+        ctx.append_skip_channel_list(&mut input, state.excluded_channels.clone())
             .await;
 
         self.compute(ctx, input).await?;
@@ -148,7 +148,7 @@ where
         };
 
         ctx.sign_compute_input(&mut input).await;
-        ctx.append_skip_channel_list(&mut input, state.bypass_channel_ids.clone())
+        ctx.append_skip_channel_list(&mut input, state.excluded_channels.clone())
             .await;
 
         let output = self.compute(ctx, input).await?;
@@ -175,7 +175,7 @@ where
         };
 
         ctx.sign_compute_input(&mut input).await;
-        ctx.append_skip_channel_list(&mut input, state.bypass_channel_ids.clone())
+        ctx.append_skip_channel_list(&mut input, state.excluded_channels.clone())
             .await;
 
         self.compute(ctx, input).await?;
@@ -479,54 +479,27 @@ where
 {
     pub async fn new(
         channel: Arc<Box<dyn ComputeChannel<Context = Context>>>,
-        properties: Extensions,
+        scheduler_config: SchedulerConfiguration,
     ) -> types::Result<Self> {
-        let partition_lease_duration_seconds: u64 = properties
-            .get(&ConfKey::PartitionLeaseDurationSeconds.to_string())
-            .unwrap_or(&"15".to_string())
-            .parse()
-            .to_unknown_err_result()?;
-
-        let partition_lease_skew_duration_seconds: u64 = properties
-            .get(&ConfKey::PartitionLeaseSkewDurationSeconds.to_string())
-            .unwrap_or(&"5".to_string())
-            .parse()
-            .to_unknown_err_result()?;
-
-        let partition_poll_interval_milliseconds: u64 = properties
-            .get(&ConfKey::PartitionPollIntervalMilliSeconds.to_string())
-            .unwrap_or(&"1".to_string())
-            .parse()
-            .to_unknown_err_result()?;
-
-        let max_shards: u64 = properties
-            .get(&ConfKey::MaxShards.to_string())
-            .unwrap_or(&u64::MAX.to_string())
-            .parse()
-            .to_unknown_err_result()?;
-
-        let bypass_channel_ids: Vec<String> = properties
-            .get(&ConfKey::BypassChannelIds.to_string())
-            .map(|x| x.split(",").map(|x| x.to_string()).collect())
-            .unwrap_or_default();
+        
 
         let config = Config::global().await.to_unknown_err_result()?;
 
         let partition_repository = partition::service::Service::new(
-            chrono::Duration::seconds(partition_lease_duration_seconds as i64),
-            chrono::Duration::seconds(partition_lease_skew_duration_seconds as i64),
+            chrono::Duration::seconds(scheduler_config.partition_lease_duration_seconds as i64),
+            chrono::Duration::seconds(scheduler_config.partition_lease_skew_seconds as i64),
             config.job.scheduler.core_scheduling_capacity.compute as i64,
-            max_shards as i64,
+            scheduler_config.max_shards as i64,
         )
         .await;
 
         partition_repository.register_module().await?;
 
-        let job_queue_repository = job_queue::service::Service::new(max_shards as i64).await;
+        let job_queue_repository = job_queue::service::Service::new(scheduler_config.max_shards as i64).await;
         let job_command_queue_repository = job_command_queue::service::Service::new().await;
 
         let partition = partition_repository.create().await?;
-        let partition_poll_interval = Duration::from_millis(partition_poll_interval_milliseconds);
+        let partition_poll_interval = Duration::from_millis(scheduler_config.partition_poll_interval_millis);
 
         let partition_id = Arc::new(RwLock::new(partition.id));
 
@@ -537,7 +510,7 @@ where
             job_command_queue_repository,
             partition_poll_interval,
             channel,
-            bypass_channel_ids,
+            excluded_channels: scheduler_config.exclude_plugins,
             removed_job_handles: Default::default(),
         };
 
